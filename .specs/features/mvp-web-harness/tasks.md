@@ -222,9 +222,10 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Depends on**: T2 | **Reuses**: blocos `IS_PLATFORM` existentes como referência
 **Tools**: MCP: NONE; Skill: NONE
 **Done when**:
-- [ ] Testes: trusted+loopback sobe sem auth; trusted+bind público aborta com erro claro; modo default intacto
-- [ ] Gate passa
-**Tests**: unit | **Gate**: quick | **Commit**: `feat(auth): runtime trusted mode for tailnet deployments`
+- [x] Testes: trusted+loopback sobe sem auth; trusted+bind público aborta com erro claro; modo default intacto
+- [x] Gate passa
+**Tests**: unit | **Gate**: quick | **Commit**: `feat(auth): runtime trusted mode for tailnet deployments` — `0dd9145`
+**Status**: ✅ Done (2026-07-23) — 192 tests (baseline 179 + 13). `isTrustedMode()`/`assertTrustedModeBindIsSafe(host)`/`seedTrustedModeUser()` em `auth.js` (lidos em runtime, não cacheados no import); guard chamado no início de `startServer()` antes de `initializeDatabase()`; seed chamado após init. WS coberto de graça: todo o WS (chat/shell/plugin) passa pelo mesmo `verifyWebSocketClient` → `authenticateWebSocket`, sem tocar `websocket-auth.service.ts`.
 
 ### T14: Front sem tela de login em trusted
 
