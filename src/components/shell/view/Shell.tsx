@@ -32,6 +32,7 @@ type ShellProps = {
   minimal?: boolean;
   autoConnect?: boolean;
   isActive?: boolean;
+  profileId?: string | null;
 };
 
 export default function Shell({
@@ -43,6 +44,7 @@ export default function Shell({
   minimal = false,
   autoConnect = false,
   isActive = true,
+  profileId = null,
 }: ShellProps) {
   const { t } = useTranslation('chat');
   const [isRestarting, setIsRestarting] = useState(false);
@@ -71,6 +73,7 @@ export default function Shell({
     isRestarting,
     onProcessComplete,
     onOutputRef,
+    profileId,
   });
 
   // Check xterm.js buffer for CLI prompt patterns (❯ N. label)

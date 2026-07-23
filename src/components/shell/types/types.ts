@@ -15,6 +15,9 @@ export type ShellInitMessage = {
   initialCommand: string | null | undefined;
   isPlainShell: boolean;
   forceRestart?: boolean;
+  // Account profile whose isolated env should be pre-injected into this
+  // terminal (guided login flow, HUB-05 AC3). Absent for plain terminals.
+  profileId?: string | null;
 };
 
 export type ShellResizeMessage = {
@@ -46,6 +49,7 @@ export type UseShellRuntimeOptions = {
   isRestarting: boolean;
   onProcessComplete?: ((exitCode: number) => void) | null;
   onOutputRef?: MutableRefObject<(() => void) | null>;
+  profileId?: string | null;
 };
 
 export type ShellSharedRefs = {

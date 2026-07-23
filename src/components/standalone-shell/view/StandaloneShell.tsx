@@ -18,6 +18,7 @@ type StandaloneShellProps = {
   showHeader?: boolean;
   compact?: boolean;
   minimal?: boolean;
+  profileId?: string | null;
 };
 
 export default function StandaloneShell({
@@ -34,6 +35,7 @@ export default function StandaloneShell({
   showHeader = true,
   compact = false,
   minimal = false,
+  profileId = null,
 }: StandaloneShellProps) {
   const [isCompleted, setIsCompleted] = useState(false);
 
@@ -70,6 +72,7 @@ export default function StandaloneShell({
           onProcessComplete={handleProcessComplete}
           minimal={minimal}
           autoConnect={minimal ? true : autoConnect}
+          profileId={profileId}
         />
       </div>
     </div>

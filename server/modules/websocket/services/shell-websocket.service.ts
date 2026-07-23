@@ -19,6 +19,10 @@ type ShellIncomingMessage = {
   initialCommand?: string;
   isPlainShell?: boolean;
   forceRestart?: boolean;
+  // Account profile whose isolated env (CLAUDE_CONFIG_DIR, CODEX_HOME, ...)
+  // should be pre-injected into this terminal — used by the guided login flow
+  // so `claude /login` (etc.) writes credentials into the right profile dir.
+  profileId?: string;
 };
 
 type PtySessionEntry = {
@@ -43,7 +47,33 @@ type ShellWebSocketDependencies = {
   normalizeDetectedUrl: (url: string) => string | null;
   extractUrlsFromText: (content: string) => string[];
   shouldAutoOpenUrlFromOutput: (content: string) => boolean;
+  // Resolves an account profile id to its isolation env vars. Throws for an
+  // unknown profile id — a dangling reference is a hard error here too, never
+  // a silent fallback to the server's own default credentials.
+  resolveProfileEnv: (profileId: string) => Record<string, string>;
 };
+
+/**
+ * Merges one account profile's isolation env vars into the base spawn env for
+ * the shell PTY.
+ *
+ * A falsy `profileId` returns `baseEnv` unchanged (plain terminals keep
+ * upstream behavior). A `profileId` that fails to resolve propagates the
+ * resolver's error as-is, so the caller can surface a clear message instead of
+ * silently starting the terminal with the wrong (or no) account's credentials.
+ */
+export function buildShellSpawnEnv(
+  baseEnv: NodeJS.ProcessEnv,
+  profileId: string | undefined,
+  resolveProfileEnv: ShellWebSocketDependencies['resolveProfileEnv'],
+): NodeJS.ProcessEnv {
+  if (!profileId) {
+    return baseEnv;
+  }
+
+  const profileEnv = resolveProfileEnv(profileId);
+  return { ...baseEnv, ...profileEnv };
+}
 
 /**
  * Reads a string field from untyped payloads and falls back when absent.
@@ -247,6 +277,7 @@ export function handleShellConnection(
         const provider = readString(data.provider, 'claude');
         const initialCommand = readString(data.initialCommand);
         const forceRestart = readBoolean(data.forceRestart);
+        const profileId = readString(data.profileId) || undefined;
         const isPlainShell =
           readBoolean(data.isPlainShell) ||
           (!!initialCommand && !hasSession) ||
@@ -265,7 +296,12 @@ export function handleShellConnection(
           isPlainShell && initialCommand
             ? `_cmd_${Buffer.from(initialCommand).toString('base64').slice(0, 16)}`
             : '';
-        ptySessionKey = `${projectPath}_${sessionId ?? 'default'}${commandSuffix}`;
+        // A profile suffix keeps two concurrent logins for different accounts
+        // of the same provider from ever sharing a cached PTY/env — without
+        // it, two profiles issuing the same login command against the same
+        // default project would collide on the first profile's spawned env.
+        const profileSuffix = profileId ? `_profile_${profileId}` : '';
+        ptySessionKey = `${projectPath}_${sessionId ?? 'default'}${commandSuffix}${profileSuffix}`;
 
         if (isLoginCommand || forceRestart) {
           const oldSession = ptySessionsMap.get(ptySessionKey);
@@ -334,18 +370,31 @@ export function handleShellConnection(
         const termRows = readNumber(data.rows, 24);
         const prioritizedPath = prioritizeUserNpmGlobalBin(process.env);
 
+        let spawnEnv: NodeJS.ProcessEnv;
+        try {
+          spawnEnv = buildShellSpawnEnv(
+            {
+              ...process.env,
+              [prioritizedPath.key]: prioritizedPath.value,
+              TERM: 'xterm-256color',
+              COLORTERM: 'truecolor',
+              FORCE_COLOR: '3',
+            },
+            profileId,
+            dependencies.resolveProfileEnv,
+          );
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          ws.send(JSON.stringify({ type: 'error', message: `Profile error: ${message}` }));
+          return;
+        }
+
         shellProcess = pty.spawn(shell, shellArgs, {
           name: 'xterm-256color',
           cols: termCols,
           rows: termRows,
           cwd: resolvedProjectPath,
-          env: {
-            ...process.env,
-            [prioritizedPath.key]: prioritizedPath.value,
-            TERM: 'xterm-256color',
-            COLORTERM: 'truecolor',
-            FORCE_COLOR: '3',
-          },
+          env: spawnEnv,
         });
 
         ptySessionsMap.set(ptySessionKey, {

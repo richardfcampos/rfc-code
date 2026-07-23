@@ -17,6 +17,7 @@ export function useShellRuntime({
   isRestarting,
   onProcessComplete,
   onOutputRef,
+  profileId,
 }: UseShellRuntimeOptions): UseShellRuntimeResult {
   const terminalContainerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
@@ -28,6 +29,7 @@ export function useShellRuntime({
   const initialCommandRef = useRef(initialCommand);
   const isPlainShellRef = useRef(isPlainShell);
   const onProcessCompleteRef = useRef(onProcessComplete);
+  const profileIdRef = useRef(profileId);
   const lastSessionIdRef = useRef<string | null>(selectedSession?.id ?? null);
 
   // Keep mutable values in refs so websocket handlers always read current data.
@@ -37,7 +39,8 @@ export function useShellRuntime({
     initialCommandRef.current = initialCommand;
     isPlainShellRef.current = isPlainShell;
     onProcessCompleteRef.current = onProcessComplete;
-  }, [selectedProject, selectedSession, initialCommand, isPlainShell, onProcessComplete]);
+    profileIdRef.current = profileId;
+  }, [selectedProject, selectedSession, initialCommand, isPlainShell, onProcessComplete, profileId]);
 
   const closeSocket = useCallback(() => {
     const activeSocket = wsRef.current;
@@ -75,6 +78,7 @@ export function useShellRuntime({
     initialCommandRef,
     isPlainShellRef,
     onProcessCompleteRef,
+    profileIdRef,
     isInitialized,
     autoConnect,
     closeSocket,

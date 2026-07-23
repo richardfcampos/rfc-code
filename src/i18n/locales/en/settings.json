@@ -114,6 +114,12 @@
     "plugins": "Plugins",
     "about": "About"
   },
+  "profiles": {
+    "login": {
+      "title": "Authenticate {{name}}",
+      "close": "Close login terminal"
+    }
+  },
   "notifications": {
     "title": "Notifications",
     "description": "Control which notification events you receive.",
