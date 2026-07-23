@@ -20,11 +20,11 @@
 
 ## Handoff
 
-- **Última atividade:** 2026-07-23 11:16 -03 (heartbeat — sessões ativas DEVEM atualizar após cada task/fase; retomada automática só age se >90min parado) — Fase 2a: T3 ✅ (`604ca3a`), T4 ✅ (`e5a21b2`), T5 ✅ (`a894fb1`), T6 ✅ (`5f67df2`), T7 ✅ (`538706d`, spike RESOLVIDO: Codex SDK isola env por instância), T8 ✅ (`3f6ac6e`)
+- **Última atividade:** 2026-07-23 11:26 -03 (heartbeat — sessões ativas DEVEM atualizar após cada task/fase; retomada automática só age se >90min parado) — **Fase 2a CONCLUÍDA** (T3–T9): T3 (`604ca3a`), T4 (`e5a21b2`), T5 (`a894fb1`), T6 (`5f67df2`), T7 (`538706d`, spike Codex RESOLVIDO), T8 (`3f6ac6e`), T9 (`0e288d6`). Baseline 129 → **173 tests, 0 fail**; build EXIT 0.
 - **Fase:** EXECUTE — tasks aprovadas (21 tasks / 5 fases, 1 worker/fase).
 - **Concluído:** Fase 1 ✅ (T1 `df9c125` fork+atribuição; T2 `95bbc10` baseline 129/0 + build verde; push feito em `origin/rfc-code`).
-- **Em andamento:** Fase 2a (T3–T9, núcleo server dos perfis) despachada a worker Opus. Fase 2 dividida em 2a (server T3–T9, Opus) e 2b (UI T10–T12, Sonnet) por sizing de contexto do worker (~40k) — desvio operacional, tasks inalteradas.
-- **Próximo passo:** resumo 2a → despachar 2b → Fase 3 (Sonnet). Após T21: Verifier automático (Opus).
+- **Em andamento:** Fase 2a (T3–T9) ✅ CONCLUÍDA pelo worker Opus (núcleo server dos perfis: schema, service, rotas, env-injection dos 4 providers, sync profile-aware). Fase 2 dividida em 2a (server T3–T9, Opus, feita) e 2b (UI T10–T12, Sonnet, pendente) por sizing de contexto — desvio operacional, tasks inalteradas.
+- **Próximo passo:** despachar Fase 2b (UI T10–T12, Sonnet) → Fase 3 (T13–T14, Sonnet). Após T21: Verifier automático (Opus).
 - **Como retomar:** ativar skill `tlc-spec-driven`, seguir fluxo Execute de `.specs/features/mvp-web-harness/tasks.md` a partir da primeira task não marcada concluída, respeitando AD-001..AD-013.
 - **Bloqueios conhecidos:** T1 requer `gh` autenticado; T17 requer usuário (deploy intel + login de contas reais).
 - **Clone de verificação:** scratchpad da sessão (`.../scratchpad/claudecodeui`) — shallow, descartável; fork real será clonado no Execute.

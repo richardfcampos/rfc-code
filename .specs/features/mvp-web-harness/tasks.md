@@ -174,9 +174,10 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Depends on**: T6, T7, T8 | **Reuses**: synchronizers upstream
 **Tools**: MCP: NONE; Skill: NONE
 **Done when**:
-- [ ] Sessão criada via perfil aparece indexada com `profile_id` correto (teste com dirs efêmeros)
-- [ ] Gate passa
-**Tests**: unit | **Gate**: full | **Commit**: `feat(profiles): profile-aware session sync`
+- [x] Sessão criada via perfil aparece indexada com `profile_id` correto (teste com dirs efêmeros)
+- [x] Gate passa
+**Tests**: unit | **Gate**: full | **Commit**: `feat(profiles): profile-aware session sync` — `0e288d6`
+**Status**: ✅ Done (2026-07-23) — 173 tests (+9). 4 synchronizers varrem `[~ default, ...profile roots]` e gravam `profile_id` (null p/ default = retrocompat). Helper `profile-sync.ts` (scan roots + resolução por path, guard anti-prefix-collision). `createSession` ganhou param `profileId` (COALESCE não-clobber). Full gate: 173 tests + build EXIT 0.
 
 ### T10: UI página de perfis [P]
 
