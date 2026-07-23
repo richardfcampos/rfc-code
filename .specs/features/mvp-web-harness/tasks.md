@@ -186,9 +186,10 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Depends on**: T5 | **Reuses**: padrões de `src/components/mcp/`
 **Tools**: MCP: NONE; Skill: `frontend-development` se necessário
 **Done when**:
-- [ ] CRUD funcional contra API; status visível (HUB-05 AC3)
-- [ ] Build verde
-**Tests**: none (build gate + UAT) | **Gate**: build | **Commit**: `feat(profiles): profiles management UI`
+- [x] CRUD funcional contra API; status visível (HUB-05 AC3)
+- [x] Build verde
+**Tests**: none (build gate + UAT) | **Gate**: build | **Commit**: `feat(profiles): profiles management UI` — `fe67876`
+**Status**: ✅ Done (2026-07-23) — 176 tests (sem novos testes de servidor; UI + build gate). Aba "Profiles" na Settings (`ProfilesSettingsTab`, `CreateProfileModal`) contra `/api/profiles`; badge de status por perfil.
 
 ### T11: Login guiado via terminal web [P]
 
@@ -197,9 +198,10 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Depends on**: T5 | **Reuses**: terminal xterm+node-pty upstream
 **Tools**: MCP: NONE; Skill: NONE
 **Done when**:
-- [ ] Terminal abre com env do perfil (verificável via `echo $CLAUDE_CONFIG_DIR`)
-- [ ] Build verde; teste unit do patch no shell service (env extra aplicado)
-**Tests**: unit (server patch) | **Gate**: full | **Commit**: `feat(profiles): guided auth via web terminal`
+- [x] Terminal abre com env do perfil (verificável via `echo $CLAUDE_CONFIG_DIR`)
+- [x] Build verde; teste unit do patch no shell service (env extra aplicado)
+**Tests**: unit (server patch) | **Gate**: full | **Commit**: `feat(profiles): guided auth via web terminal` — `7cf5c1a`
+**Status**: ✅ Done (2026-07-23) — 176 tests (baseline 173 + 3). `buildShellSpawnEnv` mescla env do perfil no spawn do PTY (`shell-websocket.service.ts`); `ProfileLoginTerminal` abre `StandaloneShell` com `profileId` + comando sugerido por provider (`profileLoginCommand.ts`). Full gate verde.
 
 ### T12: Seletor de perfil na sessão + badge [P]
 
@@ -208,9 +210,10 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Depends on**: T5, T9 | **Reuses**: seletor de provider upstream (README providers 85-89)
 **Tools**: MCP: NONE; Skill: NONE
 **Done when**:
-- [ ] Fluxo criar-sessão-com-perfil em ≤3 cliques; badge visível
-- [ ] Build verde
-**Tests**: none (build gate + UAT) | **Gate**: build | **Commit**: `feat(profiles): session profile selector and badge`
+- [x] Fluxo criar-sessão-com-perfil em ≤3 cliques; badge visível
+- [x] Build verde
+**Tests**: none (build gate + UAT) | **Gate**: build | **Commit**: `feat(profiles): session profile selector and badge` — `b540257`
+**Status**: ✅ Done (2026-07-23) — 179 tests (+3). SPEC_DEVIATION: gate elevado p/ full (em vez de build) porque a task passou a tocar `sessionsService.createAppSession`/rota `/api/providers/sessions` (persistência de `profileId` na sessão) — mudança de servidor exige unit test pela Test Coverage Matrix, mesmo com o campo Tests da task dizendo "none" (esse campo cobria só a metade de UI). Reason: sem stampar `profile_id` na criação não há como o badge (HUB-05 AC2) saber qual perfil está em uso. Dropdown de perfil em `ProviderSelectionEmptyState`; badge em `MainContentTitle` via `SessionProfileBadge`.
 
 ### T13: AUTH_MODE=trusted (runtime)
 
