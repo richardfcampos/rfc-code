@@ -69,11 +69,12 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Depends on**: None | **Reuses**: upstream inteiro | **Requirement**: infra (AD-008/AD-009)
 **Tools**: MCP: NONE; Skill: NONE (gh CLI)
 **Done when**:
-- [ ] `git remote -v` mostra fork (origin) + upstream
-- [ ] Branch `rfc-code` ativa; `.specs/` commitado nela
-- [ ] README com atribuição AGPL Seção 7
-- [ ] `npm install` completa sem erro
-**Tests**: none | **Gate**: build (install) | **Commit**: `chore: establish rfc-code fork with attribution`
+- [x] `git remote -v` mostra fork (origin) + upstream
+- [x] Branch `rfc-code` ativa; `.specs/` commitado nela
+- [x] README com atribuição AGPL Seção 7
+- [x] `npm install` completa sem erro
+**Tests**: none | **Gate**: build (install) | **Commit**: `chore: establish rfc-code fork with attribution` — `df9c125`
+**Status**: ✅ Done (2026-07-23)
 
 ### T2: Baseline de build e testes
 
