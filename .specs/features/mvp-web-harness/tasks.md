@@ -162,9 +162,10 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Depends on**: T4 | **Reuses**: `resolveEnv`
 **Tools**: MCP: NONE; Skill: NONE
 **Done when**:
-- [ ] Env correto por perfil nos 2 spawns (testes); retrocompat sem profileId
-- [ ] Gate passa
-**Tests**: unit | **Gate**: quick | **Commit**: `feat(profiles): cursor and opencode env injection`
+- [x] Env correto por perfil nos 2 spawns (testes); retrocompat sem profileId
+- [x] Gate passa
+**Tests**: unit | **Gate**: quick | **Commit**: `feat(profiles): cursor and opencode env injection` — `3f6ac6e`
+**Status**: ✅ Done (2026-07-23) — 164 tests (+6). Injeção cirúrgica no env do spawn (cursor→HOME, opencode→XDG_CONFIG/DATA). Testes via fake-executable-on-PATH (padrão upstream `opencode-cli.test.js`) capturam o env REAL do processo filho — prova end-to-end, não mock.
 
 ### T9: Synchronizers profile-aware
 
