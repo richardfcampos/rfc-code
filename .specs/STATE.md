@@ -20,11 +20,11 @@
 
 ## Handoff
 
-- **Última atividade:** 2026-07-23 18:10 -03 — T15 concluída (`100997d`): `docker build` verde, `docker run` local serve UI/health/CLIs (verificado via `docker exec`, já que `network_mode: host` do Docker Desktop macOS não expõe o container ao curl do host — funciona nativamente no Linux do intel, ver deploy/README.md).
+- **Última atividade:** 2026-07-23 18:25 -03 — Fase 4 (T15–T16) concluída e pushed. T15 `100997d`, T16 `205589f`. `docker build`+`docker run` locais verdes, 4 CLIs verificados, AC1-3 de HUB-07 confirmados (via `docker exec` — `network_mode: host` do Docker Desktop macOS não expõe ao curl do host, documentado; funciona nativamente no Linux do intel).
 - **Fase:** EXECUTE — tasks aprovadas (21 tasks / 5 fases, 1 worker/fase).
-- **Concluído:** Fase 1 ✅ (T1 `df9c125`, T2 `95bbc10`); Fase 2 ✅ (T3–T9; T10 `fe67876`, T11 `7cf5c1a`, T12 `b540257`); Fase 3 ✅ (T13 `0dd9145`, T14 `2a042b6`, 192 tests/0 fail); FIX terminal trusted ✅ `36e0b33` (gap da Fase 3 resolvido); Fase 4 T15 ✅ `100997d` — TUDO pushed em `origin/rfc-code` até `36e0b33` (T15 ainda não pushed neste commit docs).
-- **Em andamento:** Fase 4 — T16 (compose + smoke-test + README) em progresso pelo mesmo worker; `deploy/docker-compose.yml`, `deploy/smoke-test.sh`, `deploy/README.md` já rascunhados pelo worker anterior, sendo revisados/corrigidos e commitados a seguir.
-- **Próximo passo (ao retomar):** se T16 já commitado, seguir para T17 (deploy intel — REQUER USUÁRIO) → Fase 5 (T18–T21, Opus) → Verifier (Opus). Se T16 ainda pendente, concluir revisão/commit de T16 primeiro.
+- **Concluído:** Fase 1 ✅ (T1 `df9c125`, T2 `95bbc10`); Fase 2 ✅ (T3–T9; T10 `fe67876`, T11 `7cf5c1a`, T12 `b540257`); Fase 3 ✅ (T13 `0dd9145`, T14 `2a042b6`, 192 tests/0 fail); FIX terminal trusted ✅ `36e0b33`; Fase 4 ✅ (T15 `100997d`, T16 `205589f`) — TUDO pushed em `origin/rfc-code`.
+- **Próximo passo (ao retomar):** T17 (deploy real no intel — REQUER USUÁRIO: compose up, tailscale serve, login de contas reais, smoke test + UAT laptop/tablet) → Fase 5 (T18–T21, Opus) → Verifier (Opus).
+- **Bloqueios conhecidos:** T17 requer o usuário (deploy intel + login de contas reais + acesso a dispositivos para UAT).
 - **Como retomar:** ativar skill `tlc-spec-driven`, fluxo Execute de tasks.md a partir da primeira task não concluída (T15), respeitando AD-001..AD-013 e o parágrafo acima.
 - **Bloqueios conhecidos:** T1 requer `gh` autenticado; T17 requer usuário (deploy intel + login de contas reais).
 - **Clone de verificação:** scratchpad da sessão (`.../scratchpad/claudecodeui`) — shallow, descartável; fork real será clonado no Execute.

@@ -257,8 +257,9 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Depends on**: T15 | **Reuses**: —
 **Tools**: MCP: NONE; Skill: NONE
 **Done when**:
-- [ ] `docker compose up -d` local ok; restart preserva DB/perfis (HUB-07 AC2 via smoke script)
-**Tests**: smoke script | **Gate**: build | **Commit**: `feat(deploy): compose, smoke test and tailscale docs`
+- [x] `docker compose up -d` local ok; restart preserva DB/perfis (HUB-07 AC2 via smoke script)
+**Tests**: smoke script | **Gate**: build | **Commit**: `feat(deploy): compose, smoke test and tailscale docs` — `205589f`
+**Status**: ✅ Done (2026-07-23) — `docker compose up -d` local ok (`network_mode: host`; SPEC_DEVIATION documentado no compose/README: bridge `ports: 127.0.0.1:PORT:PORT` é incompatível com o guard `assertTrustedModeBindIsSafe` — Docker NAT nunca alcança um bind de loopback dentro do container; verificado). AC2 (restart preserva perfil marcador) e AC3 (sem processo órfão) confirmados via `docker exec` (curl do host macOS não alcança `network_mode: host` do Docker Desktop — limitação documentada no README/smoke-test.sh, não reproduz no Linux nativo do intel). Corrigido bug herdado no smoke-test.sh: contagem de processos via `ps|wc -l` sob `set -e` sempre falhava (contava o próprio wrapper do `exec`) e curl de criação de perfil sem guard abortava o script antes do resumo — trocado por checagem por nome de processo e `|| true` no curl.
 
 ### T17: Deploy no intel + validação de dispositivos
 
