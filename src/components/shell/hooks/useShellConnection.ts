@@ -3,6 +3,7 @@ import type { MutableRefObject } from 'react';
 import type { FitAddon } from '@xterm/addon-fit';
 import type { Terminal } from '@xterm/xterm';
 
+import { useAuth } from '../../auth/context/AuthContext';
 import type { Project, ProjectSession } from '../../../types/app';
 import { TERMINAL_INIT_DELAY_MS } from '../constants/constants';
 import { getShellWebSocketUrl, parseShellMessage, sendSocketMessage } from '../utils/socket';
@@ -57,6 +58,7 @@ export function useShellConnection({
   const connectingRef = useRef(false);
   const forceRestartOnInitRef = useRef(false);
   const suppressAutoConnectRef = useRef(false);
+  const { isTrusted } = useAuth();
 
   const handleProcessCompletion = useCallback(
     (output: string) => {
@@ -111,7 +113,7 @@ export function useShellConnection({
       }
 
       try {
-        const wsUrl = getShellWebSocketUrl();
+        const wsUrl = getShellWebSocketUrl(isTrusted);
         if (!wsUrl) {
           connectingRef.current = false;
           setIsConnecting(false);
@@ -188,6 +190,7 @@ export function useShellConnection({
       isConnected,
       isConnecting,
       isPlainShellRef,
+      isTrusted,
       profileIdRef,
       selectedProjectRef,
       selectedSessionRef,

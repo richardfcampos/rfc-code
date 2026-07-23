@@ -1,10 +1,16 @@
 import { IS_PLATFORM } from '../../../constants/config';
 import type { ShellIncomingMessage, ShellOutgoingMessage } from '../types/types';
 
-export function getShellWebSocketUrl(): string | null {
+export function getShellWebSocketUrl(isTrusted: boolean): string | null {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 
   if (IS_PLATFORM) {
+    return `${protocol}//${window.location.host}/shell`;
+  }
+
+  // Trusted mode (runtime AUTH_MODE=trusted, not the build-time IS_PLATFORM flag):
+  // the server skips WS auth entirely, so no token is ever issued to attach here.
+  if (isTrusted) {
     return `${protocol}//${window.location.host}/shell`;
   }
 
