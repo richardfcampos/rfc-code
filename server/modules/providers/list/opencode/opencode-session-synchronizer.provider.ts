@@ -4,6 +4,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import { resolveProfileRootForPath, resolveProfileScanRoots } from '@/modules/profiles/index.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
 import {
   getOpenCodeDatabasePath,
@@ -35,11 +36,24 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
   private readonly provider = 'opencode' as const;
 
   /**
-   * Scans OpenCode's shared opencode.db and upserts active sessions into DB.
+   * Scans the default shared opencode.db plus every profile's isolated
+   * opencode.db, upserting active sessions with the owning profile id (null for
+   * the default db, keeping pre-feature sessions profile-less).
    */
   async synchronize(since?: Date): Promise<number> {
-    const result = this.synchronizeRows(since);
-    return result.processed;
+    const dbRoots = [
+      { dbPath: getOpenCodeDatabasePath(), profileId: null as string | null },
+      ...resolveProfileScanRoots(this.provider).map((root) => ({
+        dbPath: path.join(root.home, 'opencode.db'),
+        profileId: root.profileId,
+      })),
+    ];
+
+    let processed = 0;
+    for (const root of dbRoots) {
+      processed += this.synchronizeRows(root.dbPath, root.profileId, since).processed;
+    }
+    return processed;
   }
 
   /**
@@ -50,12 +64,17 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
       return null;
     }
 
-    const result = this.synchronizeRows(undefined, 1);
+    const profileId = resolveProfileRootForPath(this.provider, filePath)?.profileId ?? null;
+    const result = this.synchronizeRows(filePath, profileId, undefined, 1);
     return result.firstSessionId;
   }
 
-  private synchronizeRows(since?: Date, limit?: number): SynchronizeRowsResult {
-    const dbPath = getOpenCodeDatabasePath();
+  private synchronizeRows(
+    dbPath: string,
+    profileId: string | null,
+    since?: Date,
+    limit?: number
+  ): SynchronizeRowsResult {
     if (!fsSync.existsSync(dbPath)) {
       return { processed: 0, firstSessionId: null };
     }
@@ -84,7 +103,7 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
       let processed = 0;
       let firstSessionId: string | null = null;
       for (const row of rows) {
-        const indexedSessionId = this.upsertSession(db, row);
+        const indexedSessionId = this.upsertSession(db, row, profileId);
         if (!indexedSessionId) {
           continue;
         }
@@ -105,7 +124,11 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
     }
   }
 
-  private upsertSession(db: Database.Database, row: OpenCodeSessionRow): string | null {
+  private upsertSession(
+    db: Database.Database,
+    row: OpenCodeSessionRow,
+    profileId: string | null
+  ): string | null {
     const sessionId = readOptionalString(row.id);
     const projectPath = readOptionalString(row.directory) ?? readOptionalString(row.worktree);
     if (!sessionId || !projectPath) {
@@ -162,6 +185,7 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
       normalizeProviderTimestamp(row.time_created),
       normalizeProviderTimestamp(row.time_updated ?? row.time_created),
       null,
+      profileId,
     );
   }
 

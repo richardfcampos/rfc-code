@@ -6,6 +6,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import { resolveProfileRootForPath, resolveProfileScanRoots } from '@/modules/profiles/index.js';
 import {
   extractFirstValidJsonlData,
   findFilesRecursivelyCreatedAfter,
@@ -41,15 +42,32 @@ export class CursorSessionSynchronizer implements IProviderSessionSynchronizer {
   private readonly cursorHome = path.join(os.homedir(), '.cursor');
 
   /**
-   * Scans Cursor chats and upserts discovered sessions into DB.
+   * Scans the default ~/.cursor home plus every profile's isolated cursor home,
+   * upserting discovered sessions with the owning profile id (null for the
+   * default home, keeping pre-feature sessions profile-less).
    */
   async synchronize(since?: Date): Promise<number> {
-    const projectsDir = path.join(this.cursorHome, 'projects');
+    const roots = [
+      { home: this.cursorHome, profileId: null as string | null },
+      ...resolveProfileScanRoots(this.provider),
+    ];
 
     let processed = 0;
+    for (const root of roots) {
+      processed += await this.synchronizeHome(root.home, root.profileId, since);
+    }
+    return processed;
+  }
 
+  private async synchronizeHome(
+    home: string,
+    profileId: string | null,
+    since?: Date
+  ): Promise<number> {
+    const projectsDir = path.join(home, 'projects');
     const files = await findFilesRecursivelyCreatedAfter(projectsDir, '.jsonl', since ?? null);
 
+    let processed = 0;
     for (const filePath of files) {
       const parsed = await this.processSessionFile(filePath);
       if (!parsed) {
@@ -64,7 +82,8 @@ export class CursorSessionSynchronizer implements IProviderSessionSynchronizer {
         parsed.sessionName,
         timestamps.createdAt,
         timestamps.updatedAt,
-        filePath
+        filePath,
+        profileId
       );
       processed += 1;
     }
@@ -93,7 +112,8 @@ export class CursorSessionSynchronizer implements IProviderSessionSynchronizer {
       parsed.sessionName,
       timestamps.createdAt,
       timestamps.updatedAt,
-      filePath
+      filePath,
+      resolveProfileRootForPath(this.provider, filePath)?.profileId ?? null
     );
   }
 

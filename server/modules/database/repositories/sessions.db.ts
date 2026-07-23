@@ -75,12 +75,14 @@ export const sessionsDb = {
     customName?: string,
     createdAt?: string,
     updatedAt?: string,
-    jsonlPath?: string | null
+    jsonlPath?: string | null,
+    profileId?: string | null
   ): string {
     const db = getConnection();
     const createdAtValue = normalizeTimestamp(createdAt);
     const updatedAtValue = normalizeTimestamp(updatedAt);
     const normalizedProjectPath = normalizeProjectPathForProvider(provider, projectPath);
+    const profileIdValue = profileId ?? null;
 
     // First, ensure the project path is recorded in the projects table,
     // since it's a foreign key in the sessions table.
@@ -102,7 +104,8 @@ export const sessionsDb = {
            project_path = ?,
            jsonl_path = ?,
            isArchived = 0,
-           custom_name = COALESCE(?, custom_name)
+           custom_name = COALESCE(?, custom_name),
+           profile_id = COALESCE(?, profile_id)
          WHERE session_id = ?`
       ).run(
         provider,
@@ -110,6 +113,7 @@ export const sessionsDb = {
         normalizedProjectPath,
         jsonlPath ?? null,
         customName ?? null,
+        profileIdValue,
         existing.session_id
       );
 
@@ -120,8 +124,8 @@ export const sessionsDb = {
     // keyed by the provider-native id for both columns. The ON CONFLICT path
     // covers legacy rows that predate the provider_session_id mapping.
     db.prepare(
-      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, isArchived, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
+      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, profile_id, isArchived, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
        ON CONFLICT(session_id) DO UPDATE SET
          provider = excluded.provider,
          provider_session_id = excluded.provider_session_id,
@@ -129,7 +133,8 @@ export const sessionsDb = {
          project_path = excluded.project_path,
          jsonl_path = excluded.jsonl_path,
          isArchived = 0,
-         custom_name = COALESCE(excluded.custom_name, sessions.custom_name)`
+         custom_name = COALESCE(excluded.custom_name, sessions.custom_name),
+         profile_id = COALESCE(excluded.profile_id, sessions.profile_id)`
     ).run(
       providerSessionId,
       provider,
@@ -137,6 +142,7 @@ export const sessionsDb = {
       customName ?? null,
       normalizedProjectPath,
       jsonlPath ?? null,
+      profileIdValue,
       createdAtValue,
       updatedAtValue
     );

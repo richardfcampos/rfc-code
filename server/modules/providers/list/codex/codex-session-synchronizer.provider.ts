@@ -3,6 +3,7 @@ import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import { resolveProfileRootForPath, resolveProfileScanRoots } from '@/modules/profiles/index.js';
 import {
   buildLookupMap,
   extractFirstValidJsonlData,
@@ -26,12 +27,31 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
   private readonly codexHome = path.join(os.homedir(), '.codex');
 
   /**
-   * Scans ~/.codex/sessions and upserts discovered sessions into DB.
+   * Scans the default ~/.codex home plus every profile's isolated CODEX_HOME,
+   * upserting discovered sessions with the owning profile id (null for the
+   * default home, keeping pre-feature sessions profile-less).
    */
   async synchronize(since?: Date): Promise<number> {
-    const nameMap = await buildLookupMap(path.join(this.codexHome, 'session_index.jsonl'), 'id', 'thread_name');
+    const roots = [
+      { home: this.codexHome, profileId: null as string | null },
+      ...resolveProfileScanRoots(this.provider),
+    ];
+
+    let processed = 0;
+    for (const root of roots) {
+      processed += await this.synchronizeHome(root.home, root.profileId, since);
+    }
+    return processed;
+  }
+
+  private async synchronizeHome(
+    home: string,
+    profileId: string | null,
+    since?: Date
+  ): Promise<number> {
+    const nameMap = await buildLookupMap(path.join(home, 'session_index.jsonl'), 'id', 'thread_name');
     const files = await findFilesRecursivelyCreatedAfter(
-      path.join(this.codexHome, 'sessions'),
+      path.join(home, 'sessions'),
       '.jsonl',
       since ?? null
     );
@@ -60,7 +80,8 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
         parsed.sessionName,
         timestamps.createdAt,
         timestamps.updatedAt,
-        filePath
+        filePath,
+        profileId
       );
       processed += 1;
     }
@@ -76,7 +97,9 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       return null;
     }
 
-    const nameMap = await buildLookupMap(path.join(this.codexHome, 'session_index.jsonl'), 'id', 'thread_name');
+    const owningRoot = resolveProfileRootForPath(this.provider, filePath);
+    const home = owningRoot?.home ?? this.codexHome;
+    const nameMap = await buildLookupMap(path.join(home, 'session_index.jsonl'), 'id', 'thread_name');
     const parsed = await this.processSessionFile(filePath, nameMap);
     if (!parsed) {
       return null;
@@ -90,7 +113,8 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       parsed.sessionName,
       timestamps.createdAt,
       timestamps.updatedAt,
-      filePath
+      filePath,
+      owningRoot?.profileId ?? null
     );
   }
 

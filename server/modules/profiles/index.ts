@@ -10,3 +10,9 @@ export {
   resolveProfileDir,
   resolveProviderEnv,
 } from '@/modules/profiles/profile-env.js';
+export {
+  resolveProfileIdForPath,
+  resolveProfileRootForPath,
+  resolveProfileScanRoots,
+  type ProfileScanRoot,
+} from '@/modules/profiles/profile-sync.js';
