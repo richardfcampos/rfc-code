@@ -68,7 +68,7 @@ import { browserUseService } from './modules/browser-use/browser-use.service.js'
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
 import { initializeDatabase, projectsDb, sessionsDb } from './modules/database/index.js';
 import { configureWebPush } from './services/vapid-keys.js';
-import { validateApiKey, authenticateToken, authenticateWebSocket } from './middleware/auth.js';
+import { validateApiKey, authenticateToken, authenticateWebSocket, assertTrustedModeBindIsSafe, seedTrustedModeUser } from './middleware/auth.js';
 import { IS_PLATFORM } from './constants/config.js';
 import { c } from './utils/colors.js';
 
@@ -1580,8 +1580,18 @@ async function removeLocalServerMarker() {
 // Initialize database and start server
 async function startServer() {
     try {
+        // Trusted mode's only security boundary is the network perimeter (e.g. a
+        // Tailscale tailnet); refuse to bind anywhere but loopback so the app is
+        // never exposed without authentication. Must run before anything listens.
+        assertTrustedModeBindIsSafe(HOST);
+
         // Initialize authentication database
         await initializeDatabase();
+
+        // Trusted mode skips the registration screen, so seed a user if none
+        // exists yet — otherwise no request could ever pass authenticateToken's
+        // getFirstUser() lookup. No-op outside trusted mode or once a user exists.
+        await seedTrustedModeUser();
 
         // Configure Web Push (VAPID keys)
         configureWebPush();
