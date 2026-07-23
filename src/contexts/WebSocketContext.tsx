@@ -51,9 +51,12 @@ export const useWebSocket = () => {
   return context;
 };
 
-const buildWebSocketUrl = (token: string | null) => {
+const buildWebSocketUrl = (token: string | null, isTrusted: boolean) => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   if (IS_PLATFORM) return `${protocol}//${window.location.host}/ws`; // Platform mode: Use same domain as the page (goes through proxy)
+  // Trusted mode (runtime AUTH_MODE=trusted, not the build-time IS_PLATFORM flag):
+  // the server skips WS auth entirely, so no token is ever issued to attach here.
+  if (isTrusted) return `${protocol}//${window.location.host}/ws`;
   if (!token) return null;
   return `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`; // OSS mode: Use same host:port that served the page
 };
@@ -71,7 +74,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   const [latestMessage, setLatestMessage] = useState<ServerEvent | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const { token } = useAuth();
+  const { token, isTrusted } = useAuth();
 
   const dispatch = useCallback((event: ServerEvent) => {
     for (const listener of listenersRef.current) {
@@ -100,13 +103,13 @@ const useWebSocketProviderState = (): WebSocketContextType => {
         wsRef.current.close();
       }
     };
-  }, [token]); // everytime token changes, we reconnect
+  }, [token, isTrusted]); // reconnect whenever the token or trusted-mode status changes
 
   const connect = useCallback(() => {
     if (unmountedRef.current) return; // Prevent connection if unmounted
     try {
       // Construct WebSocket URL
-      const wsUrl = buildWebSocketUrl(token);
+      const wsUrl = buildWebSocketUrl(token, isTrusted);
 
       if (!wsUrl) return console.warn('No authentication token found for WebSocket connection');
 
@@ -149,7 +152,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     } catch (error) {
       console.error('Error creating WebSocket connection:', error);
     }
-  }, [token, dispatch]); // everytime token changes, we reconnect
+  }, [token, isTrusted, dispatch]); // reconnect whenever the token or trusted-mode status changes
 
   const sendMessage = useCallback((message: unknown) => {
     const socket = wsRef.current;

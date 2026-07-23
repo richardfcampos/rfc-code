@@ -39,6 +39,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [token, setToken] = useState<string | null>(() => readStoredToken());
   const [isLoading, setIsLoading] = useState(true);
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [isTrusted, setIsTrusted] = useState(false);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,6 +82,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       const statusResponse = await api.auth.status();
       const statusPayload = await parseJsonSafely<AuthStatusPayload>(statusResponse);
+      const trusted = Boolean(statusPayload?.trusted);
+      setIsTrusted(trusted);
 
       if (statusPayload?.needsSetup) {
         setNeedsSetup(true);
@@ -89,7 +92,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       setNeedsSetup(false);
 
-      if (!token) {
+      // Trusted mode (tailnet-only deployments) has no per-request auth on the
+      // server, so /api/auth/user succeeds without a stored token. The OSS
+      // path below still requires one.
+      if (!trusted && !token) {
         return;
       }
 
@@ -197,6 +203,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       token,
       isLoading,
       needsSetup,
+      isTrusted,
       hasCompletedOnboarding,
       error,
       login,
@@ -208,6 +215,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       error,
       hasCompletedOnboarding,
       isLoading,
+      isTrusted,
       login,
       logout,
       needsSetup,

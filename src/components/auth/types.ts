@@ -17,6 +17,9 @@ export type AuthSessionPayload = {
 
 export type AuthStatusPayload = {
   needsSetup?: boolean;
+  // Runtime signal (AUTH_MODE=trusted on the server) — not the build-time
+  // VITE_IS_PLATFORM flag — that the login screen should be skipped.
+  trusted?: boolean;
 };
 
 export type AuthUserPayload = {
@@ -37,6 +40,7 @@ export type AuthContextValue = {
   token: string | null;
   isLoading: boolean;
   needsSetup: boolean;
+  isTrusted: boolean;
   hasCompletedOnboarding: boolean;
   error: string | null;
   login: (username: string, password: string) => Promise<AuthActionResult>;
