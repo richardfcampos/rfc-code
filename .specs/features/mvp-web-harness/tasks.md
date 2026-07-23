@@ -136,10 +136,11 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Depends on**: T4 | **Reuses**: `resolveEnv` (T4)
 **Tools**: MCP: NONE; Skill: NONE
 **Done when**:
-- [ ] Sessão criada com `profileId` recebe `CLAUDE_CONFIG_DIR` correto (teste unit no builder de options)
-- [ ] Sem `profileId` → comportamento upstream intacto (retrocompat)
-- [ ] Gate passa
-**Tests**: unit | **Gate**: quick | **Commit**: `feat(profiles): claude env injection + dispatch profileId`
+- [x] Sessão criada com `profileId` recebe `CLAUDE_CONFIG_DIR` correto (teste unit no builder de options)
+- [x] Sem `profileId` → comportamento upstream intacto (retrocompat)
+- [x] Gate passa
+**Tests**: unit | **Gate**: quick | **Commit**: `feat(profiles): claude env injection + dispatch profileId` — `5f67df2`
+**Status**: ✅ Done (2026-07-23) — 155 tests (+2). Patches: `mapCliOptionsToSDK` (claude-sdk.js, exportado p/ teste) + dispatch SSE (agent.js, 4 providers) + dispatch WS (chat-websocket, profile session-bound via `session.profile_id`) + expõe `profile_id` no read de SessionRow (enabler). Build EXIT 0.
 
 ### T7: Codex profile support (spike + implementação) [P]
 
