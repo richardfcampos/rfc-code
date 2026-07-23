@@ -100,9 +100,10 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Depends on**: T2 | **Reuses**: padrão de schema/migrations existente (`schema.ts:99-120`)
 **Tools**: MCP: NONE; Skill: NONE
 **Done when**:
-- [ ] Migration cria tabela+coluna em DB efêmero; re-execução é idempotente
-- [ ] Gate passa; test count ≥ baseline + novos
-**Tests**: unit | **Gate**: quick | **Commit**: `feat(profiles): add profiles table and sessions.profile_id`
+- [x] Migration cria tabela+coluna em DB efêmero; re-execução é idempotente
+- [x] Gate passa; test count ≥ baseline + novos
+**Tests**: unit | **Gate**: quick | **Commit**: `feat(profiles): add profiles table and sessions.profile_id` — `604ca3a`
+**Status**: ✅ Done (2026-07-23) — 133 tests (baseline 129 + 4)
 
 ### T4: Profiles service
 

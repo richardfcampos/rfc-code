@@ -20,10 +20,11 @@
 
 ## Handoff
 
-- **Última atividade:** 2026-07-23 10:17 -03 (heartbeat — sessões ativas DEVEM atualizar após cada task/fase; retomada automática só age se >90min parado)
-- **Fase:** EXECUTE — tasks APROVADAS pelo usuário (21 tasks / 5 fases, sub-agents aceitos: 1 worker/fase).
-- **Em andamento:** Fase 1 CONCLUÍDA por worker Sonnet — T1 (`df9c125`, fork estabelecido) e T2 (`95bbc10`, script `test` + baseline 129 passed/0 failed + build verde) feitas. Push pendente para `origin/rfc-code`.
-- **Próximo passo:** orquestrador recebe resumo da Fase 1 → despachar Fase 2 (Opus, T3-T12 perfis multi-conta). Após T21: Verifier automático (Opus).
+- **Última atividade:** 2026-07-23 10:37 -03 (heartbeat — sessões ativas DEVEM atualizar após cada task/fase; retomada automática só age se >90min parado) — Fase 2a: T3 ✅ (`604ca3a`)
+- **Fase:** EXECUTE — tasks aprovadas (21 tasks / 5 fases, 1 worker/fase).
+- **Concluído:** Fase 1 ✅ (T1 `df9c125` fork+atribuição; T2 `95bbc10` baseline 129/0 + build verde; push feito em `origin/rfc-code`).
+- **Em andamento:** Fase 2a (T3–T9, núcleo server dos perfis) despachada a worker Opus. Fase 2 dividida em 2a (server T3–T9, Opus) e 2b (UI T10–T12, Sonnet) por sizing de contexto do worker (~40k) — desvio operacional, tasks inalteradas.
+- **Próximo passo:** resumo 2a → despachar 2b → Fase 3 (Sonnet). Após T21: Verifier automático (Opus).
 - **Como retomar:** ativar skill `tlc-spec-driven`, seguir fluxo Execute de `.specs/features/mvp-web-harness/tasks.md` a partir da primeira task não marcada concluída, respeitando AD-001..AD-013.
 - **Bloqueios conhecidos:** T1 requer `gh` autenticado; T17 requer usuário (deploy intel + login de contas reais).
 - **Clone de verificação:** scratchpad da sessão (`.../scratchpad/claudecodeui`) — shallow, descartável; fork real será clonado no Execute.
