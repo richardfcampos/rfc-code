@@ -280,9 +280,10 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Depends on**: T2 | **Reuses**: registry de canais plugável upstream
 **Tools**: MCP: NONE; Skill: NONE
 **Done when**:
-- [ ] Testes: payload correto por evento; notify-hub fora do ar não afeta sessão (HUB-09)
-- [ ] Gate passa
-**Tests**: unit | **Gate**: quick | **Commit**: `feat(notifications): webhook channel for notify-hub`
+- [x] Testes: payload correto por evento; notify-hub fora do ar não afeta sessão (HUB-09)
+- [x] Gate passa
+**Tests**: unit | **Gate**: quick | **Commit**: `feat(notifications): webhook channel for notify-hub` — `26e6030`
+**Status**: ✅ Done (2026-07-23) — 200 tests (baseline 192 + 8). Canal `webhook` no registry plugável (`webhook-notify-channel.service.js`): POST `{title,message,priority}` c/ `Authorization: Bearer $NOTIFY_TOKEN` p/ `$NOTIFY_URL`; off se envs ausentes; `run.stopped`/`run.failed` imediatos, `permission.required` agendado e só dispara se pendente >60s (cancelado no `waitForToolApproval` cleanup via `requestId`). Fire-and-forget, timeout 5s (AbortController), erro engolido — sessão intacta. Payload reusa `buildNotificationPayload` (DRY); prioridade = high p/ failed/permission, default p/ stopped.
 
 ### T19: Spike portabilidade de session files
 
