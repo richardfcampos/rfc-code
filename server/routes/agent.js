@@ -848,7 +848,7 @@ class ResponseCollector {
  *   }
  */
 router.post('/', validateExternalApiKey, async (req, res) => {
-  const { githubUrl, projectPath, message, provider = 'claude', model, githubToken, branchName, sessionId } = req.body;
+  const { githubUrl, projectPath, message, provider = 'claude', model, githubToken, branchName, sessionId, profileId } = req.body;
   const effort = typeof req.body.effort === 'string' && req.body.effort.trim()
     ? req.body.effort.trim()
     : undefined;
@@ -960,6 +960,7 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         projectPath: finalProjectPath,
         cwd: finalProjectPath,
         sessionId: sessionId || null,
+        profileId: profileId || null,
         model: model,
         effort,
         permissionMode: 'bypassPermissions' // Bypass all permissions for API calls
@@ -972,6 +973,7 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         projectPath: finalProjectPath,
         cwd: finalProjectPath,
         sessionId: sessionId || null,
+        profileId: profileId || null,
         model: model || undefined,
         skipPermissions: true // Bypass permissions for Cursor
       }, writer);
@@ -982,6 +984,7 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         projectPath: finalProjectPath,
         cwd: finalProjectPath,
         sessionId: sessionId || null,
+        profileId: profileId || null,
         model: model || codexModels.DEFAULT,
         effort,
         permissionMode: 'bypassPermissions'
@@ -993,6 +996,7 @@ router.post('/', validateExternalApiKey, async (req, res) => {
         projectPath: finalProjectPath,
         cwd: finalProjectPath,
         sessionId: sessionId || null,
+        profileId: profileId || null,
         model: model || opencodeModels.DEFAULT,
         effort,
         permissionMode: 'bypassPermissions' // Agent runs are non-interactive, like the other providers above

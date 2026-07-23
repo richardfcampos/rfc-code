@@ -202,6 +202,10 @@ async function handleChatSend(
     resume: Boolean(session.provider_session_id),
     cwd: clientOptions.cwd ?? session.project_path ?? undefined,
     projectPath: session.project_path ?? clientOptions.projectPath,
+    // The owning account profile is a property of the session, so it is read
+    // from the session row rather than trusted from the per-message options.
+    // NULL keeps the provider CLI on its default config dir (upstream behavior).
+    profileId: session.profile_id ?? clientOptions.profileId ?? null,
   };
 
   try {

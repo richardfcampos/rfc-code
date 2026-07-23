@@ -31,6 +31,7 @@ import {
 } from './services/notification-orchestrator.js';
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
+import { profilesService } from './modules/profiles/index.js';
 import { createCompleteMessage, createNormalizedMessage } from './shared/utils.js';
 
 const activeSessions = new Map();
@@ -158,13 +159,19 @@ function matchesToolPermission(entry, toolName, input) {
 }
 
 function mapCliOptionsToSDK(options = {}) {
-  const { sessionId, cwd, toolsSettings, permissionMode, effort } = options;
+  const { sessionId, cwd, toolsSettings, permissionMode, effort, profileId } = options;
 
   const sdkOptions = {};
 
   // Forward all host env vars (e.g. ANTHROPIC_BASE_URL) to the subprocess.
   // Since SDK 0.2.113, options.env replaces process.env instead of overlaying it.
   sdkOptions.env = { ...process.env };
+
+  // Redirect the Claude CLI at this profile's isolated config directory
+  // (CLAUDE_CONFIG_DIR) so parallel sessions on different accounts never share
+  // credentials. With no profile, resolveEnv returns {} and the CLI keeps its
+  // default config directory — upstream behavior stays intact.
+  Object.assign(sdkOptions.env, profilesService.resolveEnv(profileId));
 
   // Resolve the executable eagerly on Windows because the SDK uses raw child_process.spawn,
   // which does not reliably follow npm's shell wrappers like cross-spawn does.
@@ -824,6 +831,7 @@ function reconnectSessionWriter(sessionId, newRawWs) {
 // Export public API
 export {
   queryClaudeSDK,
+  mapCliOptionsToSDK,
   abortClaudeSDKSession,
   isClaudeSDKSessionActive,
   getActiveClaudeSDKSessions,
