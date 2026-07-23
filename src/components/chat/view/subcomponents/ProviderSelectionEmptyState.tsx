@@ -7,6 +7,7 @@ import type {
   LLMProvider,
   ProviderModelsDefinition,
 } from "../../../../types/app";
+import type { Profile } from "../../../profiles/types";
 import SessionProviderLogo from "../../../llm-logo-provider/SessionProviderLogo";
 import { NextTaskBanner } from "../../../task-master";
 import {
@@ -49,6 +50,9 @@ type ProviderSelectionEmptyStateProps = {
   currentSessionId: string | null;
   provider: LLMProvider;
   setProvider: (next: LLMProvider) => void;
+  profiles: Profile[];
+  selectedProfileId: string | null;
+  setSelectedProfileId: (profileId: string | null) => void;
   textareaRef: React.RefObject<HTMLTextAreaElement>;
   claudeModel: string;
   setClaudeModel: (model: string) => void;
@@ -106,6 +110,9 @@ export default function ProviderSelectionEmptyState({
   currentSessionId,
   provider,
   setProvider,
+  profiles,
+  selectedProfileId,
+  setSelectedProfileId,
   textareaRef,
   claudeModel,
   setClaudeModel,
@@ -299,6 +306,32 @@ export default function ProviderSelectionEmptyState({
               </Command>
             </DialogContent>
           </Dialog>
+
+          {profiles.length > 0 && (
+            <div className="mx-auto mt-3 max-w-xs">
+              <label
+                htmlFor="chat-profile-select"
+                className="mb-1 block text-center text-[11px] text-muted-foreground"
+              >
+                {t("providerSelection.profile.label", { defaultValue: "Account profile" })}
+              </label>
+              <select
+                id="chat-profile-select"
+                value={selectedProfileId ?? ""}
+                onChange={(event) => setSelectedProfileId(event.target.value || null)}
+                className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              >
+                <option value="">
+                  {t("providerSelection.profile.default", { defaultValue: "Default (no profile)" })}
+                </option>
+                {profiles.map((profile) => (
+                  <option key={profile.id} value={profile.id}>
+                    {profile.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <p className="mt-4 text-center text-sm text-muted-foreground/70">
             {

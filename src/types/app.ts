@@ -38,6 +38,9 @@ export interface ProjectSession {
   messageCount?: number;
   provider?: LLMProvider;
   __provider?: LLMProvider;
+  // Owning account profile id (HUB-05 AC2), null/undefined for sessions with
+  // no profile (upstream default behavior). Drives the session header badge.
+  profileId?: string | null;
   // Tags the session with the owning project's DB `projectId` so UI handlers
   // (session switching, sidebar focus, etc.) can match against selectedProject.
   __projectId?: string;

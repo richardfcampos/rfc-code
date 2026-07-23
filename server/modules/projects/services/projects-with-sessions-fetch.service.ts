@@ -13,6 +13,9 @@ type SessionSummary = {
   summary: string;
   messageCount: number;
   lastActivity: string;
+  // Owning account profile (HUB-05 AC2 badge); null for sessions with no
+  // profile (upstream default behavior, and every pre-feature session).
+  profileId: string | null;
 };
 
 type SessionRepositoryRow = {
@@ -21,6 +24,7 @@ type SessionRepositoryRow = {
   custom_name?: string | null;
   updated_at?: string | null;
   created_at?: string | null;
+  profile_id?: string | null;
 };
 
 export type ProjectListItem = {
@@ -124,6 +128,7 @@ function mapSessionRowToSummary(row: SessionRepositoryRow): SessionSummary {
     summary: row.custom_name || '',
     messageCount: 0,
     lastActivity: row.updated_at ?? row.created_at ?? new Date().toISOString(),
+    profileId: row.profile_id ?? null,
   };
 }
 

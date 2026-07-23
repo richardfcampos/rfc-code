@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { chatRunRegistry } from '@/modules/websocket/index.js';
+import { profilesService } from '@/modules/profiles/index.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import type {
   FetchHistoryOptions,
@@ -119,8 +120,17 @@ export const sessionsService = {
    * chat, navigates to the returned id immediately, and the id never changes
    * for the lifetime of the conversation. The provider-native id is mapped to
    * this row later, when the provider runtime announces it mid-run.
+   *
+   * An optional `profileId` binds the session to one account profile from
+   * creation (HUB-05 AC2): it is validated against the profile registry so a
+   * dangling id fails loudly here rather than silently persisting a ghost
+   * reference the UI can never resolve to a name.
    */
-  createAppSession(provider: LLMProvider, projectPath: string): CreateAppSessionResult {
+  createAppSession(
+    provider: LLMProvider,
+    projectPath: string,
+    profileId?: string | null,
+  ): CreateAppSessionResult {
     const normalizedProjectPath = projectPath.trim();
     if (!normalizedProjectPath) {
       throw new AppError('projectPath is required.', {
@@ -129,8 +139,13 @@ export const sessionsService = {
       });
     }
 
+    if (profileId) {
+      // Throws a 404 AppError for an unknown profile id (loadProfileOrThrow).
+      profilesService.getProfile(profileId);
+    }
+
     const sessionId = randomUUID();
-    sessionsDb.createAppSession(sessionId, provider, normalizedProjectPath);
+    sessionsDb.createAppSession(sessionId, provider, normalizedProjectPath, profileId ?? null);
 
     return {
       sessionId,

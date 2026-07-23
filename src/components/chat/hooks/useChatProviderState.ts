@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { authenticatedFetch } from '../../../utils/api';
+import type { Profile } from '../../profiles/types';
 import type { PendingPermissionRequest, PermissionMode } from '../types/types';
 import type {
   ProjectSession,
@@ -130,6 +131,11 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   const [providerModelsLoading, setProviderModelsLoading] = useState(true);
   const [providerModelsRefreshing, setProviderModelsRefreshing] = useState(false);
 
+  // Account profiles available for the current provider (HUB-05 AC2): loaded
+  // once and grouped client-side since the list rarely changes mid-session.
+  const [profilesByProvider, setProfilesByProvider] = useState<Partial<Record<LLMProvider, Profile[]>>>({});
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+
   const providerModelsRequestIdRef = useRef(0);
 
   const setStoredProviderModel = useCallback((targetProvider: LLMProvider, model: string) => {
@@ -226,6 +232,39 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
   useEffect(() => {
     void loadProviderModels();
   }, [loadProviderModels]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    authenticatedFetch('/api/profiles')
+      .then((response) => response.json())
+      .then((body) => {
+        if (cancelled || !body?.success) {
+          return;
+        }
+
+        const grouped: Partial<Record<LLMProvider, Profile[]>> = {};
+        (body.data?.profiles as Profile[] | undefined ?? []).forEach((profile) => {
+          const bucket = grouped[profile.provider] ?? [];
+          bucket.push(profile);
+          grouped[profile.provider] = bucket;
+        });
+        setProfilesByProvider(grouped);
+      })
+      .catch((error) => {
+        console.error('Error loading account profiles:', error);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // A profile belongs to one provider: switching provider clears the pick
+  // rather than carrying a now-meaningless id across providers.
+  useEffect(() => {
+    setSelectedProfileId(null);
+  }, [provider]);
 
   useEffect(() => {
     let cancelled = false;
@@ -584,5 +623,8 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     selectProviderModel,
     setStoredProviderEffort,
     resolvePermissionModeForProvider,
+    profilesByProvider,
+    selectedProfileId,
+    setSelectedProfileId,
   };
 }

@@ -156,18 +156,26 @@ export const sessionsDb = {
    * The session gateway uses this when the frontend starts a brand-new chat:
    * `session_id` is the stable app-facing id, while `provider_session_id`
    * stays NULL until the provider runtime announces its own id and
-   * `assignProviderSessionId` records the mapping.
+   * `assignProviderSessionId` records the mapping. An optional `profileId`
+   * stamps which account profile owns the session from creation, so the
+   * websocket dispatch (and the session header badge) know which account is
+   * in use without waiting for a synchronizer pass to discover it on disk.
    */
-  createAppSession(sessionId: string, provider: string, projectPath: string): string {
+  createAppSession(
+    sessionId: string,
+    provider: string,
+    projectPath: string,
+    profileId?: string | null
+  ): string {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPathForProvider(provider, projectPath);
 
     projectsDb.createProjectPath(normalizedProjectPath);
 
     db.prepare(
-      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, isArchived, created_at, updated_at)
-       VALUES (?, ?, NULL, NULL, ?, NULL, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-    ).run(sessionId, provider, normalizedProjectPath);
+      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, profile_id, isArchived, created_at, updated_at)
+       VALUES (?, ?, NULL, NULL, ?, NULL, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+    ).run(sessionId, provider, normalizedProjectPath, profileId ?? null);
 
     return sessionId;
   },

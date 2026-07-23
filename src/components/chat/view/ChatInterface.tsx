@@ -85,6 +85,9 @@ function ChatInterface({
     selectProviderModel,
     setStoredProviderEffort,
     resolvePermissionModeForProvider,
+    profilesByProvider,
+    selectedProfileId,
+    setSelectedProfileId,
   } = useChatProviderState({
     selectedSession,
     selectedProject,
@@ -196,6 +199,7 @@ function ChatInterface({
     selectedSession,
     currentSessionId,
     provider,
+    selectedProfileId,
     permissionMode,
     cyclePermissionMode,
     cursorModel,
@@ -330,6 +334,9 @@ function ChatInterface({
           currentSessionId={currentSessionId}
           provider={provider}
           setProvider={(nextProvider) => setProvider(nextProvider as Provider)}
+          profiles={profilesByProvider[provider] ?? []}
+          selectedProfileId={selectedProfileId}
+          setSelectedProfileId={setSelectedProfileId}
           textareaRef={textareaRef}
           claudeModel={claudeModel}
           setClaudeModel={setClaudeModel}

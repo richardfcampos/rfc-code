@@ -38,6 +38,9 @@ interface UseChatComposerStateArgs {
   selectedSession: ProjectSession | null;
   currentSessionId: string | null;
   provider: LLMProvider;
+  // Account profile picked for a brand-new session (HUB-05 AC2); ignored once
+  // a session already exists since its profile is fixed at creation.
+  selectedProfileId: string | null;
   permissionMode: PermissionMode | string;
   cyclePermissionMode: () => void;
   resolvePermissionModeForProvider: (provider: LLMProvider, requestedMode: PermissionMode | string) => PermissionMode;
@@ -190,6 +193,7 @@ export function useChatComposerState({
   selectedSession,
   currentSessionId,
   provider,
+  selectedProfileId,
   permissionMode,
   cyclePermissionMode,
   resolvePermissionModeForProvider,
@@ -762,6 +766,7 @@ export function useChatComposerState({
             body: JSON.stringify({
               provider,
               projectPath: resolvedProjectPath,
+              profileId: selectedProfileId || undefined,
             }),
           });
           if (!response.ok) {
@@ -852,6 +857,7 @@ export function useChatComposerState({
       onSessionProcessing,
       onSessionEstablished,
       provider,
+      selectedProfileId,
       resetCommandMenuState,
       scrollToBottom,
       selectedProject,

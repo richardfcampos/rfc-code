@@ -3,6 +3,7 @@ import { memo, useCallback, useMemo } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 
 import type { ChatMessage } from '../../types/types';
+import type { Profile } from '../../../profiles/types';
 import type {
   Project,
   ProjectSession,
@@ -31,6 +32,9 @@ interface ChatMessagesPaneProps {
   currentSessionId: string | null;
   provider: LLMProvider;
   setProvider: (provider: LLMProvider) => void;
+  profiles: Profile[];
+  selectedProfileId: string | null;
+  setSelectedProfileId: (profileId: string | null) => void;
   textareaRef: RefObject<HTMLTextAreaElement>;
   claudeModel: string;
   setClaudeModel: (model: string) => void;
@@ -79,6 +83,9 @@ function ChatMessagesPane({
   currentSessionId,
   provider,
   setProvider,
+  profiles,
+  selectedProfileId,
+  setSelectedProfileId,
   textareaRef,
   claudeModel,
   setClaudeModel,
@@ -178,6 +185,9 @@ function ChatMessagesPane({
           currentSessionId={currentSessionId}
           provider={provider}
           setProvider={setProvider}
+          profiles={profiles}
+          selectedProfileId={selectedProfileId}
+          setSelectedProfileId={setSelectedProfileId}
           textareaRef={textareaRef}
           claudeModel={claudeModel}
           setClaudeModel={setClaudeModel}
