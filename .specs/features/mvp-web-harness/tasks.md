@@ -112,9 +112,10 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Depends on**: T3 | **Reuses**: padrão de módulos `server/modules/providers/`
 **Tools**: MCP: NONE; Skill: NONE
 **Done when**:
-- [ ] Testes 1:1 com HUB-05 AC1/AC3/AC4 (isolamento de env entre perfis; status não-autenticado)
-- [ ] Gate passa; sem regressão de contagem
-**Tests**: unit | **Gate**: quick | **Commit**: `feat(profiles): profile registry service with env resolution`
+- [x] Testes 1:1 com HUB-05 AC1/AC3/AC4 (isolamento de env entre perfis; status não-autenticado)
+- [x] Gate passa; sem regressão de contagem
+**Tests**: unit | **Gate**: quick | **Commit**: `feat(profiles): profile registry service with env resolution` — `e5a21b2`
+**Status**: ✅ Done (2026-07-23) — 143 tests (+10). Módulo dividido em profile-env/repository/service (AD-009: lógica nova em server/modules/profiles/).
 
 ### T5: Profiles routes
 
