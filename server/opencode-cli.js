@@ -7,6 +7,7 @@ import { appendImagesInputTag } from './shared/image-attachments.js';
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
 import { providerModelsService } from './modules/providers/services/provider-models.service.js';
+import { profilesService } from './modules/profiles/index.js';
 import { notifyRunFailed, notifyRunStopped } from './services/notification-orchestrator.js';
 import { createCompleteMessage, createNormalizedMessage, flattenPromptForWindowsShell, getOpenCodeDatabasePath } from './shared/utils.js';
 
@@ -124,7 +125,7 @@ function readOpenCodeTokenUsage(sessionId) {
 
 async function spawnOpenCode(command, options = {}, ws) {
   return new Promise((resolve, reject) => {
-    const { sessionId, projectPath, cwd, model, effort, sessionSummary, images, permissionMode } = options;
+    const { sessionId, projectPath, cwd, model, effort, sessionSummary, images, permissionMode, profileId } = options;
     const workingDir = cwd || projectPath || process.cwd();
     const processKey = sessionId || Date.now().toString();
     let capturedSessionId = sessionId || null;
@@ -268,7 +269,9 @@ async function spawnOpenCode(command, options = {}, ws) {
       opencodeProcess = spawnFunction('opencode', args, {
         cwd: workingDir,
         stdio: ['pipe', 'pipe', 'pipe'],
-        env: { ...process.env, ...permissionOptions.env },
+        // Host env, then permission-mode env, then the profile's isolated XDG
+        // config/data dirs (last so they win). No profile => upstream behavior.
+        env: { ...process.env, ...permissionOptions.env, ...profilesService.resolveEnv(profileId) },
       });
 
       activeOpenCodeProcesses.set(processKey, opencodeProcess);
