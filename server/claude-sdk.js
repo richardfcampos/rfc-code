@@ -32,7 +32,12 @@ import {
 } from './services/notification-orchestrator.js';
 import { sessionsService } from './modules/providers/services/sessions.service.js';
 import { providerAuthService } from './modules/providers/services/provider-auth.service.js';
-import { profilesService } from './modules/profiles/index.js';
+import {
+  drainPendingSwitch,
+  markSessionIdle,
+  markSessionRunning,
+  profilesService
+} from './modules/profiles/index.js';
 import { createCompleteMessage, createNormalizedMessage } from './shared/utils.js';
 
 const activeSessions = new Map();
@@ -257,6 +262,8 @@ function addSession(sessionId, queryInstance, writer = null) {
     status: 'active',
     writer
   });
+  // A profile handoff requested during this turn is deferred, not applied mid-run.
+  markSessionRunning(sessionId);
 }
 
 /**
@@ -265,6 +272,9 @@ function addSession(sessionId, queryInstance, writer = null) {
  */
 function removeSession(sessionId) {
   activeSessions.delete(sessionId);
+  // Turn ended — apply any profile switch that was queued mid-turn.
+  markSessionIdle(sessionId);
+  drainPendingSwitch(sessionId);
 }
 
 /**

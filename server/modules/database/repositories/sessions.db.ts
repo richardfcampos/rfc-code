@@ -2,7 +2,7 @@ import { getConnection } from '@/modules/database/connection.js';
 import { projectsDb } from '@/modules/database/repositories/projects.db.js';
 import { normalizeProjectPath } from '@/shared/utils.js';
 
-type SessionRow = {
+export type SessionRow = {
   session_id: string;
   provider: string;
   provider_session_id: string | null;
@@ -233,6 +233,33 @@ export const sessionsDb = {
        SET custom_name = ?
        WHERE session_id = ?`
     ).run(customName, sessionId);
+  },
+
+  /**
+   * Rebinds a session to a different account profile (mid-session handoff).
+   * Passing null returns the session to the provider CLI's default config dir.
+   */
+  updateSessionProfileId(sessionId: string, profileId: string | null): void {
+    const db = getConnection();
+    db.prepare(
+      `UPDATE sessions
+       SET profile_id = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE session_id = ?`
+    ).run(profileId ?? null, sessionId);
+  },
+
+  /**
+   * Points a session at its on-disk transcript. Used when a degraded handoff
+   * seeds a brand-new session whose transcript is written by the app rather
+   * than discovered by a synchronizer.
+   */
+  updateSessionJsonlPath(sessionId: string, jsonlPath: string | null): void {
+    const db = getConnection();
+    db.prepare(
+      `UPDATE sessions
+       SET jsonl_path = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE session_id = ?`
+    ).run(jsonlPath ?? null, sessionId);
   },
 
   getSessionById(sessionId: string): SessionRow | null {

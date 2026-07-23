@@ -13,6 +13,7 @@ import {
   assertSupportedProvider,
   profilesService,
 } from '@/modules/profiles/profiles.service.js';
+import { handoffService } from '@/modules/profiles/handoff.service.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
 
 const router = express.Router();
@@ -23,6 +24,16 @@ const parseProfileId = (value: unknown): string => {
   }
   throw new AppError('Invalid profile id.', {
     code: 'INVALID_PROFILE_ID',
+    statusCode: 400,
+  });
+};
+
+const parseSessionId = (value: unknown): string => {
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value.trim();
+  }
+  throw new AppError('Invalid session id.', {
+    code: 'INVALID_SESSION_ID',
     statusCode: 400,
   });
 };
@@ -68,6 +79,19 @@ router.delete(
     const id = parseProfileId(req.params.id);
     profilesService.deleteProfile(id);
     res.json(createApiSuccessResponse({ deleted: true }));
+  }),
+);
+
+// POST /api/profiles/sessions/:sessionId/handoff { profileId }
+// Switches the account serving an existing session (HUB-12 mid-session handoff).
+router.post(
+  '/sessions/:sessionId/handoff',
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessionId = parseSessionId(req.params.sessionId);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const targetProfileId = parseProfileId(body.profileId);
+    const handoff = handoffService.switchSessionProfile(sessionId, targetProfileId);
+    res.json(createApiSuccessResponse({ handoff }));
   }),
 );
 

@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
-import { SessionProfileBadge } from '../../../profiles';
+import { SessionAccountSwitcher, SessionProfileBadge } from '../../../profiles';
 import type { AppTab, Project, ProjectSession } from '../../../../types/app';
 import { usePlugins } from '../../../../contexts/PluginsContext';
 
@@ -76,6 +76,11 @@ export default function MainContentTitle({
                 {getSessionTitle(selectedSession)}
               </h2>
               <SessionProfileBadge provider={selectedSession.__provider} profileId={selectedSession.profileId} />
+              <SessionAccountSwitcher
+                sessionId={selectedSession.id}
+                provider={selectedSession.__provider}
+                currentProfileId={selectedSession.profileId}
+              />
             </div>
             <div className="truncate text-[11px] leading-tight text-muted-foreground">{selectedProject.displayName}</div>
           </div>
