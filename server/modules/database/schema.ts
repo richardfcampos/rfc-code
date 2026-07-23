@@ -96,6 +96,21 @@ CREATE TABLE IF NOT EXISTS projects (
 );
 `;
 
+export const PROFILES_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS profiles (
+    id TEXT PRIMARY KEY NOT NULL,
+    provider TEXT NOT NULL,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    -- One isolated on-disk config directory per (provider, slug). The unique
+    -- constraint guarantees two profiles of the same provider can never resolve
+    -- to the same credential directory, which is what keeps their accounts
+    -- isolated from one another.
+    UNIQUE(provider, slug)
+);
+`;
+
 export const SESSIONS_TABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS sessions (
     session_id TEXT NOT NULL,
@@ -109,6 +124,12 @@ CREATE TABLE IF NOT EXISTS sessions (
     custom_name TEXT,
     project_path TEXT,
     jsonl_path TEXT,
+    -- Account profile that owns this session, or NULL for sessions that predate
+    -- the multi-account feature (they keep the provider CLI's default config
+    -- directory). Kept as a soft reference (no SQL foreign key) so that
+    -- referential rules — e.g. refusing to delete a profile with live sessions —
+    -- live in the profiles service rather than in cascade triggers.
+    profile_id TEXT,
     isArchived BOOLEAN DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -168,6 +189,9 @@ CREATE INDEX IF NOT EXISTS idx_notification_channel_endpoints_enabled ON notific
 ${PROJECTS_TABLE_SCHEMA_SQL}
 -- NOTE: These indexes are created in migrations after legacy table-shape repairs.
 -- Creating them here can fail on upgraded installs where projects lacks those columns.
+
+${PROFILES_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_profiles_provider ON profiles(provider);
 
 ${SESSIONS_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_session_ids_lookup ON sessions(session_id);
