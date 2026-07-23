@@ -9,3 +9,19 @@ export interface Profile {
   slug: string;
   createdAt: string;
 }
+
+export interface ProfileAuthStatus {
+  authenticated: boolean;
+}
+
+// A profile plus its lazily-loaded auth status, as rendered by the profiles
+// page and consumed by the chat profile selector.
+export interface ProfileWithStatus extends Profile {
+  status: ProfileAuthStatus | null;
+  statusLoading: boolean;
+}
+
+export type CreateProfileInput = {
+  provider: LLMProvider;
+  name: string;
+};

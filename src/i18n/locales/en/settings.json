@@ -104,6 +104,7 @@
   "mainTabs": {
     "label": "Settings",
     "agents": "Agents",
+    "profiles": "Profiles",
     "appearance": "Appearance",
     "git": "Git",
     "apiTokens": "API & Tokens",
@@ -115,6 +116,30 @@
     "about": "About"
   },
   "profiles": {
+    "title": "Account profiles",
+    "description": "Register multiple accounts per provider and pick which one a session uses.",
+    "loading": "Loading profiles…",
+    "empty": "No profiles yet. Create one to sign in with a second account.",
+    "confirmDelete": "Delete profile \"{{name}}\"? Its credentials stay on disk in case you recreate it.",
+    "status": {
+      "checking": "Checking...",
+      "authenticated": "Authenticated",
+      "needsAuth": "Needs re-authentication"
+    },
+    "actions": {
+      "new": "New profile",
+      "authenticate": "Authenticate",
+      "delete": "Delete"
+    },
+    "form": {
+      "title": "New profile",
+      "provider": "Provider",
+      "name": "Name",
+      "namePlaceholder": "e.g. Claude Max — Account A",
+      "nameRequired": "Name is required.",
+      "cancel": "Cancel",
+      "submit": "Create profile"
+    },
     "login": {
       "title": "Authenticate {{name}}",
       "close": "Close login terminal"
