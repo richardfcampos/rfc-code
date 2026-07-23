@@ -4,6 +4,8 @@
  <p>A desktop and mobile UI for <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>, <a href="https://docs.cursor.com/en/cli/overview">Cursor CLI</a>, and <a href="https://developers.openai.com/codex">Codex</a>.<br>Use it locally or remotely to view your active projects and sessions from everywhere.</p>
 </div>
 
+> **RFC Code** is a modified version based on [CloudCLI UI](https://github.com/siteboon/claudecodeui) (`siteboon/claudecodeui`), licensed under AGPL-3.0. This fork is an independent, self-hosted personal project and is not affiliated with, endorsed by, or published by CloudCLI or Siteboon — their names and marks are used here only to comply with AGPL-3.0 Section 7 attribution requirements, not to claim association.
+
 <p align="center">
  <a href="https://cloudcli.ai">CloudCLI Cloud</a> · <a href="https://cloudcli.ai/docs">Documentation</a> · <a href="https://discord.gg/buxwujPNRE">Discord</a> · <a href="https://github.com/siteboon/claudecodeui/issues">Bug Reports</a> · <a href="CONTRIBUTING.md">Contributing</a>
 </p>
