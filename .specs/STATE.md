@@ -20,7 +20,7 @@
 
 ## Handoff
 
-- **Última atividade:** 2026-07-23 19:05 -03 — Fase 5 em andamento: T18 concluída e commitada (`26e6030`). Canal webhook notify-hub no registry plugável do orchestrator; 200 testes/0 falhas (192 + 8). Seguindo p/ T19 (spike portabilidade de session files) → T20 (handoff mid-session).
+- **Última atividade:** 2026-07-23 19:30 -03 — Fase 5: T18 `26e6030` (webhook notify-hub, 200 testes) + T19 `8a9d87b` (spike portabilidade — AMBOS providers PORTÁVEIS por experimento real; evidência em design.md). Seguindo p/ T20 (handoff mid-session: transplante+resume como mecânica primária, confirmada pelo spike).
 - **Fase:** EXECUTE — tasks aprovadas (21 tasks / 5 fases, 1 worker/fase).
 - **Concluído:** Fase 1 ✅ (T1 `df9c125`, T2 `95bbc10`); Fase 2 ✅ (T3–T9; T10 `fe67876`, T11 `7cf5c1a`, T12 `b540257`); Fase 3 ✅ (T13 `0dd9145`, T14 `2a042b6`, 192 tests/0 fail); FIX terminal trusted ✅ `36e0b33`; Fase 4 ✅ (T15 `100997d`, T16 `205589f`) — TUDO pushed em `origin/rfc-code`.
 - **Próximo passo (ao retomar):** T17 (deploy real no intel — REQUER USUÁRIO: compose up, tailscale serve, login de contas reais, smoke test + UAT laptop/tablet) → Fase 5 (T18–T21, Opus) → Verifier (Opus).

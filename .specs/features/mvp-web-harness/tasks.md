@@ -292,8 +292,9 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Depends on**: T9 | **Reuses**: perfis (T4)
 **Tools**: MCP: NONE; Skill: NONE
 **Done when**:
-- [ ] Veredito POR PROVIDER com evidência (funciona / não funciona / parcial)
-**Tests**: none (spike) | **Gate**: — | **Commit**: `docs(handoff): session portability spike results`
+- [x] Veredito POR PROVIDER com evidência (funciona / não funciona / parcial)
+**Tests**: none (spike) | **Gate**: — | **Commit**: `docs(handoff): session portability spike results` — `8a9d87b`
+**Status**: ✅ Done (2026-07-23) — **AMBOS PORTÁVEIS** (experimento real, config dir efêmero vazio, sem turno de API). Claude: controle `No conversation found` → tratamento `Not logged in · Please run /login` (achou+carregou; só faltou auth). Codex: controle `no rollout found for thread id` → tratamento `401 Unauthorized` no `wss://api.openai.com/v1/responses` (thread carregado; parou na auth). Evidência completa (comandos+outputs) em design.md Risks & Concerns. Transplante+resume = mecanismo primário viável p/ T20; gate = perfil destino autenticado.
 
 ### T20: Handoff service + UI trocar conta
 
