@@ -20,7 +20,7 @@
 
 ## Handoff
 
-- **Última atividade:** 2026-07-23 11:00 -03 (heartbeat — sessões ativas DEVEM atualizar após cada task/fase; retomada automática só age se >90min parado) — Fase 2a: T3 ✅ (`604ca3a`), T4 ✅ (`e5a21b2`), T5 ✅ (`a894fb1`), T6 ✅ (`5f67df2`)
+- **Última atividade:** 2026-07-23 11:08 -03 (heartbeat — sessões ativas DEVEM atualizar após cada task/fase; retomada automática só age se >90min parado) — Fase 2a: T3 ✅ (`604ca3a`), T4 ✅ (`e5a21b2`), T5 ✅ (`a894fb1`), T6 ✅ (`5f67df2`), T7 ✅ (`538706d`, spike RESOLVIDO: Codex SDK isola env por instância)
 - **Fase:** EXECUTE — tasks aprovadas (21 tasks / 5 fases, 1 worker/fase).
 - **Concluído:** Fase 1 ✅ (T1 `df9c125` fork+atribuição; T2 `95bbc10` baseline 129/0 + build verde; push feito em `origin/rfc-code`).
 - **Em andamento:** Fase 2a (T3–T9, núcleo server dos perfis) despachada a worker Opus. Fase 2 dividida em 2a (server T3–T9, Opus) e 2b (UI T10–T12, Sonnet) por sizing de contexto do worker (~40k) — desvio operacional, tasks inalteradas.

@@ -149,10 +149,11 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Depends on**: T4 | **Reuses**: padrão `cursor-cli.js` se fallback
 **Tools**: MCP: NONE; Skill: `docs-seeker` (docs do codex-sdk)
 **Done when**:
-- [ ] Spike documentado com evidência (nunca suposição)
-- [ ] 2 perfis Codex concorrentes não vazam env entre si (teste)
-- [ ] Gate passa
-**Tests**: unit | **Gate**: quick | **Commit**: `feat(profiles): codex profile isolation`
+- [x] Spike documentado com evidência (nunca suposição) — veredito: SDK aceita `env` por instância, SEM fallback (ver design.md Risks + `codex-client-options.js`)
+- [x] 2 perfis Codex concorrentes não vazam env entre si (teste)
+- [x] Gate passa
+**Tests**: unit | **Gate**: quick | **Commit**: `feat(profiles): codex profile isolation` — `538706d`
+**Status**: ✅ Done (2026-07-23) — 158 tests (+3). Builder `buildCodexClientOptions` em módulo próprio (`codex-client-options.js`) SEM importar `@openai/codex-sdk` (a SDK mantém handle aberto e trava o test runner no exit) — testado sem carregar a SDK.
 
 ### T8: Env-injection Cursor + OpenCode [P]
 
