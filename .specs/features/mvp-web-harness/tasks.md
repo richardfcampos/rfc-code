@@ -124,9 +124,10 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Depends on**: T4 | **Reuses**: padrão `provider.routes.ts`
 **Tools**: MCP: NONE; Skill: NONE
 **Done when**:
-- [ ] Happy + error paths (perfil inexistente, provider inválido, delete com sessões ativas) testados
-- [ ] Gate passa
-**Tests**: unit (rotas c/ mocks, padrão upstream) | **Gate**: full | **Commit**: `feat(profiles): REST routes`
+- [x] Happy + error paths (perfil inexistente, provider inválido, delete com sessões ativas) testados
+- [x] Gate passa
+**Tests**: unit (rotas c/ mocks, padrão upstream) | **Gate**: full | **Commit**: `feat(profiles): add rest routes for profile crud` — `a894fb1` (subject minusculizado: commitlint do repo recusa "REST" upper-case)
+**Status**: ✅ Done (2026-07-23) — 153 tests (+10). Rotas testadas via express real + fetch (upstream não tinha supertest nem route-tests; 0 deps novas). Full gate verde (build EXIT 0).
 
 ### T6: Env-injection Claude + dispatch profileId [P]
 
