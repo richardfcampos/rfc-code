@@ -20,12 +20,12 @@
 
 ## Handoff
 
-- **Última atividade:** 2026-07-23 14:40 -03 — ✅ Fase 3 concluída e commitada (T13 `0dd9145`, T14 `2a042b6`); 192 tests/0 fail, build+lint verdes.
+- **Última atividade:** 2026-07-23 18:10 -03 — T15 concluída (`100997d`): `docker build` verde, `docker run` local serve UI/health/CLIs (verificado via `docker exec`, já que `network_mode: host` do Docker Desktop macOS não expõe o container ao curl do host — funciona nativamente no Linux do intel, ver deploy/README.md).
 - **Fase:** EXECUTE — tasks aprovadas (21 tasks / 5 fases, 1 worker/fase).
-- **Concluído:** Fase 1 ✅ (T1 `df9c125`, T2 `95bbc10`); Fase 2a ✅ (T3 `604ca3a` … T9 `0e288d6`); Fase 2b ✅ (T10 `fe67876`, T11 `7cf5c1a`, T12 `b540257`); Fase 3 ✅ (T13 `0dd9145`, T14 `2a042b6`) — `AUTH_MODE=trusted` runtime completo (server + front), 192 tests/0 fail.
-- **Próximo passo (ao retomar):** Fase 4 (T15–T17, deploy Docker) → Fase 5 (integrações P2) → Verifier (Opus) ao final de todas as tasks.
-- **Como retomar:** ativar skill `tlc-spec-driven`, seguir fluxo Execute de `.specs/features/mvp-web-harness/tasks.md` a partir da primeira task não marcada concluída (T15), respeitando AD-001..AD-013.
-- **Gap conhecido (não bloqueante):** `src/components/shell/utils/socket.ts` (WS do terminal embutido) não foi adaptado a trusted mode (fora do "Where" de T14); ainda exige token via localStorage. Deveria ser corrigido antes do UAT em T17/T21 (HUB-11 no perímetro trusted).
+- **Concluído:** Fase 1 ✅ (T1 `df9c125`, T2 `95bbc10`); Fase 2 ✅ (T3–T9; T10 `fe67876`, T11 `7cf5c1a`, T12 `b540257`); Fase 3 ✅ (T13 `0dd9145`, T14 `2a042b6`, 192 tests/0 fail); FIX terminal trusted ✅ `36e0b33` (gap da Fase 3 resolvido); Fase 4 T15 ✅ `100997d` — TUDO pushed em `origin/rfc-code` até `36e0b33` (T15 ainda não pushed neste commit docs).
+- **Em andamento:** Fase 4 — T16 (compose + smoke-test + README) em progresso pelo mesmo worker; `deploy/docker-compose.yml`, `deploy/smoke-test.sh`, `deploy/README.md` já rascunhados pelo worker anterior, sendo revisados/corrigidos e commitados a seguir.
+- **Próximo passo (ao retomar):** se T16 já commitado, seguir para T17 (deploy intel — REQUER USUÁRIO) → Fase 5 (T18–T21, Opus) → Verifier (Opus). Se T16 ainda pendente, concluir revisão/commit de T16 primeiro.
+- **Como retomar:** ativar skill `tlc-spec-driven`, fluxo Execute de tasks.md a partir da primeira task não concluída (T15), respeitando AD-001..AD-013 e o parágrafo acima.
 - **Bloqueios conhecidos:** T1 requer `gh` autenticado; T17 requer usuário (deploy intel + login de contas reais).
 - **Clone de verificação:** scratchpad da sessão (`.../scratchpad/claudecodeui`) — shallow, descartável; fork real será clonado no Execute.
 - **Artefatos:** `.specs/features/mvp-web-harness/spec.md`, `context.md`.

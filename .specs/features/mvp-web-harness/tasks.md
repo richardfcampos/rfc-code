@@ -246,8 +246,9 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Depends on**: T12, T14 | **Reuses**: `docker/shared/*.sh` upstream como referência
 **Tools**: MCP: NONE; Skill: `devops` se necessário
 **Done when**:
-- [ ] `docker build` verde; `docker run` local serve a UI; 4 CLIs presentes no PATH (`--version`)
-**Tests**: none | **Gate**: build (image) | **Commit**: `feat(deploy): production dockerfile with agent CLIs`
+- [x] `docker build` verde; `docker run` local serve a UI; 4 CLIs presentes no PATH (`--version`)
+**Tests**: none | **Gate**: build (image) | **Commit**: `feat(deploy): production dockerfile with agent CLIs` — `100997d`
+**Status**: ✅ Done (2026-07-23) — build multi-stage (node:22-bookworm), user não-root `rfccode`, 4 CLIs verificados via `docker exec ... --version` (claude 2.1.218, codex 0.145.0, opencode 1.18.4, cursor-agent 2026.07.20-8cc9c0b). UI root e `/health` confirmados 200 via `docker exec curl` (curl direto do host macOS não alcança `network_mode: host` do Docker Desktop — VM isolada, ver deploy/README.md; funciona nativamente no Linux do intel).
 
 ### T16: docker-compose + smoke script
 
