@@ -24,6 +24,7 @@ import { CLAUDE_FALLBACK_MODELS } from './modules/providers/list/claude/claude-m
 import { providerModelsService } from './modules/providers/services/provider-models.service.js';
 import { resolveClaudeCodeExecutablePath } from './shared/claude-cli-path.js';
 import {
+  cancelPendingPermissionWebhook,
   createNotificationEvent,
   notifyRunFailed,
   notifyRunStopped,
@@ -78,6 +79,9 @@ function waitForToolApproval(requestId, options = {}) {
 
     const cleanup = () => {
       pendingToolApprovals.delete(requestId);
+      // Approval resolved within the pending window — cancel any deferred phone
+      // push so an answered request never pages the operator.
+      cancelPendingPermissionWebhook(requestId);
       if (timeout) clearTimeout(timeout);
       if (signal && abortHandler) {
         signal.removeEventListener('abort', abortHandler);
@@ -562,7 +566,9 @@ async function queryClaudeSDK(command, options = {}, ws) {
         sessionId: capturedSessionId || sessionId || null,
         kind: 'action_required',
         code: 'permission.required',
-        meta: { toolName, sessionName: sessionSummary },
+        // requestId keys the deferred notify-hub push so resolving this exact
+        // approval (see waitForToolApproval cleanup) cancels its pending webhook.
+        meta: { toolName, sessionName: sessionSummary, requestId },
         severity: 'warning',
         requiresUserAction: true,
         dedupeKey: `claude:permission:${capturedSessionId || sessionId || 'none'}:${requestId}`

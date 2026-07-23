@@ -2,6 +2,7 @@ import webPush from 'web-push';
 
 import { notificationPreferencesDb, pushSubscriptionsDb, sessionsDb } from '@/modules/database/index.js';
 import { sendDesktopNotification as sendDesktopNotificationToClients } from '@/modules/notifications/services/desktop-notification-clients.service.js';
+import { cancelPendingPermissionWebhook, webhookNotifyChannel } from '@/modules/notifications/services/webhook-notify-channel.service.js';
 
 const KIND_TO_PREF_KEY = {
   action_required: 'actionRequired',
@@ -218,7 +219,10 @@ const notificationChannels = [
     id: 'desktop',
     isEnabled: (preferences) => Boolean(preferences?.channels?.desktop),
     send: ({ userId, payload }) => sendDesktopNotificationToClients(userId, payload)
-  }
+  },
+  // Enabled by container env (NOTIFY_URL/NOTIFY_TOKEN), not user preferences, so
+  // the phone push works even when in-app/web-push channels are off.
+  webhookNotifyChannel
 ];
 
 function notifyUserIfEnabled({ userId, event }) {
@@ -280,6 +284,7 @@ function notifyRunFailed({ userId, provider, sessionId = null, error, sessionNam
 
 export {
   buildNotificationPayload,
+  cancelPendingPermissionWebhook,
   createNotificationEvent,
   notifyUserIfEnabled,
   notifyRunStopped,
