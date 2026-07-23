@@ -20,7 +20,7 @@
 
 ## Handoff
 
-- **Última atividade:** 2026-07-23 19:30 -03 — Fase 5: T18 `26e6030` (webhook notify-hub, 200 testes) + T19 `8a9d87b` (spike portabilidade — AMBOS providers PORTÁVEIS por experimento real; evidência em design.md). Seguindo p/ T20 (handoff mid-session: transplante+resume como mecânica primária, confirmada pelo spike).
+- **Última atividade:** 2026-07-23 20:10 -03 — Fase 5 (T18–T20) concluída e pushed: T18 `26e6030` (webhook notify-hub), T19 `8a9d87b` (spike portabilidade — AMBOS providers PORTÁVEIS por experimento real), T20 `dec7d49` (handoff mid-session: transplante+marcador+repoint / degradação semeada / fila no turno em execução; rota + UI trocar-conta). **207 testes/0 falhas** (base 192 → 200 → 207); build EXIT 0. Pendentes de usuário: T17 (deploy intel) e T21 (UAT tablet); depois Verifier.
 - **Fase:** EXECUTE — tasks aprovadas (21 tasks / 5 fases, 1 worker/fase).
 - **Concluído:** Fase 1 ✅ (T1 `df9c125`, T2 `95bbc10`); Fase 2 ✅ (T3–T9; T10 `fe67876`, T11 `7cf5c1a`, T12 `b540257`); Fase 3 ✅ (T13 `0dd9145`, T14 `2a042b6`, 192 tests/0 fail); FIX terminal trusted ✅ `36e0b33`; Fase 4 ✅ (T15 `100997d`, T16 `205589f`) — TUDO pushed em `origin/rfc-code`.
 - **Próximo passo (ao retomar):** T17 (deploy real no intel — REQUER USUÁRIO: compose up, tailscale serve, login de contas reais, smoke test + UAT laptop/tablet) → Fase 5 (T18–T21, Opus) → Verifier (Opus).

@@ -303,9 +303,10 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Depends on**: T19 | **Reuses**: resume nativo (`claude-sdk.js:229`, `openai-codex.js:272`)
 **Tools**: MCP: NONE; Skill: NONE
 **Done when**:
-- [ ] Testes 1:1 com HUB-12 AC1-3 + edge case de turno em execução
-- [ ] Gate passa; build verde
-**Tests**: unit | **Gate**: full | **Commit**: `feat(handoff): mid-session account switch`
+- [x] Testes 1:1 com HUB-12 AC1-3 + edge case de turno em execução
+- [x] Gate passa; build verde
+**Tests**: unit | **Gate**: full | **Commit**: `feat(handoff): mid-session account switch` — `dec7d49`
+**Status**: ✅ Done (2026-07-23) — 207 tests (baseline 200 + 7); build EXIT 0. `handoff.service.ts`: mecânica primária = transplante do session file (extrai o caminho relativo sob `projects/`↔claude / `sessions/`↔codex e recopia no config dir do perfil destino) + marcador `profile-switch` no transcript + repoint de `sessions.profile_id` (AC1/AC3); degradação = nova sessão semeada com o transcript anterior, bound ao destino, jamais silenciosa (AC2, dispara p/ provider não-transplantável OU artefato ausente); turno em execução → `pendingSwitches` enfileira e `drainPendingSwitch` aplica no fim do turno (edge case — nunca mata o turno), drenado via `markSessionRunning/Idle` em `claude-sdk.js addSession/removeSession`. Rota `POST /api/profiles/sessions/:sessionId/handoff`. UI: `SessionAccountSwitcher` (ação "trocar conta" no header ao lado do badge) + `useSessionHandoff`. SPEC_DEVIATION: além de `handoff.service.ts`+UI, tocou `sessions.db.ts` (`updateSessionProfileId`/`updateSessionJsonlPath` + export `SessionRow`), `profiles.routes.ts` (rota), `profiles/index.ts`+`database/index.ts` (barris — regra de boundaries do eslint exige import via barrel) e `claude-sdk.js` (wiring do drain no fim do turno). Reason: cada um é inerente a AC3 (repoint), AC2 (seed path) e ao edge case (aplicar no fim do turno); sem eles os "Done when" são irrealizáveis.
 
 ### T21: Passe tablet/phone
 
