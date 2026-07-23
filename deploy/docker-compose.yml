@@ -1,0 +1,52 @@
+# RFC Code — production compose (T16)
+#
+# Usage on intel:
+#   cd deploy && docker compose up -d --build
+#
+# See deploy/README.md for the full intel deploy walkthrough (tailscale
+# serve, profile login, troubleshooting).
+#
+# SPEC_DEVIATION: the task described `ports: "127.0.0.1:<port>:<port>"`
+# (bridge-network loopback publish). This service instead uses
+# `network_mode: host`.
+# Reason (verified 2026-07-23, see deploy/README.md "Why host networking"):
+# AUTH_MODE=trusted makes the server refuse to boot unless HOST is a
+# loopback address (server/middleware/auth.js — a decision already shipped
+# and locked in T13). With standard bridge networking, a container process
+# bound to 127.0.0.1 is unreachable through Docker's published ports — the
+# NAT lands on the container's bridge IP, never its loopback — confirmed by
+# a direct local test (curl against a bridge-published 127.0.0.1-bound
+# listener timed out; the same listener under `network_mode: host` worked).
+# Host networking is required for the container's loopback to be the
+# deploy host's own loopback, which is exactly what `tailscale serve` also
+# expects to proxy from.
+services:
+  rfc-code:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: rfc-code:latest
+    container_name: rfc-code
+    network_mode: host
+    restart: unless-stopped
+    environment:
+      # Runtime auth mode: tailnet is the perimeter, no per-request login.
+      # HOST/SERVER_PORT already default to these values in the image (see
+      # deploy/Dockerfile); repeated here so they are visible/overridable
+      # without editing the Dockerfile.
+      AUTH_MODE: trusted
+      HOST: 127.0.0.1
+      SERVER_PORT: ${RFC_CODE_PORT:-3001}
+      DATABASE_PATH: /data/db/auth.db
+      PROFILES_ROOT: /data/profiles
+      # Reserved for the notify-hub webhook channel (T18, not yet
+      # implemented). Safe to leave unset until then.
+      NOTIFY_URL: ${NOTIFY_URL:-}
+      NOTIFY_TOKEN: ${NOTIFY_TOKEN:-}
+    volumes:
+      # Raiz de projetos do host (HUB-07 AC1) — cada projeto navegável pela
+      # UI vive sob este diretório.
+      - ${PROJECTS_ROOT:-./projects}:/projects
+      # DB (sessions/profiles) + config dirs isolados por perfil (HUB-05
+      # AC5, HUB-07 AC2) — sobrevive a `docker compose restart`.
+      - ${DATA_ROOT:-./data}:/data

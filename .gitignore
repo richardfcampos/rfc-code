@@ -114,9 +114,15 @@ CLAUDE.md
 # Database files
 *.db
 *.sqlite
-*.sqlite3 
+*.sqlite3
 
 logs
+
+# Local deploy/ bind-mount defaults (docker-compose.yml PROJECTS_ROOT/DATA_ROOT
+# fall back to these when unset) — never commit local test data or the
+# per-profile CLI credentials that land under deploy/data/profiles/.
+deploy/data/
+deploy/projects/
 dev-debug.log
 # Editor directories and files
 .idea
