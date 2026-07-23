@@ -18,7 +18,7 @@ AD-001/AD-002).
 
 ```bash
 cd deploy
-cp .env.example .env   # if you keep one; otherwise export inline (see below)
+cp .env.example .env
 ```
 
 Set these before `up` (env vars, or a `deploy/.env` picked up by Compose):
@@ -27,7 +27,8 @@ Set these before `up` (env vars, or a `deploy/.env` picked up by Compose):
 | --- | --- | --- |
 | `PROJECTS_ROOT` | host path mounted at `/projects` | `/srv/rfc-code/projects` |
 | `DATA_ROOT` | host path mounted at `/data` (DB + profiles) | `/srv/rfc-code/data` |
-| `RFC_CODE_PORT` | port the server listens on (loopback only) | `3001` (default) |
+| `BIND_IP` | host interface the port is published on | `100.70.101.109` (intel's tailnet IP, default) |
+| `PORT` | host port published on `BIND_IP` | `7789` (default) |
 | `NOTIFY_URL`, `NOTIFY_TOKEN` | notify-hub webhook (reserved for T18 — safe to leave unset) | — |
 
 **Never** put credentials for Claude/Codex/Cursor/OpenCode in `.env` or the
@@ -42,33 +43,53 @@ PROJECTS_ROOT=/srv/rfc-code/projects DATA_ROOT=/srv/rfc-code/data \
 ```
 
 `docker compose logs -f rfc-code` should show the server binding to
-`127.0.0.1:${RFC_CODE_PORT}` and `GET /health` returning `200`.
+`0.0.0.0:3001` inside the container and `GET /health` returning `200`. With
+the default `BIND_IP`/`PORT`, the service is now reachable at
+**`http://intel:7789`** from any device on the tailnet — no `tailscale
+serve` step required for plain HTTP access.
 
-### Why host networking
+### Why bridge networking with a tailnet-only publish
 
-This compose file uses `network_mode: host` instead of a bridge `ports:`
-publish. `AUTH_MODE=trusted` makes the server refuse to boot unless it binds
-a loopback address (`server/middleware/auth.js`) — that guard is the only
-thing standing between the app and the network once login is disabled, so it
-is intentionally strict. Under standard Docker bridge networking, a process
-bound to `127.0.0.1` **inside** the container is unreachable through a
-published port — Docker's NAT delivers the packet to the container's bridge
-IP, never to its loopback (verified directly: a bridge-published
-`127.0.0.1`-bound listener could not be reached from the host with `curl`,
-while the same listener under `network_mode: host` could). Host networking
-makes the container's loopback the same as intel's own loopback, which is
-also exactly what `tailscale serve` expects to proxy from in step 3.
+This compose file uses standard Docker bridge networking with an explicit
+`ports:` publish, not `network_mode: host`. Host networking does not work on
+Docker Desktop for macOS: the container joins Docker Desktop's isolated
+Linux VM namespace instead of macOS's own network stack, so nothing
+published that way is ever reachable from the host or the tailnet — verified
+empirically on the macOS host `intel` (2026-07-23). Bridge networking with a
+`ports:` publish does not have that problem on macOS or Linux.
 
-## 3. Expose on the tailnet
+`AUTH_MODE=trusted` makes the server refuse to boot unless its bind address
+is safe (`server/middleware/auth.js`, `assertTrustedModeBindIsSafe`) — that
+guard is the only thing standing between the app and the network once login
+is disabled, so it is intentionally strict. A bridge-networked container
+must bind every interface **inside** the container (`HOST=0.0.0.0`) for
+Docker's NAT to deliver traffic from the published port at all — a loopback
+bind inside the container would make it unreachable through the publish,
+the same failure host networking was originally introduced to work around.
+`AUTH_TRUSTED_CONTAINER_BIND=1` (set in `docker-compose.yml`) tells the guard
+that this container-local bind is expected and that the real exposure
+boundary is the `ports:` publish instead — which is restricted to a single
+host interface (`BIND_IP`, the tailnet IP by default) rather than
+`0.0.0.0`, so the app never gets a listener on the LAN or public internet
+(HUB-01 AC2).
+
+## 3. (Optional) HTTPS via `tailscale serve`
+
+The default `BIND_IP=100.70.101.109` publish is already tailnet-only HTTP —
+most clients need nothing further. The PWA / service worker feature does
+require HTTPS, though (browsers refuse to register a service worker over
+plain HTTP for a non-localhost origin). If you need that, keep the raw port
+off the tailnet and front it with `tailscale serve` instead:
 
 ```bash
-sudo tailscale serve --bg https+insecure://127.0.0.1:${RFC_CODE_PORT}
+# deploy/.env: BIND_IP=127.0.0.1 (raw port stays on loopback only)
+sudo tailscale serve --bg https+insecure://127.0.0.1:${PORT:-7789}
 ```
 
 This publishes `https://intel.<your-tailnet>.ts.net/` (or the equivalent
 short MagicDNS name) to every device on your tailnet, and only your tailnet
-— `intel`'s public interfaces never get a listener for this port (HUB-01
-AC2, verified with `network_mode: host` binding `127.0.0.1` only). Confirm:
+— `intel`'s public interfaces never get a listener for this port either way
+(HUB-01 AC2). Confirm:
 
 ```bash
 tailscale serve status
@@ -93,7 +114,7 @@ needs its own OAuth/API-key login per profile:
 
 ```bash
 cd deploy
-RFC_CODE_PORT=3001 ./smoke-test.sh
+BIND_IP=100.70.101.109 PORT=7789 ./smoke-test.sh
 ```
 
 Checks `docker compose up`, `/health`, `/projects` mount, a restart
@@ -102,28 +123,28 @@ a restart (no zombie sessions). Tailnet-reachability steps require
 `TAILSCALE_DOMAIN=intel.<tailnet>.ts.net` and a second, non-tailnet device
 — both are marked `[intel-only]` and skipped when run elsewhere.
 
-**Running this on a Mac dev machine (Docker Desktop):** the curl-based
-checks will fail even on a correctly-built image — `network_mode: host`
-means the container joins Docker Desktop's Linux VM namespace, not
-macOS's own, so the host shell's curl cannot reach `127.0.0.1:${RFC_CODE_PORT}`
-(verified 2026-07-23: nothing listens on that port from the macOS side,
-while `docker exec rfc-code curl -fsS http://127.0.0.1:3001/health` succeeds
-from inside the container). This is a Docker Desktop limitation, not a
-deploy defect — on intel's native Linux Docker Engine, `network_mode: host`
-*is* the host's own network namespace and the script runs end-to-end.
-Verify a Mac-built image with `docker exec` instead of the script when
-`docker compose exec` is unavailable to the checks.
+**macOS caveat resolved:** earlier revisions of this deploy used
+`network_mode: host`, which does not work on Docker Desktop for macOS (the
+container joins Docker Desktop's isolated Linux VM namespace, so the host
+shell's curl could never reach the published port). Bridge networking with
+an explicit `ports:` publish (this revision) does not have that problem —
+the smoke test's curl checks against `${BIND_IP}:${PORT}` work the same way
+on macOS and on Linux, verified directly on the macOS host `intel`
+(2026-07-23).
 
 ## Troubleshooting
 
 - **Server refuses to start with "AUTH_MODE=trusted requires HOST to be a
   loopback address"**: `HOST` was overridden to something other than
-  `127.0.0.1`/`::1`/`localhost`. Unset any `HOST` override — the image
-  already defaults it correctly.
-- **`docker compose up` succeeds but the tailnet URL times out**: check
-  `network_mode: host` is actually in effect (`docker inspect rfc-code
-  --format '{{.HostConfig.NetworkMode}}'` should print `host`) and that
-  `tailscale serve` is pointed at the same `RFC_CODE_PORT`.
+  `127.0.0.1`/`::1`/`localhost`/`0.0.0.0`, or `AUTH_TRUSTED_CONTAINER_BIND`
+  is unset while `HOST=0.0.0.0` — both must be set together for the
+  container-bind contract (`server/middleware/auth.js`). `docker-compose.yml`
+  already sets both correctly; don't override `HOST` without also keeping
+  `AUTH_TRUSTED_CONTAINER_BIND=1`.
+- **`docker compose up` succeeds but `http://intel:${PORT}` times out**:
+  confirm the publish is actually bound (`docker compose port rfc-code 3001`
+  should print `${BIND_IP}:${PORT}`) and that `BIND_IP` matches an interface
+  that actually exists on this host (`tailscale ip -4` for the tailnet IP).
 - **Node/native-module ABI mismatches** (`better-sqlite3`/`bcrypt`/`node-pty`
   failing to load): not applicable to this deploy — the image compiles
   these against the exact `node:22-bookworm` runtime it ships, so there is

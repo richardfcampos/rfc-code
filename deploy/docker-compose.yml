@@ -3,23 +3,30 @@
 # Usage on intel:
 #   cd deploy && docker compose up -d --build
 #
-# See deploy/README.md for the full intel deploy walkthrough (tailscale
-# serve, profile login, troubleshooting).
+# See deploy/README.md for the full intel deploy walkthrough (tailnet
+# publish, optional tailscale serve HTTPS, profile login, troubleshooting).
 #
-# SPEC_DEVIATION: the task described `ports: "127.0.0.1:<port>:<port>"`
-# (bridge-network loopback publish). This service instead uses
-# `network_mode: host`.
-# Reason (verified 2026-07-23, see deploy/README.md "Why host networking"):
-# AUTH_MODE=trusted makes the server refuse to boot unless HOST is a
-# loopback address (server/middleware/auth.js — a decision already shipped
-# and locked in T13). With standard bridge networking, a container process
-# bound to 127.0.0.1 is unreachable through Docker's published ports — the
-# NAT lands on the container's bridge IP, never its loopback — confirmed by
-# a direct local test (curl against a bridge-published 127.0.0.1-bound
-# listener timed out; the same listener under `network_mode: host` worked).
-# Host networking is required for the container's loopback to be the
-# deploy host's own loopback, which is exactly what `tailscale serve` also
-# expects to proxy from.
+# Bridge networking + explicit port publish (not `network_mode: host`):
+# `network_mode: host` does not work on Docker Desktop for macOS — the
+# container joins Docker Desktop's isolated Linux VM namespace, not macOS's
+# own, so nothing published that way is ever reachable from the host or the
+# tailnet (verified empirically 2026-07-23 on the macOS host `intel`). Bridge
+# networking with an explicit `ports:` publish does not have that problem on
+# either macOS or Linux Docker Engine.
+#
+# AUTH_MODE=trusted's boot guard (server/middleware/auth.js,
+# assertTrustedModeBindIsSafe) normally refuses to bind anywhere but
+# loopback, since trusted mode has no per-request auth and the bind address
+# is otherwise the only thing standing between the app and the network. A
+# bridge-networked container breaks that assumption: the process must bind a
+# container-local interface (0.0.0.0 below) for Docker's NAT to reach it at
+# all, so the exposure boundary moves from "what the process binds inside
+# the container" to "what host interface the `ports:` publish below binds".
+# AUTH_TRUSTED_CONTAINER_BIND=1 is this operator's explicit acknowledgement
+# of that contract — see the guard's comment for the invariant it protects.
+# It is safe ONLY because the publish below targets a single host interface
+# (the tailnet IP, or loopback — never `0.0.0.0:PORT:PORT`, which would
+# expose the app on every interface including any public one).
 services:
   rfc-code:
     build:
@@ -27,22 +34,31 @@ services:
       dockerfile: deploy/Dockerfile
     image: rfc-code:latest
     container_name: rfc-code
-    network_mode: host
     restart: unless-stopped
     environment:
       # Runtime auth mode: tailnet is the perimeter, no per-request login.
-      # HOST/SERVER_PORT already default to these values in the image (see
-      # deploy/Dockerfile); repeated here so they are visible/overridable
-      # without editing the Dockerfile.
       AUTH_MODE: trusted
-      HOST: 127.0.0.1
-      SERVER_PORT: ${RFC_CODE_PORT:-3001}
+      # Operator contract: the `ports:` publish below is restricted to
+      # loopback or a tailnet-only interface — see the guard comment above.
+      AUTH_TRUSTED_CONTAINER_BIND: "1"
+      # Must bind every interface inside the container (not loopback) so
+      # Docker's bridge NAT can deliver traffic from the published port —
+      # see "Bridge networking" comment above.
+      HOST: 0.0.0.0
+      SERVER_PORT: 3001
       DATABASE_PATH: /data/db/auth.db
       PROFILES_ROOT: /data/profiles
       # Reserved for the notify-hub webhook channel (T18, not yet
       # implemented). Safe to leave unset until then.
       NOTIFY_URL: ${NOTIFY_URL:-}
       NOTIFY_TOKEN: ${NOTIFY_TOKEN:-}
+    ports:
+      # Host interface:port -> container port. Default publishes only on
+      # intel's own tailnet interface (100.70.101.109) — unreachable from the
+      # public internet or the LAN. Set BIND_IP=127.0.0.1 instead if you want
+      # to keep the raw HTTP port off the tailnet entirely and front it with
+      # `tailscale serve` for HTTPS (see deploy/.env.example, deploy/README.md).
+      - "${BIND_IP:-100.70.101.109}:${PORT:-7789}:3001"
     volumes:
       # Raiz de projetos do host (HUB-07 AC1) — cada projeto navegável pela
       # UI vive sob este diretório.

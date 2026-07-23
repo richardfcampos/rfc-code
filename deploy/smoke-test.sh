@@ -15,27 +15,24 @@
 # run locally (no TAILSCALE_DOMAIN env var set) — see README.md for how to
 # run those on intel.
 #
-# macOS Docker Desktop caveat (verified 2026-07-23): this script's curl
-# checks hit ${BASE_URL} from the *host* shell running the script. On a
-# native Linux Docker Engine (the intel target), `network_mode: host`
-# means that host IS the container's network namespace, so this works. On
-# Docker Desktop for Mac, `network_mode: host` instead shares the Docker
-# Desktop Linux VM's namespace — distinct from macOS's own network stack —
-# so curl from a macOS shell cannot reach the container even though the
-# server is up and healthy inside it. If every curl-based check fails here
-# on a Mac, verify the container is actually fine with:
-#   docker exec rfc-code curl -fsS http://127.0.0.1:3001/health
-# before treating it as a real regression. See README.md "Why host
-# networking" for the underlying reason AUTH_MODE=trusted requires host
-# networking in the first place.
+# This script's curl checks hit ${BASE_URL} = ${BIND_IP}:${PORT} — the same
+# host:port docker-compose.yml publishes the container's port 3001 on. Set
+# BIND_IP/PORT to match whatever you deployed with (defaults match
+# docker-compose.yml's own defaults: intel's tailnet IP, port 7789). Bridge
+# networking with an explicit `ports:` publish (see docker-compose.yml)
+# reaches the container the same way on macOS and Linux — unlike the
+# `network_mode: host` this deploy used previously, which did not work on
+# Docker Desktop for macOS (verified 2026-07-23; see README.md "Why bridge
+# networking").
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-RFC_CODE_PORT="${RFC_CODE_PORT:-3001}"
-BASE_URL="http://127.0.0.1:${RFC_CODE_PORT}"
+BIND_IP="${BIND_IP:-100.70.101.109}"
+PORT="${PORT:-7789}"
+BASE_URL="http://${BIND_IP}:${PORT}"
 COMPOSE=(docker compose -f docker-compose.yml)
 FAILURES=0
 PASS_COUNT=0
