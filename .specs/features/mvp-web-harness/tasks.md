@@ -15,11 +15,11 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 
 ## Test Coverage Matrix
 
-> Generated from codebase (clone de verificação CloudCLI v1.36.3), guidelines e spec — confirm before Execute. Guidelines found: `~/.claude/rules/development-rules.md` (testes antes de push, sem mocks pra passar build); upstream: 27 arquivos `*.test.*` usando **node:test** (ex.: `server/opencode-cli.test.js:5`), MAS sem script `test` no `package.json` e sem step de teste no CI. T2 pina os comandos reais.
+> Generated from codebase (clone de verificação CloudCLI v1.36.3), guidelines e spec. Upstream: 25 arquivos `*.test.{js,ts}` usando **node:test** (ex.: `server/opencode-cli.test.js:5`), sem script `test` no `package.json` e sem step de teste no CI. T2 pinou os comandos reais (ver Gate Check Commands abaixo).
 
 | Code Layer | Required Test Type | Coverage Expectation | Location Pattern | Run Command |
 | --- | --- | --- | --- | --- |
-| Server modules/services (profiles, handoff, webhook, auth-mode) | unit (node:test) | Todos os branches; 1:1 com ACs do spec; edge cases listados | `server/**/*.test.{js,ts}` co-locado | `npm test` (criado em T2) |
+| Server modules/services (profiles, handoff, webhook, auth-mode) | unit (node:test) | Todos os branches; 1:1 com ACs do spec; edge cases listados | `server/**/*.test.{js,ts}` co-locado | `npm test` |
 | Server routes (profiles CRUD) | unit c/ mocks (padrão upstream) | Happy + edge + error paths por rota | `server/**/*.test.{js,ts}` | `npm test` |
 | Migrations/schema | unit (abre DB efêmero, valida schema) | Criação + idempotência | `server/modules/database/*.test.ts` | `npm test` |
 | Frontend components | none — build+lint gate + UAT | — (padrão upstream: zero testes front; validação via UAT interativo) | — | `npm run build` |
@@ -38,13 +38,17 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 
 ## Gate Check Commands
 
-> Provisórios até T2 pinar os comandos reais do repo — confirm before Execute.
+> Pinados em T2 — comandos reais do repo, confirmados rodando localmente (Node v22.23.1, conforme `.nvmrc`).
 
 | Gate Level | When to Use | Command |
 | --- | --- | --- |
 | Quick | Tasks com unit tests | `npm test` |
 | Full | Tasks que tocam rotas/integração | `npm test && npm run build` |
-| Build | Tasks só de UI/config/deploy | `npm run build` (+ lint se script existir — T2 verifica) |
+| Build | Tasks só de UI/config/deploy | `npm run build` (lint disponível via `npm run lint`, não incluído no gate padrão — script pré-existente do upstream) |
+
+**Comando `test` (`package.json`)**: `tsx --tsconfig server/tsconfig.json --test "server/**/*.test.js" "server/**/*.test.ts"` — usa `tsx` (já devDependency upstream) para suportar os testes `.ts` co-locados via `node:test` nativo, resolvendo o alias `@/` de `server/tsconfig.json`.
+
+**Baseline (T2, 2026-07-23)**: 129 testes (`test()`) em 25 arquivos `server/**/*.test.{js,ts}` — **129 passed, 0 failed**. Nenhuma falha pré-existente encontrada; suíte 100% verde na primeira execução após adicionar o script. `npm run build` verde (warnings pré-existentes de CSS minify e chunk size — não bloqueantes, não tocados).
 
 ---
 
@@ -83,10 +87,11 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Depends on**: T1 | **Reuses**: 27 testes upstream existentes
 **Tools**: MCP: NONE; Skill: NONE
 **Done when**:
-- [ ] `npm test` executa e passa (falhas pré-existentes documentadas, nunca deletadas)
-- [ ] Contagem baseline registrada aqui: [N]
-- [ ] `npm run build` verde
+- [x] `npm test` executa e passa (falhas pré-existentes documentadas, nunca deletadas)
+- [x] Contagem baseline registrada aqui: **129 testes, 129 passed, 0 failed** (nenhuma falha pré-existente)
+- [x] `npm run build` verde
 **Tests**: none (habilita os demais) | **Gate**: full | **Commit**: `test: add test script and record baseline`
+**Status**: ✅ Done (2026-07-23)
 
 ### T3: Migration profiles
 
