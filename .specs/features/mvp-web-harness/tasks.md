@@ -234,9 +234,10 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 **Depends on**: T13 | **Reuses**: fluxo `needsSetup` existente
 **Tools**: MCP: NONE; Skill: NONE
 **Done when**:
-- [ ] Com server trusted, UI entra direto; modo normal inalterado
-- [ ] Build verde
-**Tests**: none (build gate + UAT) | **Gate**: build | **Commit**: `feat(auth): skip login UI when server is trusted`
+- [x] Com server trusted, UI entra direto; modo normal inalterado
+- [x] Build verde
+**Tests**: none (build gate + UAT) | **Gate**: build | **Commit**: `feat(auth): skip login ui when server is trusted` — `2a042b6`
+**Status**: ✅ Done (2026-07-23) — 192 tests (sem novos; build+lint verdes, tsc sem erros). SPEC_DEVIATION: "Where" da task listava só `api.js`+`WebSocketContext.tsx`, mas pular a tela de login exige tocar quem de fato guarda esse estado — `server/routes/auth.js` (`/status` ganha campo `trusted`), `src/components/auth/context/AuthContext.tsx` (pula o early-return de token quando trusted, reusa 100% o fluxo `needsSetup`/`checkOnboardingStatus` existente) e `src/components/auth/types.ts` (tipagem do novo campo). `api.js` não precisou de patch: o server já ignora o header Authorization em trusted (T13), então a ausência de token não quebra nenhuma chamada. Reason: sem esses 3 arquivos o "Done when" (UI entra direto) é irrealizável — `ProtectedRoute` decide com base em `user`/`needsSetup`, que só `AuthContext` popula. `WebSocketContext.tsx` recebeu o patch mínimo já previsto (conecta sem token quando trusted). Gap conhecido (fora do escopo desta task, não corrigido): `src/components/shell/utils/socket.ts` (WS do terminal embutido) ainda lê `auth-token` do localStorage direto e recusa conectar sem token em modo trusted — feature de terminal/git UI (HUB-11) ficaria quebrada; candidato a task futura antes do UAT (T17/T21).
 
 ### T15: Dockerfile
 

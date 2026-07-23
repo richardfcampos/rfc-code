@@ -20,11 +20,12 @@
 
 ## Handoff
 
-- **Última atividade:** 2026-07-23 14:20 -03 — ✅ T13 concluída e commitada (`0dd9145`, `AUTH_MODE=trusted` runtime); 192 tests/0 fail.
+- **Última atividade:** 2026-07-23 14:40 -03 — ✅ Fase 3 concluída e commitada (T13 `0dd9145`, T14 `2a042b6`); 192 tests/0 fail, build+lint verdes.
 - **Fase:** EXECUTE — tasks aprovadas (21 tasks / 5 fases, 1 worker/fase).
-- **Concluído:** Fase 1 ✅ (T1 `df9c125`, T2 `95bbc10`); Fase 2a ✅ (T3 `604ca3a` … T9 `0e288d6`); Fase 2b ✅ (T10 `fe67876`, T11 `7cf5c1a`, T12 `b540257`) — 179 tests/0 fail. Perfis multi-conta (HUB-05) completo. Fase 3 em andamento: T13 ✅ (`0dd9145`) — 192 tests/0 fail.
-- **Próximo passo (ao retomar):** T14 (front pula login em trusted) → Fase 4 (deploy) → Fase 5 (integrações P2) → Verifier (Opus) ao final de todas as tasks.
-- **Como retomar:** ativar skill `tlc-spec-driven`, seguir fluxo Execute de `.specs/features/mvp-web-harness/tasks.md` a partir da primeira task não marcada concluída (T14), respeitando AD-001..AD-013.
+- **Concluído:** Fase 1 ✅ (T1 `df9c125`, T2 `95bbc10`); Fase 2a ✅ (T3 `604ca3a` … T9 `0e288d6`); Fase 2b ✅ (T10 `fe67876`, T11 `7cf5c1a`, T12 `b540257`); Fase 3 ✅ (T13 `0dd9145`, T14 `2a042b6`) — `AUTH_MODE=trusted` runtime completo (server + front), 192 tests/0 fail.
+- **Próximo passo (ao retomar):** Fase 4 (T15–T17, deploy Docker) → Fase 5 (integrações P2) → Verifier (Opus) ao final de todas as tasks.
+- **Como retomar:** ativar skill `tlc-spec-driven`, seguir fluxo Execute de `.specs/features/mvp-web-harness/tasks.md` a partir da primeira task não marcada concluída (T15), respeitando AD-001..AD-013.
+- **Gap conhecido (não bloqueante):** `src/components/shell/utils/socket.ts` (WS do terminal embutido) não foi adaptado a trusted mode (fora do "Where" de T14); ainda exige token via localStorage. Deveria ser corrigido antes do UAT em T17/T21 (HUB-11 no perímetro trusted).
 - **Bloqueios conhecidos:** T1 requer `gh` autenticado; T17 requer usuário (deploy intel + login de contas reais).
 - **Clone de verificação:** scratchpad da sessão (`.../scratchpad/claudecodeui`) — shallow, descartável; fork real será clonado no Execute.
 - **Artefatos:** `.specs/features/mvp-web-harness/spec.md`, `context.md`.
