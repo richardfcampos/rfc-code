@@ -16,6 +16,7 @@ let authModule = null;
 async function withIsolatedAuthEnvironment(runTest) {
   const previousDatabasePath = process.env.DATABASE_PATH;
   const previousAuthMode = process.env.AUTH_MODE;
+  const previousContainerBind = process.env.AUTH_TRUSTED_CONTAINER_BIND;
   const tempDirectory = await mkdtemp(path.join(tmpdir(), 'auth-trusted-mode-'));
   const databasePath = path.join(tempDirectory, 'auth.db');
 
@@ -39,6 +40,11 @@ async function withIsolatedAuthEnvironment(runTest) {
       delete process.env.AUTH_MODE;
     } else {
       process.env.AUTH_MODE = previousAuthMode;
+    }
+    if (previousContainerBind === undefined) {
+      delete process.env.AUTH_TRUSTED_CONTAINER_BIND;
+    } else {
+      process.env.AUTH_TRUSTED_CONTAINER_BIND = previousContainerBind;
     }
     await rm(tempDirectory, { recursive: true, force: true });
   }
@@ -184,6 +190,30 @@ test('assertTrustedModeBindIsSafe allows every loopback form when trusted', asyn
     for (const loopbackHost of ['127.0.0.1', '::1', 'localhost']) {
       assert.doesNotThrow(() => assertTrustedModeBindIsSafe(loopbackHost));
     }
+  });
+});
+
+test('assertTrustedModeBindIsSafe accepts a non-loopback bind when the container publish contract is declared', async () => {
+  await withIsolatedAuthEnvironment(async ({ assertTrustedModeBindIsSafe }) => {
+    process.env.AUTH_MODE = 'trusted';
+    process.env.AUTH_TRUSTED_CONTAINER_BIND = '1';
+
+    for (const containerHost of ['0.0.0.0', '192.168.1.10', 'example.ts.net']) {
+      assert.doesNotThrow(() => assertTrustedModeBindIsSafe(containerHost));
+    }
+  });
+});
+
+test('assertTrustedModeBindIsSafe retrocompat: still refuses a public bind when the container contract env is unset', async () => {
+  await withIsolatedAuthEnvironment(async ({ assertTrustedModeBindIsSafe }) => {
+    process.env.AUTH_MODE = 'trusted';
+    // Deliberately not setting AUTH_TRUSTED_CONTAINER_BIND — proves the
+    // default (non-containerized) protection is unchanged by this feature.
+
+    assert.throws(
+      () => assertTrustedModeBindIsSafe('0.0.0.0'),
+      /AUTH_MODE=trusted requires HOST to be a loopback address/
+    );
   });
 });
 

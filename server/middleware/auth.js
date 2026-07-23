@@ -16,21 +16,44 @@ const isTrustedMode = () => process.env.AUTH_MODE === 'trusted';
 
 const TRUSTED_MODE_LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
 
+// Deployment-only escape hatch for the loopback check below. A bridge-networked
+// container MUST bind a container-local interface (e.g. 0.0.0.0) for Docker's
+// `ports:` publish to reach it — a loopback bind inside the container is
+// unreachable from the published port at all. In that topology the network
+// boundary this guard exists to protect moves one layer out, from "which
+// interface does the Node process bind" to "which host interface does the
+// `ports:` publish bind" (see deploy/docker-compose.yml, where the publish is
+// restricted to loopback or the tailnet IP — never `0.0.0.0:PORT:PORT`).
+// Setting this env var is the operator's explicit acknowledgement of that
+// contract; it does not change what trusted mode protects against, only where
+// the check for it happens.
+const CONTAINER_BIND_CONTRACT_ENV = 'AUTH_TRUSTED_CONTAINER_BIND';
+
 /**
  * Trusted mode has no per-request auth, so the network perimeter (e.g. a
  * Tailscale tailnet) is the only thing standing between the app and the
  * internet. Binding to any non-loopback interface in that mode would expose
  * every session with zero authentication, so refuse to boot instead. No-ops
  * outside trusted mode.
+ *
+ * Exception: when AUTH_TRUSTED_CONTAINER_BIND=1 is set (see
+ * CONTAINER_BIND_CONTRACT_ENV above), a non-loopback bind is accepted — the
+ * operator has moved enforcement to the container's published port instead.
+ * Without that env var, behavior is unchanged: any non-loopback bind in
+ * trusted mode still throws.
  */
 const assertTrustedModeBindIsSafe = (host) => {
-  if (isTrustedMode() && !TRUSTED_MODE_LOOPBACK_HOSTS.has(host)) {
-    throw new Error(
-      `AUTH_MODE=trusted requires HOST to be a loopback address (127.0.0.1, ::1, or localhost); got "${host}". ` +
-      'Trusted mode disables login, so the network perimeter is the only protection — ' +
-      'binding to a non-loopback address would expose every session without authentication.'
-    );
+  if (!isTrustedMode() || TRUSTED_MODE_LOOPBACK_HOSTS.has(host)) {
+    return;
   }
+  if (process.env[CONTAINER_BIND_CONTRACT_ENV] === '1') {
+    return;
+  }
+  throw new Error(
+    `AUTH_MODE=trusted requires HOST to be a loopback address (127.0.0.1, ::1, or localhost); got "${host}". ` +
+    'Trusted mode disables login, so the network perimeter is the only protection — ' +
+    'binding to a non-loopback address would expose every session without authentication.'
+  );
 };
 
 /**
