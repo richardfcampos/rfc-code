@@ -20,10 +20,10 @@
 
 ## Handoff
 
-- **Última atividade:** 2026-07-23 10:08 -03 (heartbeat — sessões ativas DEVEM atualizar após cada task/fase; retomada automática só age se >90min parado)
+- **Última atividade:** 2026-07-23 10:17 -03 (heartbeat — sessões ativas DEVEM atualizar após cada task/fase; retomada automática só age se >90min parado)
 - **Fase:** EXECUTE — tasks APROVADAS pelo usuário (21 tasks / 5 fases, sub-agents aceitos: 1 worker/fase).
-- **Em andamento:** Fase 1, worker Sonnet — T1 concluída (`df9c125`, fork estabelecido, remotes ok, README com atribuição, npm install ok). T2 (baseline build/testes) em andamento.
-- **Próximo passo:** worker concluir T2 → reportar resumo da Fase 1 → orquestrador atualiza tasks.md → despachar Fase 2 (Opus). Após T21: Verifier automático (Opus).
+- **Em andamento:** Fase 1 CONCLUÍDA por worker Sonnet — T1 (`df9c125`, fork estabelecido) e T2 (`95bbc10`, script `test` + baseline 129 passed/0 failed + build verde) feitas. Push pendente para `origin/rfc-code`.
+- **Próximo passo:** orquestrador recebe resumo da Fase 1 → despachar Fase 2 (Opus, T3-T12 perfis multi-conta). Após T21: Verifier automático (Opus).
 - **Como retomar:** ativar skill `tlc-spec-driven`, seguir fluxo Execute de `.specs/features/mvp-web-harness/tasks.md` a partir da primeira task não marcada concluída, respeitando AD-001..AD-013.
 - **Bloqueios conhecidos:** T1 requer `gh` autenticado; T17 requer usuário (deploy intel + login de contas reais).
 - **Clone de verificação:** scratchpad da sessão (`.../scratchpad/claudecodeui`) — shallow, descartável; fork real será clonado no Execute.
