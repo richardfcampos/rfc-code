@@ -378,4 +378,8 @@ Phase 5: T18 [P]; T19 ──→ T20; (T17,T20) → T21
 | T18 webhook | server module | unit | unit | ✅ |
 | T19 spike | doc | none | none | ✅ |
 | T20 handoff | server module | unit | unit | ✅ |
+
+## Post-MVP Deviations & Revisions
+
+- **2026-07-24 — Visible-identity rebrand (out-of-plan, single commit `34a099d`):** UI still displayed the upstream "CloudCLI" name (sidebar header, auth screens, settings/about, browser tab title, PWA manifest, service worker push fallback, API docs page) and the sidebar GitHub star badge pointed at `siteboon/claudecodeui`. Not part of T1-T21; user-requested branding fix executed as a standalone task. Renamed all user-visible product-name occurrences to "RFC Code" across the app shell and all 10 i18n locales (product-name keys only, not technical strings); repointed the GitHub star badge to `richardfcampos/rfc-code`; preserved the AGPL-3.0 "Based on CloudCLI UI" attribution (AD-008) on the auth footer and added the same discreet note to Settings > About. Left untouched: npm package name, `cloudcli` binary/paths, class/module names, CHANGELOG, other READMEs (AD-009 scope), plus references to the actual external CloudCLI Pro/Hosted commercial offering, the PRISM CloudCLI plugin listing, "Maintained by the CloudCLI team" (real upstream maintainers), and `useVersionCheck('siteboon','claudecodeui')` (functional upstream release check) — these name a distinct external product/team this fork doesn't provide, not the fork's own identity. Build EXIT 0, lint 0 errors, suite unchanged at 209/209.
 | T21 UAT | frontend | none (UAT) | UAT | ✅ |
