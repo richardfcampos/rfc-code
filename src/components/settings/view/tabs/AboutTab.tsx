@@ -45,7 +45,7 @@ export default function AboutTab() {
               className="text-base font-semibold text-foreground"
               style={{ fontFamily: CLOUDCLI_WORDMARK_FONT_FAMILY }}
             >
-              CloudCLI
+              RFC Code
             </span>
             <a
               href={releasesUrl}
@@ -165,6 +165,17 @@ export default function AboutTab() {
       <div className="border-t border-border/50 pt-4">
         <p className="text-xs text-muted-foreground/60">
           Licensed under AGPL-3.0
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground/60">
+          Based on{' '}
+          <a
+            href="https://github.com/siteboon/claudecodeui"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline transition-colors hover:text-muted-foreground"
+          >
+            CloudCLI UI
+          </a>
         </p>
       </div>
     </div>

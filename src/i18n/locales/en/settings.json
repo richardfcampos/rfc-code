@@ -503,7 +503,7 @@
     },
     "managed": {
       "badge": "Managed",
-      "hint": "Managed by CloudCLI."
+      "hint": "Managed by RFC Code."
     },
     "help": {
       "title": "About Codex MCP",
