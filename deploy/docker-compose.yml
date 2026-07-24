@@ -71,3 +71,13 @@ services:
       # DB (sessions/profiles) + config dirs isolados por perfil (HUB-05
       # AC5, HUB-07 AC2) — sobrevive a `docker compose restart`.
       - ${DATA_ROOT:-./data}:/data
+      # Config dirs DEFAULT dos providers (sessões criadas SEM perfil) + estado
+      # do app. Sem estes mounts o histórico de sessões sem perfil vive no home
+      # efêmero do container e evapora a cada recreate — perda real de dados.
+      - ${DATA_ROOT:-./data}/default/claude:/home/rfccode/.claude
+      - ${DATA_ROOT:-./data}/default/codex:/home/rfccode/.codex
+      - ${DATA_ROOT:-./data}/default/cursor:/home/rfccode/.cursor
+      - ${DATA_ROOT:-./data}/default/opencode-config:/home/rfccode/.config/opencode
+      - ${DATA_ROOT:-./data}/default/opencode-data:/home/rfccode/.local/share/opencode
+      - ${DATA_ROOT:-./data}/default/cloudcli:/home/rfccode/.cloudcli
+      - ${DATA_ROOT:-./data}/default/app-state:/home/rfccode/.claude-code-ui
