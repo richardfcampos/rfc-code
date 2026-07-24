@@ -48,6 +48,11 @@ services:
       SERVER_PORT: 3001
       DATABASE_PATH: /data/db/auth.db
       PROFILES_ROOT: /data/profiles
+      # Raiz de navegação de workspaces da UI (server/shared/utils.ts,
+      # WORKSPACES_ROOT): o mount de projetos vive fora do home do usuário do
+      # container, então sem isto o browser de pastas fica preso em /home e
+      # nenhum projeto aparece.
+      WORKSPACES_ROOT: /projects
       # Reserved for the notify-hub webhook channel (T18, not yet
       # implemented). Safe to leave unset until then.
       NOTIFY_URL: ${NOTIFY_URL:-}
