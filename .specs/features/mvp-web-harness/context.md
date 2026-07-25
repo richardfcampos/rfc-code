@@ -52,3 +52,4 @@ Harness web self-hosted (Docker no servidor intel) estilo Claude Code Desktop: s
 - Tracking de custo/quota por conta/perfil
 - Exposição pública real (Funnel/Cloudflare + auth na borda)
 - Apps nativos mobile
+- UX (achado do UAT 2026-07-24): o painel upstream "Account/Connection Status" por provider mostra a conta DEFAULT do container (sempre vazia no nosso desenho) e confunde — torná-lo profile-aware ou linkar pra aba Profiles
