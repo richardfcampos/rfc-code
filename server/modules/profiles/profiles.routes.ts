@@ -104,6 +104,36 @@ router.delete(
   }),
 );
 
+// GET /api/profiles/:id/skills
+router.get(
+  '/:id/skills',
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = parseProfileId(req.params.id);
+    res.json(createApiSuccessResponse(profilesService.listSkills(id)));
+  }),
+);
+
+// PUT /api/profiles/:id/skills { enabled: string[] }
+// Full desired set, not a single toggle, so a selection is applied atomically.
+router.put(
+  '/:id/skills',
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = parseProfileId(req.params.id);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    res.json(createApiSuccessResponse(profilesService.updateSkills(id, body.enabled)));
+  }),
+);
+
+// POST /api/profiles/:id/skills/restore
+// Repair path for profiles created before skills were bundled.
+router.post(
+  '/:id/skills/restore',
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = parseProfileId(req.params.id);
+    res.json(createApiSuccessResponse(profilesService.restoreAllSkills(id)));
+  }),
+);
+
 // PATCH /api/profiles/sessions/:sessionId/tooling { cavemanMode }
 // Per-session override of the compression level; null clears it so the session
 // follows its profile again. RTK has no session-level equivalent — it is a hook

@@ -59,6 +59,7 @@ import userRoutes from './routes/user.js';
 import pluginsRoutes from './routes/plugins.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import profilesRoutes from './modules/profiles/profiles.routes.js';
+import { ensureDefaultConfigDirSkills } from './modules/bundled-skills/index.js';
 import { profilesService } from './modules/profiles/profiles.service.js';
 import voiceRoutes from './voice-proxy.js';
 import browserUseRoutes from './modules/browser-use/browser-use.routes.js';
@@ -1592,6 +1593,13 @@ async function startServer() {
         // exists yet — otherwise no request could ever pass authenticateToken's
         // getFirstUser() lookup. No-op outside trusted mode or once a user exists.
         await seedTrustedModeUser();
+
+        // Sessions without an account profile run against the CLI's default
+        // config directory, so the skills shipped with the app have to be
+        // linked there as well — otherwise a fresh install exposes none of
+        // them. Idempotent, and never replaces a skill the user linked or
+        // installed themselves.
+        ensureDefaultConfigDirSkills();
 
         // Configure Web Push (VAPID keys)
         configureWebPush();

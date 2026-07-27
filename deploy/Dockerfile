@@ -76,10 +76,14 @@ WORKDIR /home/rfccode
 #     ~/.local/bin (already on PATH above). If this script ever starts
 #     requiring interactive input, Cursor becomes an explicit degradation
 #     (HUB-06 AC4) rather than a silent build failure.
+#   - claudekit: the CLI the bundled ck-* skills shell out to. Without it those
+#     skills load and then fail at their first command, which reads as a broken
+#     skill rather than a missing dependency.
 RUN npm install -g \
       @anthropic-ai/claude-code \
       @openai/codex \
       opencode-ai \
+      claudekit \
       --no-audit --no-fund \
     && curl -fsS https://cursor.com/install | bash
 
@@ -133,6 +137,28 @@ COPY --from=builder --chown=rfccode:rfccode /app/node_modules ./node_modules
 COPY --from=builder --chown=rfccode:rfccode /app/dist ./dist
 COPY --from=builder --chown=rfccode:rfccode /app/dist-server ./dist-server
 COPY --from=builder --chown=rfccode:rfccode /app/public ./public
+
+# Bundled skills live outside /app because they are not application code: each
+# profile links the ones it wants into its own config dir, since Claude Code
+# only discovers skills under $CLAUDE_CONFIG_DIR/skills and every profile has a
+# different one. One read-only copy here, symlinked per profile, instead of
+# ~28 MB duplicated into every profile volume.
+COPY --from=builder --chown=rfccode:rfccode /app/skills /opt/rfc-code/skills
+
+# A few skills ship their own package.json and are dead on arrival without
+# their dependencies installed. Only those with actual dependencies are
+# installed — the rest declare nothing but test scripts, and running npm there
+# would just add empty directories.
+RUN set -eu; \
+    for manifest in /opt/rfc-code/skills/*/package.json; do \
+      [ -f "$manifest" ] || continue; \
+      skill_dir="$(dirname "$manifest")"; \
+      if node -e "process.exit(Object.keys(require('$manifest').dependencies||{}).length?0:1)"; then \
+        echo "Installing dependencies for $(basename "$skill_dir")"; \
+        (cd "$skill_dir" && npm install --omit=dev --no-audit --no-fund); \
+      fi; \
+    done; \
+    chown -R rfccode:rfccode /opt/rfc-code/skills
 
 # Volumes for host-mounted project roots and persistent data (DB + profiles).
 # Both are bind-mounted by docker-compose.yml; the mkdir here only ensures

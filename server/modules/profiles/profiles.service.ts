@@ -23,6 +23,13 @@ import {
   type ProfileRow,
 } from '@/modules/profiles/profiles.repository.js';
 import {
+  applySkillSelection,
+  enableAllSkills,
+  listBundledSkills,
+  listEnabledSkills,
+  type BundledSkill,
+} from '@/modules/bundled-skills/index.js';
+import {
   applyRtkMode,
   disableCavemanPlugin,
   enableCavemanPlugin,
@@ -130,7 +137,13 @@ export const profilesService = {
 
     // Create the isolated config directory up front so the first session using
     // this profile has somewhere to land, and so a login can write into it.
-    fs.mkdirSync(resolveProfileDir(provider, slug), { recursive: true });
+    const profileDir = resolveProfileDir(provider, slug);
+    fs.mkdirSync(profileDir, { recursive: true });
+
+    // A new profile starts with the whole bundled toolbox: Claude Code only
+    // finds skills under this config dir, so without this a fresh account sees
+    // none at all and the skills panel would be the only way to get any.
+    enableAllSkills(profileDir);
 
     const row = profilesRepository.insert({ id, provider, name, slug });
     return toView(row);
@@ -288,6 +301,59 @@ export const profilesService = {
 
     const mode = resolveExplicitCavemanMode(sessionCavemanMode, row?.caveman_mode);
     return mode ? resolveCavemanEnv(mode) : {};
+  },
+
+  /**
+   * Lists every bundled skill alongside whether this profile exposes it.
+   */
+  listSkills(profileId: string): { skills: BundledSkill[]; enabled: string[] } {
+    const row = loadProfileOrThrow(profileId);
+    const profileDir = resolveProfileDir(row.provider, row.slug);
+    return { skills: listBundledSkills(), enabled: listEnabledSkills(profileDir) };
+  },
+
+  /**
+   * Replaces this profile's skill selection wholesale.
+   *
+   * Takes the full desired set rather than a single toggle so a selection can
+   * never be applied half-way, and so two concurrent edits cannot interleave
+   * into a state neither side asked for.
+   */
+  updateSkills(profileId: string, enabled: unknown): { skills: BundledSkill[]; enabled: string[] } {
+    const row = loadProfileOrThrow(profileId);
+
+    if (!Array.isArray(enabled) || enabled.some((name) => typeof name !== 'string')) {
+      throw new AppError('enabled must be an array of skill names.', {
+        code: 'INVALID_SKILL_SELECTION',
+        statusCode: 400,
+      });
+    }
+
+    const known = new Set(listBundledSkills().map((skill) => skill.name));
+    const unknown = (enabled as string[]).filter((name) => !known.has(name));
+    if (unknown.length > 0) {
+      throw new AppError(`Unknown skill(s): ${unknown.join(', ')}.`, {
+        code: 'UNKNOWN_SKILL',
+        statusCode: 400,
+      });
+    }
+
+    const profileDir = resolveProfileDir(row.provider, row.slug);
+    applySkillSelection(profileDir, enabled as string[]);
+    return { skills: listBundledSkills(), enabled: listEnabledSkills(profileDir) };
+  },
+
+  /**
+   * Links the full bundle into a profile that predates skill bundling.
+   *
+   * Profiles created before this feature have no `skills/` directory at all, so
+   * their sessions see no skills; this is the repair path for them.
+   */
+  restoreAllSkills(profileId: string): { enabled: string[] } {
+    const row = loadProfileOrThrow(profileId);
+    const profileDir = resolveProfileDir(row.provider, row.slug);
+    enableAllSkills(profileDir);
+    return { enabled: listEnabledSkills(profileDir) };
   },
 
   getAuthStatus(profileId: string): ProfileAuthStatus {
