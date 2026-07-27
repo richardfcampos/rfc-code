@@ -11,7 +11,12 @@
 # Stage 1 — build: compile native addons (better-sqlite3, bcrypt, node-pty)
 # and produce the client (dist/) + server (dist-server/) bundles.
 # ---------------------------------------------------------------------------
-FROM node:22-bookworm AS builder
+# Debian 13 (trixie, glibc 2.41) rather than bookworm (2.36): the RTK release
+# binary for arm64 is linked against glibc 2.39 and there is no static musl
+# build for that architecture, so bookworm cannot run it at all. Builder and
+# runtime stay on the same distro so native addons are compiled against the
+# same libc they run on.
+FROM node:22-trixie AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential \
@@ -40,7 +45,7 @@ RUN npm run build \
 # Stage 2 — runtime: non-root user, agent CLIs, compiled app only (no
 # compiler toolchain, no source tree).
 # ---------------------------------------------------------------------------
-FROM node:22-bookworm AS runtime
+FROM node:22-trixie AS runtime
 
 # git: required by the git panel/routes (server/routes/git.js) and project
 # clone flow (HUB-11). curl + ca-certificates: required at build time to
