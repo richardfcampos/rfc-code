@@ -10,13 +10,14 @@ export type SessionRow = {
   jsonl_path: string | null;
   custom_name: string | null;
   profile_id: string | null;
+  caveman_mode: string | null;
   isArchived: number;
   created_at: string;
   updated_at: string;
 };
 
 const SESSION_ROW_COLUMNS =
-  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, profile_id, isArchived, created_at, updated_at';
+  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, profile_id, caveman_mode, isArchived, created_at, updated_at';
 
 const SQLITE_UTC_TIMESTAMP_REGEX = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 
@@ -246,6 +247,20 @@ export const sessionsDb = {
        SET profile_id = ?, updated_at = CURRENT_TIMESTAMP
        WHERE session_id = ?`
     ).run(profileId ?? null, sessionId);
+  },
+
+  /**
+   * Overrides the response-compression level for one session.
+   *
+   * Passing null clears the override so the session follows its profile again.
+   */
+  updateSessionCavemanMode(sessionId: string, cavemanMode: string | null): void {
+    const db = getConnection();
+    db.prepare(
+      `UPDATE sessions
+       SET caveman_mode = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE session_id = ?`
+    ).run(cavemanMode ?? null, sessionId);
   },
 
   /**

@@ -168,7 +168,7 @@ function matchesToolPermission(entry, toolName, input) {
 }
 
 function mapCliOptionsToSDK(options = {}) {
-  const { sessionId, cwd, toolsSettings, permissionMode, effort, profileId } = options;
+  const { sessionId, cwd, toolsSettings, permissionMode, effort, profileId, cavemanMode } = options;
 
   const sdkOptions = {};
 
@@ -181,6 +181,12 @@ function mapCliOptionsToSDK(options = {}) {
   // credentials. With no profile, resolveEnv returns {} and the CLI keeps its
   // default config directory — upstream behavior stays intact.
   Object.assign(sdkOptions.env, profilesService.resolveEnv(profileId));
+
+  // Response-compression level for this session (session override, else the
+  // profile default). Resolves to nothing when neither was configured here, so
+  // the caveman plugin keeps honoring its own config instead of being pinned to
+  // a default this app invented.
+  Object.assign(sdkOptions.env, profilesService.resolveToolingEnv(profileId, cavemanMode));
 
   // Resolve the executable eagerly on Windows because the SDK uses raw child_process.spawn,
   // which does not reliably follow npm's shell wrappers like cross-spawn does.

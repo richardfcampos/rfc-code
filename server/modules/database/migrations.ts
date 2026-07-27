@@ -419,6 +419,38 @@ const addProfileIdToSessions = (db: Database): void => {
   addColumnToTableIfNotExists(db, 'sessions', columnNames, 'profile_id', 'TEXT');
 };
 
+/**
+ * Adds the nullable per-session override of the response-compression level.
+ *
+ * NULL keeps a session following whatever its profile is set to, so existing
+ * sessions inherit the profile default instead of being pinned to whatever the
+ * level happened to be when this column was added.
+ */
+const addCavemanModeToSessions = (db: Database): void => {
+  const columnNames = getTableInfo(db, 'sessions').map((column) => column.name);
+
+  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'caveman_mode', 'TEXT');
+};
+
+/**
+ * Adds the per-profile agent tooling defaults.
+ *
+ * Both stay NULL for profiles that predate the feature, which resolves to off
+ * for each — enabling either one for an existing account is an explicit act,
+ * never something a migration turns on underneath the user.
+ *
+ * Must run after the profiles table itself is created.
+ */
+const addAgentToolingColumnsToProfiles = (db: Database): void => {
+  if (!tableExists(db, 'profiles')) {
+    return;
+  }
+  const columnNames = getTableInfo(db, 'profiles').map((column) => column.name);
+
+  addColumnToTableIfNotExists(db, 'profiles', columnNames, 'caveman_mode', 'TEXT');
+  addColumnToTableIfNotExists(db, 'profiles', columnNames, 'rtk_mode', 'TEXT');
+};
+
 const ensureProjectsForSessionPaths = (db: Database): void => {
   if (!tableExists(db, 'sessions')) {
     return;
@@ -470,10 +502,12 @@ export const runMigrations = (db: Database) => {
     migrateLegacySessionNames(db);
     addProviderSessionIdMapping(db);
     addProfileIdToSessions(db);
+    addCavemanModeToSessions(db);
     ensureProjectsForSessionPaths(db);
 
     db.exec(PROFILES_TABLE_SCHEMA_SQL);
     db.exec('CREATE INDEX IF NOT EXISTS idx_profiles_provider ON profiles(provider)');
+    addAgentToolingColumnsToProfiles(db);
 
     db.exec('CREATE INDEX IF NOT EXISTS idx_session_ids_lookup ON sessions(session_id)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_provider_session_id ON sessions(provider_session_id)');

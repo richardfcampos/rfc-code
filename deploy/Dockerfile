@@ -81,6 +81,48 @@ RUN npm install -g \
 WORKDIR /app
 USER root
 
+# RTK (Rust Token Killer) — the binary behind the per-profile command-rewriting
+# hook. Installed from the project's own GitHub release: the `rtk` name on npm
+# belongs to an unrelated release-management tool, so `npm i -g rtk` installs
+# the wrong program entirely.
+#
+# The asset differs per architecture and there is no linux/amd64 gnu build, so
+# amd64 takes the static musl one. TARGETARCH is supplied by BuildKit; hard-
+# coding arm64 here would produce an image that cannot run on an x86 host.
+# Checksums are pinned so a re-tagged or tampered release fails the build
+# instead of silently shipping a different binary.
+ARG TARGETARCH
+ARG RTK_VERSION=0.43.0
+RUN set -eu; \
+    case "${TARGETARCH:-arm64}" in \
+      arm64) rtk_asset='rtk-aarch64-unknown-linux-gnu.tar.gz'; \
+             rtk_sha='5519f7ca12e5c143a609f0d28a0a77b97413a8dce31c2681f1a41c24519a8731' ;; \
+      amd64) rtk_asset='rtk-x86_64-unknown-linux-musl.tar.gz'; \
+             rtk_sha='ff8a1e7766496e175291a85aeca1dc97c9ff6df33e51e5893d1fbc78fea2a609' ;; \
+      *) echo "No RTK build for TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/rtk.tar.gz \
+      "https://github.com/rtk-ai/rtk/releases/download/v${RTK_VERSION}/${rtk_asset}"; \
+    echo "${rtk_sha}  /tmp/rtk.tar.gz" | sha256sum -c -; \
+    tar -xzf /tmp/rtk.tar.gz -C /tmp; \
+    install -m 0755 "$(find /tmp -maxdepth 2 -type f -name rtk | head -n 1)" /usr/local/bin/rtk; \
+    rm -rf /tmp/rtk.tar.gz; \
+    rtk --version
+
+# Caveman plugin — the response-compression hook the per-session level drives.
+#
+# Claude Code's installed_plugins.json records an absolute installPath, so one
+# copy here can be referenced by every profile instead of being duplicated into
+# each profile volume. Pinned to a commit: this is a third-party plugin that
+# runs on every session start, and tracking a moving branch would let its
+# behavior change under an image rebuild.
+ARG CAVEMAN_PLUGIN_SHA=655b7d9c5431f822264b7732e9901c5578ac84cf
+RUN set -eu; \
+    git clone --quiet https://github.com/JuliusBrussee/caveman.git /opt/claude-plugins/caveman; \
+    git -C /opt/claude-plugins/caveman checkout --quiet "${CAVEMAN_PLUGIN_SHA}"; \
+    rm -rf /opt/claude-plugins/caveman/.git; \
+    test -f /opt/claude-plugins/caveman/.claude-plugin/plugin.json
+
 COPY --from=builder --chown=rfccode:rfccode /app/package.json /app/package-lock.json ./
 COPY --from=builder --chown=rfccode:rfccode /app/node_modules ./node_modules
 COPY --from=builder --chown=rfccode:rfccode /app/dist ./dist

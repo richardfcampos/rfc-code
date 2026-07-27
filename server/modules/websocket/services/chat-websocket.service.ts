@@ -206,6 +206,10 @@ async function handleChatSend(
     // from the session row rather than trusted from the per-message options.
     // NULL keeps the provider CLI on its default config dir (upstream behavior).
     profileId: session.profile_id ?? clientOptions.profileId ?? null,
+    // Same reasoning as profileId: the override belongs to the session, so it
+    // comes from the row. NULL means the session never chose one and follows
+    // whatever its profile is set to.
+    cavemanMode: session.caveman_mode ?? null,
   };
 
   try {

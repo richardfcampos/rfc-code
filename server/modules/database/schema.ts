@@ -103,6 +103,13 @@ CREATE TABLE IF NOT EXISTS profiles (
     name TEXT NOT NULL,
     slug TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    -- Default response-compression level for sessions of this profile, which a
+    -- session may override. NULL means "never configured" and resolves to off.
+    caveman_mode TEXT,
+    -- Command-rewriting level for this profile. Unlike caveman_mode this is not
+    -- overridable per session: it is installed as a hook in the profile's own
+    -- settings.json, which every session of the profile shares.
+    rtk_mode TEXT,
     -- One isolated on-disk config directory per (provider, slug). The unique
     -- constraint guarantees two profiles of the same provider can never resolve
     -- to the same credential directory, which is what keeps their accounts
@@ -130,6 +137,10 @@ CREATE TABLE IF NOT EXISTS sessions (
     -- referential rules — e.g. refusing to delete a profile with live sessions —
     -- live in the profiles service rather than in cascade triggers.
     profile_id TEXT,
+    -- Per-session override of the profile's response-compression level. NULL
+    -- means "follow the profile", which is what keeps a profile-level change
+    -- visible to sessions that never expressed an opinion of their own.
+    caveman_mode TEXT,
     isArchived BOOLEAN DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
