@@ -325,6 +325,14 @@ export type ProviderSkillScope = 'user' | 'project' | 'plugin' | 'repo' | 'admin
  */
 export type ProviderSkillListOptions = {
   workspacePath?: string;
+  /**
+   * Account profile whose isolated config directory should be scanned.
+   *
+   * Skills live under the config dir a session actually runs against, and each
+   * profile has its own — so listing without this reports the default account's
+   * skills, which is not what a profile-bound session will load.
+   */
+  profileId?: string | null;
 };
 
 /**
