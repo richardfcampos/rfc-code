@@ -81,3 +81,7 @@ services:
       - ${DATA_ROOT:-./data}/default/opencode-data:/home/rfccode/.local/share/opencode
       - ${DATA_ROOT:-./data}/default/cloudcli:/home/rfccode/.cloudcli
       - ${DATA_ROOT:-./data}/default/app-state:/home/rfccode/.claude-code-ui
+      # Chromium downloaded by the in-app browser runtime install. Without this
+      # it lives in the container's ephemeral layer and is re-downloaded (a few
+      # hundred MB) after every recreate.
+      - ${DATA_ROOT:-./data}/default/playwright:/home/rfccode/.cache/ms-playwright

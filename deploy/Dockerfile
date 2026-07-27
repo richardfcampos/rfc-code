@@ -56,6 +56,42 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+# System libraries Chromium needs, so the in-app "install browser runtime"
+# action can succeed. They have to be baked in here: that action runs as the
+# unprivileged app user, and Playwright's own `install-deps` tries to su to
+# root and fails — after which `playwright install chromium` refuses too,
+# because it validates host requirements before downloading.
+#
+# The browser binary itself is deliberately not shipped. It lands in the app
+# user's cache at runtime, on a persisted volume, so it is downloaded once and
+# only by someone who actually turns the feature on — rather than adding a few
+# hundred MB to every image for a feature that is off by default.
+#
+# The list is what `playwright install-deps --dry-run chromium` resolves to on
+# this base image; the t64 suffixes are Debian's 64-bit time_t transition.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      fonts-ipafont-gothic \
+      fonts-noto-color-emoji \
+      fonts-tlwg-loma-otf \
+      fonts-unifont \
+      fonts-wqy-zenhei \
+      libasound2t64 \
+      libatk-bridge2.0-0t64 \
+      libatk1.0-0t64 \
+      libatspi2.0-0t64 \
+      libcups2t64 \
+      libdbus-1-3 \
+      libdrm2 \
+      libgbm1 \
+      libnspr4 \
+      libnss3 \
+      libxcomposite1 \
+      libxdamage1 \
+      libxfixes3 \
+      libxkbcommon0 \
+      libxrandr2 \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN useradd --create-home --shell /bin/bash rfccode
 
 ENV HOME=/home/rfccode
@@ -137,6 +173,20 @@ COPY --from=builder --chown=rfccode:rfccode /app/node_modules ./node_modules
 COPY --from=builder --chown=rfccode:rfccode /app/dist ./dist
 COPY --from=builder --chown=rfccode:rfccode /app/dist-server ./dist-server
 COPY --from=builder --chown=rfccode:rfccode /app/public ./public
+
+# The Playwright package (not the browsers). The in-app installer used to fetch
+# it into /app/node_modules, which is an image layer — so every rebuild silently
+# undid the setup and the Browser tab went back to "runtime required", even
+# though the downloaded Chromium was still sitting in its volume. The package is
+# a few MB; the browsers stay out of the image and remain a runtime download.
+#
+# Cache goes to a throwaway dir for the same reason as the skill install above:
+# this runs as root while HOME points at the non-root user.
+RUN set -eu; \
+    npm_config_cache=/tmp/pw-npm-cache \
+      npm install --no-save --no-package-lock --no-audit --no-fund playwright; \
+    rm -rf /tmp/pw-npm-cache; \
+    chown -R rfccode:rfccode /app/node_modules
 
 # Bundled skills live outside /app because they are not application code: each
 # profile links the ones it wants into its own config dir, since Claude Code

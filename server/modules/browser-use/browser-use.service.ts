@@ -308,7 +308,17 @@ async function installRuntime(): Promise<{ success: boolean; message: string }> 
       lastInstallMessage = 'Installing Playwright package...';
       await runCommand(npmCommand, ['install', '--no-save', '--no-package-lock', 'playwright']);
 
-      if (process.platform === 'linux') {
+      // `install-deps` shells out to the system package manager, so it only
+      // works as root. Running it unprivileged makes Playwright try to su and
+      // fail on a password prompt, which aborted the whole install even where
+      // the libraries were already present — as they are in the container
+      // image, which installs them at build time precisely because this step
+      // cannot. Skipping is safe: `playwright install` below verifies the host
+      // requirements itself and reports what is missing.
+      const canInstallSystemDependencies =
+        process.platform === 'linux' && typeof process.getuid === 'function' && process.getuid() === 0;
+
+      if (canInstallSystemDependencies) {
         lastInstallMessage = 'Installing Chromium system dependencies...';
         await runCommand(npmCommand, ['exec', '--', 'playwright', 'install-deps', 'chromium']);
       }

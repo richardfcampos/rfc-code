@@ -90,7 +90,13 @@ export default function BrowserUseSettingsTab() {
     setError(null);
     try {
       const response = await authenticatedFetch('/api/browser-use/runtime/install', { method: 'POST' });
-      await readJson(response);
+      // A failed install still answers 200 with the reason in the body, so
+      // discarding it left the button spinning and the failure invisible —
+      // the user saw "Installing..." for something that had already given up.
+      const body = await readJson<{ data?: { success?: boolean; message?: string } }>(response);
+      if (body?.data?.success === false) {
+        setError(body.data.message || 'Failed to install browser runtime');
+      }
       setIsStatusLoading(true);
       await loadStatus();
     } catch (err) {
