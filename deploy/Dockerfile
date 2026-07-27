@@ -149,7 +149,14 @@ COPY --from=builder --chown=rfccode:rfccode /app/skills /opt/rfc-code/skills
 # their dependencies installed. Only those with actual dependencies are
 # installed — the rest declare nothing but test scripts, and running npm there
 # would just add empty directories.
+#
+# npm_config_cache is redirected to a throwaway directory because this step
+# runs as root while HOME points at the non-root user: npm would otherwise
+# populate /home/rfccode/.npm with root-owned files, and every later install
+# performed by the app itself — installing a plugin, for instance — would fail
+# with EACCES on its own cache.
 RUN set -eu; \
+    export npm_config_cache=/tmp/skill-npm-cache; \
     for manifest in /opt/rfc-code/skills/*/package.json; do \
       [ -f "$manifest" ] || continue; \
       skill_dir="$(dirname "$manifest")"; \
@@ -158,6 +165,7 @@ RUN set -eu; \
         (cd "$skill_dir" && npm install --omit=dev --no-audit --no-fund); \
       fi; \
     done; \
+    rm -rf /tmp/skill-npm-cache; \
     chown -R rfccode:rfccode /opt/rfc-code/skills
 
 # Volumes for host-mounted project roots and persistent data (DB + profiles).
