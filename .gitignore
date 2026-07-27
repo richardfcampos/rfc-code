@@ -158,3 +158,15 @@ cloudcli-sidebar-app-source.tar.gz
 cloudcli-sidebar.html
 electron/*.tar.gz
 deploy/docker-compose.override.yml
+
+# Bundled skills ship as source only. Some skills (gstack, browse) build a
+# single-file executable per platform; those are ~58 MB each and are native to
+# the machine that built them, so they are useless to anyone else who clones
+# this repo and would bloat it by an order of magnitude. Rebuild them locally —
+# see skills/README.md.
+skills/*/dist/
+skills/*/*/dist/
+skills/*/bin/gstack-global-discover
+skills/**/node_modules/
+skills/**/__pycache__/
+skills/**/*.pyc
