@@ -96,6 +96,37 @@ export function validateManifest(manifest) {
 
 const BUILD_TIMEOUT_MS = 60_000;
 
+/** Tail of process output kept for error messages, in characters. */
+const PROCESS_OUTPUT_TAIL = 2000;
+
+/**
+ * Drains a child's stdout/stderr and keeps the tail for diagnostics.
+ *
+ * Piped streams must be consumed even when the output is only interesting on
+ * failure: an unread pipe fills its buffer and stalls the child, which then
+ * fails for a reason that has nothing to do with the actual command.
+ */
+function collectProcessOutput(child) {
+  let output = '';
+
+  const append = (chunk) => {
+    output += chunk.toString();
+    if (output.length > PROCESS_OUTPUT_TAIL) {
+      output = output.slice(-PROCESS_OUTPUT_TAIL);
+    }
+  };
+
+  child.stdout?.on('data', append);
+  child.stderr?.on('data', append);
+
+  return {
+    describe() {
+      const trimmed = output.trim();
+      return trimmed ? `: ${trimmed}` : '';
+    },
+  };
+}
+
 /** Run `npm run build` if the plugin's package.json declares a build script. */
 function runBuildIfNeeded(dir, packageJsonPath, onSuccess, onError) {
   try {
@@ -337,17 +368,29 @@ export function installPluginFromGit(url) {
 
       // Run npm install if package.json exists.
       // --ignore-scripts prevents postinstall hooks from executing arbitrary code.
+      // --include=dev because the build step below needs the plugin's build
+      // tooling (tsc, bundlers), which lives in devDependencies and which npm
+      // silently skips when NODE_ENV=production — as it is in the container.
       const packageJsonPath = path.join(tempDir, 'package.json');
       if (fs.existsSync(packageJsonPath)) {
-        const npmProcess = spawn('npm', ['install', '--ignore-scripts'], {
+        const npmProcess = spawn('npm', ['install', '--ignore-scripts', '--include=dev'], {
           cwd: tempDir,
           stdio: ['ignore', 'pipe', 'pipe'],
         });
 
+        // Both streams must be drained even when the output is only wanted on
+        // failure: a piped stream nobody reads fills its buffer and blocks the
+        // child, which then dies on a code that says nothing about the real
+        // cause. Keeping the tail also turns "exit code N" into something
+        // actionable.
+        const npmErrorOutput = collectProcessOutput(npmProcess);
+
         npmProcess.on('close', (npmCode) => {
           if (npmCode !== 0) {
             cleanupTemp();
-            return reject(new Error(`npm install for ${repoName} failed (exit code ${npmCode})`));
+            return reject(new Error(
+              `npm install for ${repoName} failed (exit code ${npmCode})${npmErrorOutput.describe()}`,
+            ));
           }
           runBuildIfNeeded(tempDir, packageJsonPath, () => finalize(manifest), (err) => { cleanupTemp(); reject(err); });
         });
@@ -403,16 +446,21 @@ export function updatePluginFromGit(name) {
         return reject(new Error(`Invalid manifest after update: ${validation.error}`));
       }
 
-      // Re-run npm install if package.json exists
+      // Re-run npm install if package.json exists. --include=dev for the same
+      // reason as on install: the build step needs devDependencies, which npm
+      // omits under NODE_ENV=production.
       const packageJsonPath = path.join(pluginDir, 'package.json');
       if (fs.existsSync(packageJsonPath)) {
-        const npmProcess = spawn('npm', ['install', '--ignore-scripts'], {
+        const npmProcess = spawn('npm', ['install', '--ignore-scripts', '--include=dev'], {
           cwd: pluginDir,
           stdio: ['ignore', 'pipe', 'pipe'],
         });
+        const npmErrorOutput = collectProcessOutput(npmProcess);
         npmProcess.on('close', (npmCode) => {
           if (npmCode !== 0) {
-            return reject(new Error(`npm install for ${name} failed (exit code ${npmCode})`));
+            return reject(new Error(
+              `npm install for ${name} failed (exit code ${npmCode})${npmErrorOutput.describe()}`,
+            ));
           }
           runBuildIfNeeded(pluginDir, packageJsonPath, () => resolve(manifest), (err) => reject(err));
         });
