@@ -20,6 +20,14 @@ export interface SlashCommand {
 interface UseSlashCommandsOptions {
   selectedProject: Project | null;
   provider: LLMProvider;
+  /**
+   * Account profile the session runs under.
+   *
+   * Skills are discovered under the config directory the session uses, and each
+   * profile has its own — listing without it offers the default account's
+   * skills, which a profile-bound session cannot actually run.
+   */
+  profileId?: string | null;
   input: string;
   setInput: Dispatch<SetStateAction<string>>;
   textareaRef: RefObject<HTMLTextAreaElement>;
@@ -138,6 +146,7 @@ const filterSlashCommands = (
 export function useSlashCommands({
   selectedProject,
   provider,
+  profileId = null,
   input,
   setInput,
   textareaRef,
@@ -198,6 +207,9 @@ export function useSlashCommands({
         if (workspacePath) {
           skillsParams.set('workspacePath', workspacePath);
         }
+        if (profileId) {
+          skillsParams.set('profileId', profileId);
+        }
 
         const skillsResponse = await authenticatedFetch(
           `/api/providers/${encodeURIComponent(provider)}/skills${skillsParams.toString() ? `?${skillsParams.toString()}` : ''}`,
@@ -241,7 +253,7 @@ export function useSlashCommands({
     return () => {
       cancelled = true;
     };
-  }, [selectedProject, provider]);
+  }, [selectedProject, provider, profileId]);
 
   useEffect(() => {
     if (!showCommandMenu) {

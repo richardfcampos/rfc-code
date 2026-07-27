@@ -472,6 +472,11 @@ export function useChatComposerState({
   } = useSlashCommands({
     selectedProject,
     provider,
+    // Falls back to the profile the session already belongs to. The picker only
+    // holds an explicit in-session choice and starts empty, so relying on it
+    // alone would list the default account's skills for a session that is in
+    // fact bound to a profile — and cannot run them.
+    profileId: selectedProfileId ?? selectedSession?.profileId ?? null,
     input,
     setInput,
     textareaRef,

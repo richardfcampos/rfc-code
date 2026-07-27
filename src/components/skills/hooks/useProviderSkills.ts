@@ -164,10 +164,17 @@ const mergeSkills = (
 const fetchProviderSkills = async (
   provider: SkillsProvider,
   project?: ProjectTarget,
+  profileId?: string | null,
 ): Promise<ProviderSkill[]> => {
   const params = new URLSearchParams();
   if (project?.path) {
     params.set('workspacePath', project.path);
+  }
+  // Skills live under the config directory a session runs against, and each
+  // account profile has its own — without this the list describes the default
+  // account instead of the one selected.
+  if (profileId) {
+    params.set('profileId', profileId);
   }
 
   const response = await authenticatedFetch(
@@ -197,9 +204,16 @@ const saveProviderSkills = async (
   return (data.data.skills || []).map((skill) => normalizeSkill(provider, skill));
 };
 
-const getCacheKey = (provider: SkillsProvider, projects: ProjectTarget[]): string => {
+const getCacheKey = (
+  provider: SkillsProvider,
+  projects: ProjectTarget[],
+  profileId?: string | null,
+): string => {
   const projectKey = projects.map((project) => project.path).sort().join('|');
-  return `${provider}:${projectKey}`;
+  // The profile is part of the identity of a result set: two accounts expose
+  // different skills, so leaving it out would serve one account's list for the
+  // other until the cache expired.
+  return `${provider}:${profileId ?? ''}:${projectKey}`;
 };
 
 const clearProviderSkillCache = (provider: SkillsProvider): void => {
@@ -213,9 +227,15 @@ const clearProviderSkillCache = (provider: SkillsProvider): void => {
 type UseProviderSkillsArgs = {
   selectedProvider: SkillsProvider;
   currentProjects: SkillsProject[];
+  /** Account profile whose config dir holds the skills; null = default. */
+  profileId?: string | null;
 };
 
-export function useProviderSkills({ selectedProvider, currentProjects }: UseProviderSkillsArgs) {
+export function useProviderSkills({
+  selectedProvider,
+  currentProjects,
+  profileId = null,
+}: UseProviderSkillsArgs) {
   const [skills, setSkills] = useState<ProviderSkill[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingProjectScopes, setIsLoadingProjectScopes] = useState(false);
@@ -224,7 +244,10 @@ export function useProviderSkills({ selectedProvider, currentProjects }: UseProv
   const activeLoadIdRef = useRef(0);
 
   const projectTargets = useMemo(() => createProjectTargets(currentProjects), [currentProjects]);
-  const cacheKey = useMemo(() => getCacheKey(selectedProvider, projectTargets), [projectTargets, selectedProvider]);
+  const cacheKey = useMemo(
+    () => getCacheKey(selectedProvider, projectTargets, profileId),
+    [profileId, projectTargets, selectedProvider],
+  );
 
   const refreshSkills = useCallback(async (options: { force?: boolean } = {}) => {
     const loadId = activeLoadIdRef.current + 1;
@@ -254,7 +277,7 @@ export function useProviderSkills({ selectedProvider, currentProjects }: UseProv
     let firstError: string | null = null;
 
     try {
-      const globalSkills = await fetchProviderSkills(selectedProvider);
+      const globalSkills = await fetchProviderSkills(selectedProvider, undefined, profileId);
       if (activeLoadIdRef.current !== loadId) {
         return;
       }
@@ -283,7 +306,7 @@ export function useProviderSkills({ selectedProvider, currentProjects }: UseProv
 
     await Promise.all(projectTargets.map(async (project) => {
       try {
-        const projectSkills = await fetchProviderSkills(selectedProvider, project);
+        const projectSkills = await fetchProviderSkills(selectedProvider, project, profileId);
         if (activeLoadIdRef.current !== loadId) {
           return;
         }
@@ -304,7 +327,7 @@ export function useProviderSkills({ selectedProvider, currentProjects }: UseProv
     setSkills(finalSkills);
     setLoadError(firstError);
     setIsLoadingProjectScopes(false);
-  }, [cacheKey, projectTargets, selectedProvider]);
+  }, [cacheKey, profileId, projectTargets, selectedProvider]);
 
   const addSkills = useCallback(async (payload: ProviderSkillCreatePayload) => {
     try {
