@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { SkillsProvider } from '@/modules/providers/shared/skills/skills.provider.js';
+import { profilesService } from '@/modules/profiles/index.js';
 import { parseFrontMatter } from '@/shared/frontmatter.js';
 import type {
   ProviderSkill,
@@ -18,6 +19,26 @@ import {
 } from '@/shared/utils.js';
 
 const getClaudeHomePath = (): string => path.join(os.homedir(), '.claude');
+
+/**
+ * Config directory of an account profile, or null when the listing is not
+ * bound to one (and the default home applies).
+ *
+ * Reuses the same resolution the dispatch path uses, so what gets listed and
+ * what a session loads cannot drift apart. An unknown profile id resolves to
+ * null rather than throwing: a stale id in the UI should degrade to the default
+ * listing, not break the skills panel.
+ */
+const resolveProfileClaudeHome = (profileId?: string | null): string | null => {
+  if (!profileId) {
+    return null;
+  }
+  try {
+    return profilesService.resolveEnv(profileId).CLAUDE_CONFIG_DIR ?? null;
+  } catch {
+    return null;
+  }
+};
 
 const getClaudePluginName = (pluginId: string): string | null => {
   const normalizedPluginId = pluginId.trim();
@@ -44,9 +65,23 @@ const pathExistsAsDirectory = async (directoryPath: string): Promise<boolean> =>
 const listChildDirectories = async (directoryPath: string): Promise<string[]> => {
   try {
     const entries = await readdir(directoryPath, { withFileTypes: true });
-    return entries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => path.join(directoryPath, entry.name))
+    // Entry types come from lstat, so a symlinked plugin reports itself as not
+    // a directory and would be skipped. Plugins are commonly linked in from a
+    // shared install path, so the link has to be resolved.
+    const resolved = await Promise.all(
+      entries.map(async (entry) => {
+        const childPath = path.join(directoryPath, entry.name);
+        if (entry.isDirectory()) {
+          return childPath;
+        }
+        if (!entry.isSymbolicLink()) {
+          return null;
+        }
+        return (await pathExistsAsDirectory(childPath)) ? childPath : null;
+      }),
+    );
+    return resolved
+      .filter((childPath): childPath is string => childPath !== null)
       .sort((left, right) => left.localeCompare(right));
   } catch {
     return [];
@@ -82,8 +117,15 @@ export class ClaudeSkillsProvider extends SkillsProvider {
     ];
   }
 
-  protected async getSkillSources(workspacePath: string): Promise<ProviderSkillSource[]> {
-    const claudeHomePath = getClaudeHomePath();
+  protected async getSkillSources(
+    workspacePath: string,
+    options?: ProviderSkillListOptions,
+  ): Promise<ProviderSkillSource[]> {
+    // A profile-bound session runs with CLAUDE_CONFIG_DIR pointed at that
+    // profile's directory and therefore only loads skills from there. Listing
+    // the default home in that case would report skills the session cannot
+    // actually use, and hide the ones it can.
+    const claudeHomePath = resolveProfileClaudeHome(options?.profileId) ?? getClaudeHomePath();
 
     return [
       {

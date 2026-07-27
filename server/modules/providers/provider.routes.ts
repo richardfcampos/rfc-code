@@ -414,7 +414,13 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
     const workspacePath = readOptionalQueryString(req.query.workspacePath);
-    const skills = await providerSkillsService.listProviderSkills(provider, { workspacePath });
+    // Without the profile the listing describes the default account's config
+    // dir, which is not where a profile-bound session loads its skills from.
+    const profileId = readOptionalQueryString(req.query.profileId);
+    const skills = await providerSkillsService.listProviderSkills(provider, {
+      workspacePath,
+      profileId,
+    });
     res.json(createApiSuccessResponse({ provider, skills }));
   }),
 );

@@ -94,7 +94,7 @@ export abstract class SkillsProvider implements IProviderSkills {
 
   async listSkills(options?: ProviderSkillListOptions): Promise<ProviderSkill[]> {
     const workspacePath = resolveWorkspacePath(options?.workspacePath);
-    const sources = await this.getSkillSources(workspacePath);
+    const sources = await this.getSkillSources(workspacePath, options);
     const skills: ProviderSkill[] = [];
 
     for (const source of sources) {
@@ -279,7 +279,16 @@ export abstract class SkillsProvider implements IProviderSkills {
     return { removed, provider: this.provider, directoryName };
   }
 
-  protected abstract getSkillSources(workspacePath: string): Promise<ProviderSkillSource[]>;
+  /**
+   * `options` carries the listing context (currently the account profile), so a
+   * provider whose skills live under a per-profile config directory can point
+   * discovery at the directory the session will actually run against.
+   * Implementations that do not care may declare only `workspacePath`.
+   */
+  protected abstract getSkillSources(
+    workspacePath: string,
+    options?: ProviderSkillListOptions,
+  ): Promise<ProviderSkillSource[]>;
 
   protected async getGlobalSkillSource(): Promise<ProviderSkillSource | null> {
     return null;

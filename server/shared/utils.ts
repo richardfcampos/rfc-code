@@ -885,13 +885,52 @@ export function addUniqueProviderSkillSource(
  * descendant `SKILL.md`. Missing or unreadable roots return an empty list
  * because users may not have every provider installed or configured.
  */
+/**
+ * True for real directories and for symlinks that resolve to one.
+ *
+ * `readdir(..., { withFileTypes: true })` reports entry types from `lstat`, so
+ * a symlinked skill answers `isDirectory() === false` and would be skipped
+ * entirely. Linking skills into a config directory is a normal way to share one
+ * copy between several of them, so discovery has to resolve the link. A broken
+ * link simply fails the `stat` and is skipped.
+ */
+async function isDirectoryOrLinkToDirectory(
+  parentDir: string,
+  entry: { name: string; isDirectory(): boolean; isSymbolicLink(): boolean },
+): Promise<boolean> {
+  if (entry.isDirectory()) {
+    return true;
+  }
+  if (!entry.isSymbolicLink()) {
+    return false;
+  }
+  try {
+    return (await stat(path.join(parentDir, entry.name))).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 export async function findProviderSkillMarkdownFiles(
   rootDir: string,
   options: { recursive?: boolean } = {},
 ): Promise<string[]> {
   const skillFiles: string[] = [];
+  // Guards against a symlink cycle turning the recursive walk into an infinite
+  // loop, which following links now makes possible.
+  const visited = new Set<string>();
 
   const collectRecursive = async (dirPath: string): Promise<void> => {
+    try {
+      const realPath = await realpath(dirPath);
+      if (visited.has(realPath)) {
+        return;
+      }
+      visited.add(realPath);
+    } catch {
+      return;
+    }
+
     let entries;
     try {
       entries = await readdir(dirPath, { withFileTypes: true });
@@ -910,7 +949,7 @@ export async function findProviderSkillMarkdownFiles(
     }
 
     for (const entry of entries) {
-      if (entry.isDirectory()) {
+      if (await isDirectoryOrLinkToDirectory(dirPath, entry)) {
         await collectRecursive(path.join(dirPath, entry.name));
       }
     }
@@ -925,7 +964,7 @@ export async function findProviderSkillMarkdownFiles(
     const entries = await readdir(rootDir, { withFileTypes: true });
 
     for (const entry of entries) {
-      if (!entry.isDirectory()) {
+      if (!(await isDirectoryOrLinkToDirectory(rootDir, entry))) {
         continue;
       }
 
