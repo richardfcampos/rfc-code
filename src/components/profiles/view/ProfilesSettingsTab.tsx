@@ -9,6 +9,7 @@ import type { Profile, ProfileWithStatus } from '../types';
 
 import CreateProfileModal from './modals/CreateProfileModal';
 import ProfileLoginTerminal from './ProfileLoginTerminal';
+import ProfileToolingControls from './ProfileToolingControls';
 
 function ProfileStatusBadge({ profile }: { profile: ProfileWithStatus }) {
   const { t } = useTranslation('settings');
@@ -45,6 +46,7 @@ export default function ProfilesSettingsTab() {
     actionError,
     createProfile,
     deleteProfile,
+    updateToolingModes,
   } = useProfiles();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [loginProfile, setLoginProfile] = useState<Profile | null>(null);
@@ -142,6 +144,10 @@ export default function ProfilesSettingsTab() {
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
+            </div>
+
+            <div className="mt-3 border-t border-border pt-3">
+              <ProfileToolingControls profile={profile} onChange={updateToolingModes} />
             </div>
           </div>
         ))}

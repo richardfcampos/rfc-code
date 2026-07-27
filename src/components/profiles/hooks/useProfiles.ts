@@ -2,7 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { authenticatedFetch } from '../../../utils/api';
 import type { LLMProvider } from '../../../types/app';
-import type { CreateProfileInput, Profile, ProfileAuthStatus, ProfileWithStatus } from '../types';
+import type {
+  CavemanMode,
+  CreateProfileInput,
+  Profile,
+  ProfileAuthStatus,
+  ProfileWithStatus,
+  RtkMode,
+} from '../types';
 
 type ApiEnvelope<T> = {
   success?: boolean;
@@ -128,6 +135,31 @@ export function useProfiles() {
     await refresh();
   }, [refresh]);
 
+  /**
+   * Updates one profile's agent tooling levels.
+   *
+   * Only the keys passed are sent, so changing one level never resets the
+   * other, and `null` clears a level back to unconfigured.
+   */
+  const updateToolingModes = useCallback(async (
+    profileId: string,
+    modes: { cavemanMode?: CavemanMode | null; rtkMode?: RtkMode | null },
+  ) => {
+    setActionError(null);
+    const response = await authenticatedFetch(
+      `/api/profiles/${encodeURIComponent(profileId)}/tooling`,
+      { method: 'PATCH', body: JSON.stringify(modes) },
+    );
+    const body = await toResponseJson<ApiEnvelope<{ profile: Profile }>>(response);
+    if (!response.ok || !body.success) {
+      const message = getApiErrorMessage(body, 'Failed to update agent tooling');
+      setActionError(message);
+      throw new Error(message);
+    }
+
+    await refresh();
+  }, [refresh]);
+
   const profilesByProvider = useMemo(() => {
     const grouped: Partial<Record<LLMProvider, ProfileWithStatus[]>> = {};
     profiles.forEach((profile) => {
@@ -147,5 +179,6 @@ export function useProfiles() {
     refresh,
     createProfile,
     deleteProfile,
+    updateToolingModes,
   };
 }
