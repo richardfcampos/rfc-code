@@ -221,6 +221,8 @@
     "model": "Modell",
     "effortDefault": "Standard",
     "loadingModels": "Modelle werden geladen…",
-    "modelMenu": "Modell und Denkaufwand auswählen"
+    "modelMenu": "Modell und Denkaufwand auswählen",
+    "worktree": "Worktree",
+    "worktreeHint": "Diese Sitzung in einem eigenen Git-Worktree ausführen"
   }
 }

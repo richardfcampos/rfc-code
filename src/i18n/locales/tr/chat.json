@@ -221,6 +221,8 @@
     "model": "Model",
     "effortDefault": "Varsayılan",
     "loadingModels": "Modeller yükleniyor…",
-    "modelMenu": "Model ve akıl yürütme düzeyini seç"
+    "modelMenu": "Model ve akıl yürütme düzeyini seç",
+    "worktree": "Worktree",
+    "worktreeHint": "Bu oturumu kendi git worktree'sinde çalıştır"
   }
 }

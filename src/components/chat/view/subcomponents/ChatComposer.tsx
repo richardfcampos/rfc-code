@@ -10,7 +10,7 @@ import type {
   RefObject,
   TouchEvent,
 } from 'react';
-import { ImageIcon, MessageSquareIcon, XIcon, Loader2, ArrowUpIcon } from 'lucide-react';
+import { ImageIcon, MessageSquareIcon, XIcon, Loader2, ArrowUpIcon, GitFork } from 'lucide-react';
 
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import { useVoiceAvailable } from '../../hooks/useVoiceAvailable';
@@ -72,6 +72,10 @@ interface ChatComposerProps {
   availableModelOptions: ProviderModelOption[];
   onSelectModel: (model: string) => void;
   modelsLoading: boolean;
+  /** False once a session exists — its working directory is already fixed. */
+  canUseWorktree: boolean;
+  worktreeEnabled: boolean;
+  onToggleWorktree: () => void;
   tokenBudget: Record<string, unknown> | null;
   onShowTokenUsage: () => void;
   slashCommandsCount: number;
@@ -134,6 +138,9 @@ export default function ChatComposer({
   availableModelOptions,
   onSelectModel,
   modelsLoading,
+  canUseWorktree,
+  worktreeEnabled,
+  onToggleWorktree,
   tokenBudget,
   onShowTokenUsage,
   slashCommandsCount,
@@ -423,6 +430,28 @@ export default function ChatComposer({
                 </span>
               </div>
             </button>
+
+            {canUseWorktree && (
+              <button
+                type="button"
+                onClick={onToggleWorktree}
+                role="switch"
+                aria-checked={worktreeEnabled}
+                className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2 text-xs font-medium transition-colors sm:px-2.5 ${
+                  worktreeEnabled
+                    ? 'border-violet-300/60 bg-violet-50 text-violet-700 hover:bg-violet-100 dark:border-violet-600/40 dark:bg-violet-900/15 dark:text-violet-300 dark:hover:bg-violet-900/25'
+                    : 'border-border/60 bg-muted/40 text-muted-foreground hover:bg-muted'
+                }`}
+                title={t('composer.worktreeHint', {
+                  defaultValue: 'Run this session in its own git worktree',
+                })}
+              >
+                <GitFork className="h-3.5 w-3.5" />
+                <span className="hidden whitespace-nowrap sm:inline">
+                  {t('composer.worktree', { defaultValue: 'Worktree' })}
+                </span>
+              </button>
+            )}
 
             <ComposerModelMenu
               effort={effort}

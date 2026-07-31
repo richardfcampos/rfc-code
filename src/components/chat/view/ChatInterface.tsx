@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ArrowDownIcon } from 'lucide-react';
 
@@ -7,6 +7,7 @@ import { useWebSocket } from '../../../contexts/WebSocketContext';
 import PermissionContext from '../../../contexts/PermissionContext';
 import { QuickSettingsPanel } from '../../quick-settings-panel';
 import type { ChatInterfaceProps, Provider  } from '../types/types';
+import type { Project } from '../../../types/app';
 import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
@@ -36,6 +37,8 @@ function ChatInterface({
   externalMessageUpdate,
   newSessionTrigger,
   onShowAllTasks,
+  onProjectSelect,
+  onProjectsRefresh,
 }: ChatInterfaceProps) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
   const { subscribe } = useWebSocket();
@@ -51,6 +54,37 @@ function ChatInterface({
   // on every sequenced frame, read whenever a `chat.subscribe` is sent so the
   // server replays only the events this client actually missed.
   const lastSeqRef = useRef(new Map<string, number>());
+
+  // Per-session worktree preference. Kept per project so turning it on for one
+  // repository does not silently follow the user into another.
+  const worktreeToggleKey = selectedProject
+    ? `worktree-on-new-session-${selectedProject.projectId}`
+    : null;
+  const [worktreeEnabled, setWorktreeEnabled] = useState(false);
+  useEffect(() => {
+    if (!worktreeToggleKey) {
+      setWorktreeEnabled(false);
+      return;
+    }
+    setWorktreeEnabled(localStorage.getItem(worktreeToggleKey) === '1');
+  }, [worktreeToggleKey]);
+
+  const handleToggleWorktree = useCallback(() => {
+    setWorktreeEnabled((current) => {
+      const next = !current;
+      if (worktreeToggleKey) {
+        localStorage.setItem(worktreeToggleKey, next ? '1' : '0');
+      }
+      return next;
+    });
+  }, [worktreeToggleKey]);
+
+  // The worktree is registered as its own project, so the app has to move to it
+  // before the session is allocated against that path.
+  const handleWorktreeProjectCreated = useCallback((project: Project) => {
+    onProjectsRefresh?.();
+    onProjectSelect?.(project);
+  }, [onProjectSelect, onProjectsRefresh]);
 
   const resetStreamingState = useCallback(() => {
     if (streamTimerRef.current) {
@@ -217,6 +251,8 @@ function ChatInterface({
     onSessionProcessing,
     onSessionEstablished: handleSessionEstablished,
     onInputFocusChange,
+    worktreeEnabled,
+    onWorktreeProjectCreated: handleWorktreeProjectCreated,
     onFileOpen,
     onShowSettings,
     scrollToBottom,
@@ -416,6 +452,9 @@ function ChatInterface({
           availableModelOptions={currentProviderModelOptions}
           onSelectModel={handleSelectComposerModel}
           modelsLoading={providerModelsLoading}
+          canUseWorktree={Boolean(selectedProject) && !selectedSession && !currentSessionId}
+          worktreeEnabled={worktreeEnabled}
+          onToggleWorktree={handleToggleWorktree}
           tokenBudget={tokenBudget}
           onShowTokenUsage={showCostModal}
           slashCommandsCount={slashCommandsCount}

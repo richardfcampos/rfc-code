@@ -257,6 +257,8 @@
     "model": "模型",
     "effortDefault": "預設",
     "loadingModels": "正在載入模型…",
-    "modelMenu": "選擇模型與推理強度"
+    "modelMenu": "選擇模型與推理強度",
+    "worktree": "工作樹",
+    "worktreeHint": "在獨立的 git 工作樹中執行此工作階段"
   }
 }

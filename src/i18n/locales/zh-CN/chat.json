@@ -221,6 +221,8 @@
     "model": "模型",
     "effortDefault": "默认",
     "loadingModels": "正在加载模型…",
-    "modelMenu": "选择模型和推理强度"
+    "modelMenu": "选择模型和推理强度",
+    "worktree": "工作树",
+    "worktreeHint": "在独立的 git 工作树中运行此会话"
   }
 }

@@ -29,6 +29,7 @@ import type {
 } from '../types/types';
 import type { Project, ProjectSession, LLMProvider, ProviderModelsCacheInfo } from '../../../types/app';
 import { escapeRegExp } from '../utils/chatFormatting';
+import { buildWorktreeBranchName } from '../utils/worktreeBranchName';
 
 import { useFileMentions } from './useFileMentions';
 import { type SlashCommand, useSlashCommands } from './useSlashCommands';
@@ -64,6 +65,17 @@ interface UseChatComposerStateArgs {
    */
   onSessionEstablished?: (sessionId: string, context: SessionEstablishedContext) => void;
   onInputFocusChange?: (focused: boolean) => void;
+  /**
+   * When true, the first message of a brand-new conversation creates a git
+   * worktree and the session is bound to it instead of the project's own
+   * checkout. Ignored once a session exists — its path is already fixed.
+   */
+  worktreeEnabled?: boolean;
+  /**
+   * Called with the project registered for a freshly created worktree, so the
+   * app can switch to it and re-sync the sidebar before the session starts.
+   */
+  onWorktreeProjectCreated?: (project: Project) => void;
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
   onShowSettings?: () => void;
   scrollToBottom: () => void;
@@ -210,6 +222,8 @@ export function useChatComposerState({
   onSessionProcessing,
   onSessionEstablished,
   onInputFocusChange,
+  worktreeEnabled = false,
+  onWorktreeProjectCreated,
   onFileOpen,
   onShowSettings,
   scrollToBottom,
@@ -724,6 +738,46 @@ export function useChatComposerState({
 
       const messageContent = currentInput;
 
+      // Per-session worktree. Runs before the image upload and before the
+      // session is allocated, so a failure here costs the user nothing but the
+      // error message — the input is still in the box.
+      let worktreeProject: Project | null = null;
+      const isNewConversation = !(selectedSession?.id || currentSessionId);
+      if (worktreeEnabled && isNewConversation) {
+        const branch = buildWorktreeBranchName(messageContent, Date.now());
+        try {
+          const response = await authenticatedFetch('/api/worktrees/create', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              project: selectedProject.projectId,
+              branch,
+              baseBranch: null,
+            }),
+          });
+          const payload = await response.json();
+
+          if (!response.ok || !payload?.data?.project) {
+            const reason = payload?.error?.message || `Failed to create worktree (${response.status})`;
+            const details = payload?.error?.details;
+            throw new Error(typeof details === 'string' && details ? `${reason}: ${details}` : reason);
+          }
+
+          worktreeProject = payload.data.project as Project;
+          onWorktreeProjectCreated?.(worktreeProject);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          addMessage({
+            type: 'error',
+            content: `Could not start this session in a worktree: ${message}`,
+            timestamp: new Date(),
+          });
+          return;
+        }
+      }
+
+      const sessionProject = worktreeProject ?? selectedProject;
+
       let uploadedImages: unknown[] = [];
       if (attachedImages.length > 0) {
         const formData = new FormData();
@@ -756,7 +810,7 @@ export function useChatComposerState({
         }
       }
 
-      const resolvedProjectPath = selectedProject.fullPath || selectedProject.path || '';
+      const resolvedProjectPath = sessionProject.fullPath || sessionProject.path || '';
       const sessionSummary = getNotificationSessionSummary(selectedSession, currentInput);
 
       // The conversation always has a stable backend-allocated session id
@@ -801,7 +855,7 @@ export function useChatComposerState({
 
         onSessionEstablished?.(targetSessionId, {
           provider,
-          project: selectedProject,
+          project: sessionProject,
           summary: sessionSummary,
         });
       }
@@ -871,6 +925,8 @@ export function useChatComposerState({
       addMessage,
       setIsUserScrolledUp,
       slashCommands,
+      worktreeEnabled,
+      onWorktreeProjectCreated,
     ],
   );
 

@@ -221,6 +221,8 @@
     "model": "Modello",
     "effortDefault": "Predefinito",
     "loadingModels": "Caricamento modelli…",
-    "modelMenu": "Seleziona modello e livello di ragionamento"
+    "modelMenu": "Seleziona modello e livello di ragionamento",
+    "worktree": "Worktree",
+    "worktreeHint": "Esegui questa sessione in un worktree git dedicato"
   }
 }

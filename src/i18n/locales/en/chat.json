@@ -246,6 +246,8 @@
     "model": "Model",
     "effortDefault": "Default",
     "loadingModels": "Loading models…",
-    "modelMenu": "Select model and reasoning effort"
+    "modelMenu": "Select model and reasoning effort",
+    "worktree": "Worktree",
+    "worktreeHint": "Run this session in its own git worktree"
   }
 }

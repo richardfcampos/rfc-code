@@ -221,6 +221,8 @@
     "model": "Модель",
     "effortDefault": "По умолчанию",
     "loadingModels": "Загрузка моделей…",
-    "modelMenu": "Выбрать модель и глубину рассуждения"
+    "modelMenu": "Выбрать модель и глубину рассуждения",
+    "worktree": "Worktree",
+    "worktreeHint": "Запустить сессию в отдельном git worktree"
   }
 }

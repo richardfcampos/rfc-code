@@ -178,6 +178,8 @@ function MainContent({
                 externalMessageUpdate={externalMessageUpdate}
                 newSessionTrigger={newSessionTrigger}
                 onShowAllTasks={tasksEnabled ? () => setActiveTab('tasks') : null}
+                onProjectSelect={onProjectSelect}
+                onProjectsRefresh={onProjectsRefresh}
               />
             </ErrorBoundary>
           </div>

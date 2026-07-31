@@ -223,6 +223,8 @@
     "model": "Modèle",
     "effortDefault": "Par défaut",
     "loadingModels": "Chargement des modèles…",
-    "modelMenu": "Sélectionner le modèle et l'effort de raisonnement"
+    "modelMenu": "Sélectionner le modèle et l'effort de raisonnement",
+    "worktree": "Worktree",
+    "worktreeHint": "Lancer cette session dans son propre worktree git"
   }
 }

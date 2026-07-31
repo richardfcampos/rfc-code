@@ -221,6 +221,8 @@
     "model": "모델",
     "effortDefault": "기본값",
     "loadingModels": "모델 불러오는 중…",
-    "modelMenu": "모델 및 추론 강도 선택"
+    "modelMenu": "모델 및 추론 강도 선택",
+    "worktree": "워크트리",
+    "worktreeHint": "이 세션을 전용 git 워크트리에서 실행"
   }
 }

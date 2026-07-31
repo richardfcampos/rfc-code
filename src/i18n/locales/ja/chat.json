@@ -208,6 +208,8 @@
     "model": "モデル",
     "effortDefault": "デフォルト",
     "loadingModels": "モデルを読み込み中…",
-    "modelMenu": "モデルと推論の強度を選択"
+    "modelMenu": "モデルと推論の強度を選択",
+    "worktree": "ワークツリー",
+    "worktreeHint": "このセッションを専用の git ワークツリーで実行"
   }
 }
