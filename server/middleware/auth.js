@@ -29,6 +29,21 @@ const TRUSTED_MODE_LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
 // the check for it happens.
 const CONTAINER_BIND_CONTRACT_ENV = 'AUTH_TRUSTED_CONTAINER_BIND';
 
+// Same kind of escape hatch for a native install (no container): the process
+// binds one host interface directly — typically the tailnet address — so the
+// exposure boundary is that interface itself, with no published port in front
+// of it to narrow things down. That is the whole difference from the container
+// contract above, and it is why this one refuses a wildcard: `0.0.0.0`, `::`
+// and an empty HOST make Node listen on *every* interface, LAN and public ones
+// included, which is precisely the exposure trusted mode has no login to
+// survive. Naming a single address is the contract; a wildcard would leave
+// nothing behind it.
+const NATIVE_BIND_CONTRACT_ENV = 'AUTH_TRUSTED_NATIVE_BIND';
+
+// The ways of spelling "listen on every interface". An empty HOST is the same
+// thing by omission — server.listen(port, '') falls back to the wildcard.
+const WILDCARD_BIND_HOSTS = new Set(['0.0.0.0', '::', '']);
+
 /**
  * Trusted mode has no per-request auth, so the network perimeter (e.g. a
  * Tailscale tailnet) is the only thing standing between the app and the
@@ -39,11 +54,29 @@ const CONTAINER_BIND_CONTRACT_ENV = 'AUTH_TRUSTED_CONTAINER_BIND';
  * Exception: when AUTH_TRUSTED_CONTAINER_BIND=1 is set (see
  * CONTAINER_BIND_CONTRACT_ENV above), a non-loopback bind is accepted — the
  * operator has moved enforcement to the container's published port instead.
- * Without that env var, behavior is unchanged: any non-loopback bind in
+ * When AUTH_TRUSTED_NATIVE_BIND=1 is set (see NATIVE_BIND_CONTRACT_ENV), a
+ * specific non-loopback interface is accepted but a wildcard is not.
+ * Without either env var, behavior is unchanged: any non-loopback bind in
  * trusted mode still throws.
  */
 const assertTrustedModeBindIsSafe = (host) => {
   if (!isTrustedMode() || TRUSTED_MODE_LOOPBACK_HOSTS.has(host)) {
+    return;
+  }
+  // Checked ahead of the container contract so that an operator who declares
+  // both ends up with the stricter of the two: a wildcard is refused. That
+  // ordering costs the container topology nothing — a container that needs
+  // 0.0.0.0 simply does not declare the native contract — while the reverse
+  // ordering would let the container contract wave through exactly the
+  // wildcard the native one exists to forbid.
+  if (process.env[NATIVE_BIND_CONTRACT_ENV] === '1') {
+    if (WILDCARD_BIND_HOSTS.has(String(host ?? '').trim())) {
+      throw new Error(
+        `${NATIVE_BIND_CONTRACT_ENV}=1 requires HOST to name a single interface; got "${host}". ` +
+        'A wildcard bind (0.0.0.0, ::, or an empty HOST) listens on every interface — LAN and public ones included — ' +
+        'and trusted mode has no login behind it. Set HOST to the one address you mean to serve (e.g. the tailnet IP).'
+      );
+    }
     return;
   }
   if (process.env[CONTAINER_BIND_CONTRACT_ENV] === '1') {

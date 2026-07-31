@@ -17,6 +17,7 @@ async function withIsolatedAuthEnvironment(runTest) {
   const previousDatabasePath = process.env.DATABASE_PATH;
   const previousAuthMode = process.env.AUTH_MODE;
   const previousContainerBind = process.env.AUTH_TRUSTED_CONTAINER_BIND;
+  const previousNativeBind = process.env.AUTH_TRUSTED_NATIVE_BIND;
   const tempDirectory = await mkdtemp(path.join(tmpdir(), 'auth-trusted-mode-'));
   const databasePath = path.join(tempDirectory, 'auth.db');
 
@@ -45,6 +46,11 @@ async function withIsolatedAuthEnvironment(runTest) {
       delete process.env.AUTH_TRUSTED_CONTAINER_BIND;
     } else {
       process.env.AUTH_TRUSTED_CONTAINER_BIND = previousContainerBind;
+    }
+    if (previousNativeBind === undefined) {
+      delete process.env.AUTH_TRUSTED_NATIVE_BIND;
+    } else {
+      process.env.AUTH_TRUSTED_NATIVE_BIND = previousNativeBind;
     }
     await rm(tempDirectory, { recursive: true, force: true });
   }
@@ -212,6 +218,61 @@ test('assertTrustedModeBindIsSafe retrocompat: still refuses a public bind when 
 
     assert.throws(
       () => assertTrustedModeBindIsSafe('0.0.0.0'),
+      /AUTH_MODE=trusted requires HOST to be a loopback address/
+    );
+  });
+});
+
+test('assertTrustedModeBindIsSafe accepts a specific interface when the native bind contract is declared', async () => {
+  await withIsolatedAuthEnvironment(async ({ assertTrustedModeBindIsSafe }) => {
+    process.env.AUTH_MODE = 'trusted';
+    process.env.AUTH_TRUSTED_NATIVE_BIND = '1';
+
+    for (const nativeHost of ['100.122.109.36', '192.168.1.10', '127.0.0.1']) {
+      assert.doesNotThrow(() => assertTrustedModeBindIsSafe(nativeHost));
+    }
+  });
+});
+
+test('assertTrustedModeBindIsSafe refuses a wildcard bind under the native contract', async () => {
+  await withIsolatedAuthEnvironment(async ({ assertTrustedModeBindIsSafe }) => {
+    process.env.AUTH_MODE = 'trusted';
+    process.env.AUTH_TRUSTED_NATIVE_BIND = '1';
+
+    // No published port sits in front of a native bind, so a wildcard here
+    // really does serve every interface the machine has.
+    for (const wildcardHost of ['0.0.0.0', '::', '', undefined]) {
+      assert.throws(
+        () => assertTrustedModeBindIsSafe(wildcardHost),
+        /AUTH_TRUSTED_NATIVE_BIND=1 requires HOST to name a single interface/,
+        `expected a throw for host "${wildcardHost}"`
+      );
+    }
+  });
+});
+
+test('assertTrustedModeBindIsSafe lets the native wildcard refusal win when both contracts are declared', async () => {
+  await withIsolatedAuthEnvironment(async ({ assertTrustedModeBindIsSafe }) => {
+    process.env.AUTH_MODE = 'trusted';
+    process.env.AUTH_TRUSTED_CONTAINER_BIND = '1';
+    process.env.AUTH_TRUSTED_NATIVE_BIND = '1';
+
+    assert.throws(
+      () => assertTrustedModeBindIsSafe('0.0.0.0'),
+      /AUTH_TRUSTED_NATIVE_BIND=1 requires HOST to name a single interface/
+    );
+    assert.doesNotThrow(() => assertTrustedModeBindIsSafe('100.122.109.36'));
+  });
+});
+
+test('assertTrustedModeBindIsSafe retrocompat: still refuses a specific non-loopback bind when the native contract env is unset', async () => {
+  await withIsolatedAuthEnvironment(async ({ assertTrustedModeBindIsSafe }) => {
+    process.env.AUTH_MODE = 'trusted';
+    // Deliberately not setting AUTH_TRUSTED_NATIVE_BIND — the tailnet IP a
+    // native install would use is still refused without the contract.
+
+    assert.throws(
+      () => assertTrustedModeBindIsSafe('100.122.109.36'),
       /AUTH_MODE=trusted requires HOST to be a loopback address/
     );
   });
