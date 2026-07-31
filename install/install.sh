@@ -210,8 +210,8 @@ if [ -n "$LISTENER" ]; then
 	PORT_MSG="port $PORT is already in use by: $LISTENER"
 	case "$LISTENER" in
 		*docker*|*Docker*|*com.docke*)
-			PORT_HINT="That looks like the old RFC Code container. Stop it first:
-           cd \"$REPO_ROOT/deploy\" && docker compose down"
+			PORT_HINT="That looks like the old RFC Code container. Stop it from the checkout
+           you used to run it: cd <old checkout>/deploy && docker compose down"
 			;;
 		*)
 			PORT_HINT="Stop that process yourself (or pass --port <n> to use a different port), then re-run."

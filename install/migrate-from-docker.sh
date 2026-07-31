@@ -235,7 +235,7 @@ Stop it before migrating — the native service must not be reading the database
 while it is replaced, and the old container must not be writing the source one:
   macOS:  launchctl bootout gui/\$UID/ai.rfc-code.server
   Linux:  systemctl --user stop rfc-code
-  Docker: docker compose -f deploy/docker-compose.yml down" ;;
+  Docker: in the checkout you used to run the container from, docker compose -f deploy/docker-compose.yml down" ;;
 	1) log "  port $PORT: free" ;;
 	*) warn "neither lsof nor nc is available — could not verify that port $PORT is free" ;;
 	esac
@@ -545,7 +545,8 @@ summary() {
      (a profile that lost its credentials just needs a fresh login).
   3. Open a session from before the migration and confirm its project path
      resolves — that is the rewrite above proving itself end to end.
-  4. Once satisfied, the old container and its data root can go:
+  4. Once satisfied, the old container and its data root can go — in the
+     checkout you used to run it from:
        docker compose -f deploy/docker-compose.yml down
      Keep $SRC_DB.pre-migrate until then.
 EOF

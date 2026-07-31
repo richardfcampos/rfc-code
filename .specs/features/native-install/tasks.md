@@ -10,7 +10,9 @@
 | N5 | DONE (Opus) — migrate testado contra fixture: rewrite com prefix-match (não LIKE), VACUUM INTO, fk_check, links de skills reparados, caveman path reescrito em installed_plugins.json. Nota N6: mensagens citam deploy/ — conferir na remoção |
 | — | EXECUÇÃO REAL (orquestrador): commit → merge no checkout principal → docker down → migrate → install → verificação |
 | N2 | DONE (Sonnet) — 4 templates em install/templates/; plutil OK, sh -n OK; shellcheck ausente na máquina. Nota p/ N3: gravar CAVEMAN_PLUGIN_PATH explicitamente no env (default do código é path Docker) |
-| N3–N8 | pendentes |
+| N6 | DONE (Sonnet) — deploy/ e docker.yml removidos; hints reescritos; README com seção nativa. Comentário morto em auth.js corrigido pelo orquestrador |
+| N7 | DONE — AD-015 + heartbeat em STATE.md |
+| N8 | PENDENTE (usuário): reboot UAT |
 
 | # | Task | Depende | Done when | Verificação |
 | --- | --- | --- | --- | --- |

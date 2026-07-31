@@ -22,8 +22,8 @@ const TRUSTED_MODE_LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
 // unreachable from the published port at all. In that topology the network
 // boundary this guard exists to protect moves one layer out, from "which
 // interface does the Node process bind" to "which host interface does the
-// `ports:` publish bind" (see deploy/docker-compose.yml, where the publish is
-// restricted to loopback or the tailnet IP — never `0.0.0.0:PORT:PORT`).
+// `ports:` publish bind" — the compose file declaring that publish must
+// restrict it to loopback or a tailnet IP, never `0.0.0.0:PORT:PORT`.
 // Setting this env var is the operator's explicit acknowledgement of that
 // contract; it does not change what trusted mode protects against, only where
 // the check for it happens.

@@ -97,6 +97,18 @@ Open `http://localhost:3001` — all your existing sessions are discovered autom
 
 Visit the **[documentation →](https://cloudcli.ai/docs)** for full configuration options, PM2, remote server setup and more.
 
+#### Native Install (this fork)
+
+This fork runs as a native system service instead of a Docker container, so it keeps full access to the host filesystem, credentials, and any agent CLIs already installed:
+
+```bash
+./install/install.sh
+```
+
+Registers a macOS LaunchAgent or a Linux systemd user unit (`loginctl enable-linger`) so the service starts on login/boot and restarts on crash. Config lives in `~/.rfc-code/env`, data (DB + profiles) in `~/.rfc-code/data`. To remove it, run `./install/uninstall.sh` (data is kept).
+
+> **macOS:** starting on boot needs auto-login enabled (System Settings → Users), and if your checkout or projects live on an external volume, the first launchd run may need you to grant the `node` binary Full Disk Access (System Settings → Privacy & Security) before it can read them.
+
 #### Docker Sandboxes (Experimental)
 
 Run agents in isolated sandboxes with hypervisor-level isolation. Starts Claude Code by default. Requires the [`sbx` CLI](https://docs.docker.com/ai/sandboxes/get-started/).
