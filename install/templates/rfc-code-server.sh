@@ -17,4 +17,10 @@ if [ -n "${RFC_CODE_PATH_PREPEND:-}" ]; then
 	export PATH
 fi
 
+# Service managers start processes in `/`. The server spawns package managers
+# whose target is resolved from the working directory, so an install triggered
+# from the UI would try to build a dependency tree at the filesystem root.
+# Anchor the process to the checkout, which is what those commands expect.
+cd "__CHECKOUT__" || exit 1
+
 exec "${RFC_CODE_NODE:-node}" "__CHECKOUT__/dist-server/server/index.js"
