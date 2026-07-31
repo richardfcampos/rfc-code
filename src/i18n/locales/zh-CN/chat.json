@@ -215,5 +215,12 @@
   },
   "tasks": {
     "nextTaskPrompt": "开始下一个任务"
+  },
+  "composer": {
+    "reasoning": "推理",
+    "model": "模型",
+    "effortDefault": "默认",
+    "loadingModels": "正在加载模型…",
+    "modelMenu": "选择模型和推理强度"
   }
 }

@@ -215,5 +215,12 @@
   },
   "tasks": {
     "nextTaskPrompt": "Sonraki görevi başlat"
+  },
+  "composer": {
+    "reasoning": "Akıl yürütme",
+    "model": "Model",
+    "effortDefault": "Varsayılan",
+    "loadingModels": "Modeller yükleniyor…",
+    "modelMenu": "Model ve akıl yürütme düzeyini seç"
   }
 }

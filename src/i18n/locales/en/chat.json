@@ -240,5 +240,12 @@
   },
   "tasks": {
     "nextTaskPrompt": "Start the next task"
+  },
+  "composer": {
+    "reasoning": "Reasoning",
+    "model": "Model",
+    "effortDefault": "Default",
+    "loadingModels": "Loading models…",
+    "modelMenu": "Select model and reasoning effort"
   }
 }

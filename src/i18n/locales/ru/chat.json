@@ -215,5 +215,12 @@
   },
   "tasks": {
     "nextTaskPrompt": "Начать следующую задачу"
+  },
+  "composer": {
+    "reasoning": "Рассуждение",
+    "model": "Модель",
+    "effortDefault": "По умолчанию",
+    "loadingModels": "Загрузка моделей…",
+    "modelMenu": "Выбрать модель и глубину рассуждения"
   }
 }

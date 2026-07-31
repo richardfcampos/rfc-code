@@ -217,5 +217,12 @@
   },
   "tasks": {
     "nextTaskPrompt": "Commencer la prochaine tâche"
+  },
+  "composer": {
+    "reasoning": "Raisonnement",
+    "model": "Modèle",
+    "effortDefault": "Par défaut",
+    "loadingModels": "Chargement des modèles…",
+    "modelMenu": "Sélectionner le modèle et l'effort de raisonnement"
   }
 }

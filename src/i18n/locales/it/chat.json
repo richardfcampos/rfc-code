@@ -215,5 +215,12 @@
   },
   "tasks": {
     "nextTaskPrompt": "Inizia l'attività successiva"
+  },
+  "composer": {
+    "reasoning": "Ragionamento",
+    "model": "Modello",
+    "effortDefault": "Predefinito",
+    "loadingModels": "Caricamento modelli…",
+    "modelMenu": "Seleziona modello e livello di ragionamento"
   }
 }

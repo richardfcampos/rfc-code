@@ -202,5 +202,12 @@
     "providers": {
       "assistant": "Assistant"
     }
+  },
+  "composer": {
+    "reasoning": "推論",
+    "model": "モデル",
+    "effortDefault": "デフォルト",
+    "loadingModels": "モデルを読み込み中…",
+    "modelMenu": "モデルと推論の強度を選択"
   }
 }

@@ -215,5 +215,12 @@
   },
   "tasks": {
     "nextTaskPrompt": "Nächste Aufgabe starten"
+  },
+  "composer": {
+    "reasoning": "Denkprozess",
+    "model": "Modell",
+    "effortDefault": "Standard",
+    "loadingModels": "Modelle werden geladen…",
+    "modelMenu": "Modell und Denkaufwand auswählen"
   }
 }

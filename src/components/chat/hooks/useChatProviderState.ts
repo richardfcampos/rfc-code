@@ -551,6 +551,18 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
       : getDefaultPermissionModeForProvider(targetProvider);
   }, [getDefaultPermissionModeForProvider, getPermissionModesForProvider]);
 
+  /**
+   * Model an open session was switched to from this client, which the backend
+   * applies to the next turn instead of the per-provider default. Null while no
+   * session is open or while the session still runs the provider default —
+   * there is no read endpoint, so this only remembers switches made here.
+   */
+  const [sessionModel, setSessionModel] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSessionModel(null);
+  }, [selectedSession?.id]);
+
   const selectProviderModel = useCallback(async (
     targetProvider: LLMProvider,
     model: string,
@@ -559,6 +571,7 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     const normalizedSessionId = typeof sessionId === 'string' ? sessionId.trim() : '';
     if (!normalizedSessionId) {
       setStoredProviderModel(targetProvider, model);
+      setSessionModel(null);
       return {
         scope: 'default' as const,
         changed: false,
@@ -579,23 +592,32 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
       throw new Error('Unable to change the active model for this session.');
     }
 
+    const activeModel = body.data.model || model;
+    setSessionModel(activeModel);
     return {
       scope: 'session' as const,
       changed: body.data.changed === true,
-      model: body.data.model || model,
+      model: activeModel,
     };
   }, [setStoredProviderModel]);
 
+  // The open session's model wins over the per-provider default, so the
+  // composer shows (and the effort list follows) what the session will run.
+  const currentProviderModel = sessionModel ?? providerModels[provider];
   const currentProviderEffortOptions = useMemo(() => {
-    return getEffortOptionsForModel(provider, providerModels[provider]);
-  }, [getEffortOptionsForModel, provider, providerModels]);
+    return getEffortOptionsForModel(provider, currentProviderModel);
+  }, [currentProviderModel, getEffortOptionsForModel, provider]);
   const currentProviderEffort = useMemo(() => {
     return reconcileStoredEffort(
       provider,
-      providerModels[provider],
+      currentProviderModel,
       providerEfforts[provider] ?? DEFAULT_EFFORT_VALUE,
     );
-  }, [provider, providerEfforts, providerModels, reconcileStoredEffort]);
+  }, [currentProviderModel, provider, providerEfforts, reconcileStoredEffort]);
+  const currentProviderModelOptions = useMemo(
+    () => providerModelCatalog[provider]?.OPTIONS ?? [],
+    [provider, providerModelCatalog],
+  );
 
   return {
     provider,
@@ -608,6 +630,8 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     setCodexModel,
     currentProviderEffort,
     currentProviderEffortOptions,
+    currentProviderModel,
+    currentProviderModelOptions,
     opencodeModel,
     setOpenCodeModel,
     permissionMode,

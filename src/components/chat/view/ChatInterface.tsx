@@ -71,6 +71,8 @@ function ChatInterface({
     setCodexModel,
     currentProviderEffort,
     currentProviderEffortOptions,
+    currentProviderModel,
+    currentProviderModelOptions,
     opencodeModel,
     setOpenCodeModel,
     permissionMode,
@@ -290,6 +292,16 @@ function ChatInterface({
     handlePermissionDecision,
   }), [pendingPermissionRequests, handlePermissionDecision]);
 
+  // A composer pick becomes the default for new chats and, when a session is
+  // open, is recorded against that session so the next turn resumes with it.
+  const handleSelectComposerModel = useCallback(async (model: string) => {
+    try {
+      await selectProviderModel(provider, model, currentSessionId || selectedSession?.id || null);
+    } catch (error) {
+      console.error('Error changing the active session model:', error);
+    }
+  }, [currentSessionId, provider, selectProviderModel, selectedSession?.id]);
+
   // Mirrors ChatComposer's own visibility check so the message pane can
   // reserve enough bottom space to keep the floating status tab from
   // overlapping the last message.
@@ -400,6 +412,10 @@ function ChatInterface({
           effort={currentProviderEffort}
           availableEffortOptions={currentProviderEffortOptions}
           onSelectEffort={(nextEffort) => setStoredProviderEffort(provider, nextEffort)}
+          model={currentProviderModel}
+          availableModelOptions={currentProviderModelOptions}
+          onSelectModel={handleSelectComposerModel}
+          modelsLoading={providerModelsLoading}
           tokenBudget={tokenBudget}
           onShowTokenUsage={showCostModal}
           slashCommandsCount={slashCommandsCount}

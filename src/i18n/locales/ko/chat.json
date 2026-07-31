@@ -215,5 +215,12 @@
   },
   "tasks": {
     "nextTaskPrompt": "다음 작업 시작"
+  },
+  "composer": {
+    "reasoning": "추론",
+    "model": "모델",
+    "effortDefault": "기본값",
+    "loadingModels": "모델 불러오는 중…",
+    "modelMenu": "모델 및 추론 강도 선택"
   }
 }
