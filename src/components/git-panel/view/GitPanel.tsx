@@ -6,12 +6,19 @@ import { getChangedFileCount } from '../utils/gitPanelUtils';
 import ChangesView from '../view/changes/ChangesView';
 import HistoryView from '../view/history/HistoryView';
 import BranchesView from '../view/branches/BranchesView';
+import WorktreesView from '../view/worktrees/WorktreesView';
 import GitPanelHeader from '../view/GitPanelHeader';
 import GitRepositoryErrorState from '../view/GitRepositoryErrorState';
 import GitViewTabs from '../view/GitViewTabs';
 import ConfirmActionModal from '../view/modals/ConfirmActionModal';
 
-export default function GitPanel({ selectedProject, isMobile = false, onFileOpen }: GitPanelProps) {
+export default function GitPanel({
+  selectedProject,
+  isMobile = false,
+  onFileOpen,
+  onProjectSelect,
+  onProjectsRefresh,
+}: GitPanelProps) {
   const [activeView, setActiveView] = useState<GitPanelView>('changes');
   const [wrapText, setWrapText] = useState(true);
   const [hasExpandedFiles, setHasExpandedFiles] = useState(false);
@@ -173,6 +180,17 @@ export default function GitPanel({ selectedProject, isMobile = false, onFileOpen
               onCreateBranch={createBranch}
               onDeleteBranch={deleteBranch}
               onRequestConfirmation={setConfirmAction}
+            />
+          )}
+
+          {activeView === 'worktrees' && (
+            <WorktreesView
+              key={selectedProject.fullPath}
+              isMobile={isMobile}
+              selectedProject={selectedProject}
+              localBranches={localBranches}
+              onProjectSelect={onProjectSelect}
+              onProjectsRefresh={onProjectsRefresh}
             />
           )}
         </>
