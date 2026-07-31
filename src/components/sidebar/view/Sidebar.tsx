@@ -298,12 +298,8 @@ function Sidebar({
             isRefreshing={isRefreshing}
             onCreateProject={() => setShowNewProject(true)}
             onCollapseSidebar={handleCollapseSidebar}
-            updateAvailable={updateAvailable}
             restartRequired={restartRequired}
-            releaseInfo={releaseInfo}
-            latestVersion={latestVersion}
             currentVersion={currentVersion}
-            onShowVersionModal={() => setShowVersionModal(true)}
             onShowSettings={onShowSettings}
             projectListProps={projectListProps}
             t={t}
