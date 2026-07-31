@@ -23,6 +23,13 @@ async function withIsolatedAuthEnvironment(runTest) {
 
   closeConnection();
   process.env.DATABASE_PATH = databasePath;
+  // Start from a bare auth environment. A real install writes AUTH_MODE and the
+  // bind-contract vars into ~/.rfc-code/env (see AD-015), and load-env.js pulls
+  // them into the test process — without clearing them here, every case that
+  // asserts default behaviour would read the developer's own configuration.
+  delete process.env.AUTH_MODE;
+  delete process.env.AUTH_TRUSTED_CONTAINER_BIND;
+  delete process.env.AUTH_TRUSTED_NATIVE_BIND;
   await initializeDatabase();
   if (!authModule) {
     authModule = await import('./auth.js');
