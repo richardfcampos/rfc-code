@@ -143,6 +143,15 @@
     "login": {
       "title": "Authenticate {{name}}",
       "close": "Close login terminal"
+    },
+    "usage": {
+      "title": "Plan usage",
+      "refresh": "Refresh usage",
+      "loadFailed": "Could not load usage.",
+      "unauthenticated": "Sign in to this profile to see its plan usage.",
+      "unavailable": "Usage data is not available right now.",
+      "resets": "resets {{time}}",
+      "asOf": "as of last session activity ({{time}})"
     }
   },
   "notifications": {

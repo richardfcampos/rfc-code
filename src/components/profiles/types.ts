@@ -29,6 +29,27 @@ export interface ProfileAuthStatus {
   authenticated: boolean;
 }
 
+// Plan-limit utilization for the account behind a profile, normalized by the
+// backend across providers (see server/modules/profiles/usage).
+export interface ProfileUsageWindow {
+  id: string;
+  label: string;
+  utilization: number;
+  resetsAt: string | null;
+}
+
+export type ProfileUsageStatus = 'ok' | 'unauthenticated' | 'unavailable';
+
+export interface ProfileUsageSnapshot {
+  supported: boolean;
+  status: ProfileUsageStatus;
+  windows: ProfileUsageWindow[];
+  plan: string | null;
+  // For codex this is the last recorded session event, which can be stale.
+  asOf: string | null;
+  fetchedAt: string;
+}
+
 // A profile plus its lazily-loaded auth status, as rendered by the profiles
 // page and consumed by the chat profile selector.
 export interface ProfileWithStatus extends Profile {

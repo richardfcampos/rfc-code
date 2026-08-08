@@ -14,6 +14,7 @@ import {
   profilesService,
 } from '@/modules/profiles/profiles.service.js';
 import { handoffService } from '@/modules/profiles/handoff.service.js';
+import { profileUsageService } from '@/modules/profiles/usage/profile-usage.service.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
 
 const router = express.Router();
@@ -69,6 +70,18 @@ router.get(
     const id = parseProfileId(req.params.id);
     const status = profilesService.getAuthStatus(id);
     res.json(createApiSuccessResponse({ status }));
+  }),
+);
+
+// GET /api/profiles/:id/usage
+// Plan-limit utilization for the account behind this profile (5h/weekly
+// windows). Degrades to a status field instead of erroring: usage is advisory.
+router.get(
+  '/:id/usage',
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = parseProfileId(req.params.id);
+    const usage = await profileUsageService.getUsage(id);
+    res.json(createApiSuccessResponse({ usage }));
   }),
 );
 

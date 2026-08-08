@@ -10,6 +10,7 @@ import type { Profile, ProfileWithStatus } from '../types';
 import CreateProfileModal from './modals/CreateProfileModal';
 import ProfileLoginTerminal from './ProfileLoginTerminal';
 import ProfileToolingControls from './ProfileToolingControls';
+import ProfileUsageMeter from './ProfileUsageMeter';
 
 function ProfileStatusBadge({ profile }: { profile: ProfileWithStatus }) {
   const { t } = useTranslation('settings');
@@ -149,6 +150,10 @@ export default function ProfilesSettingsTab() {
             <div className="mt-3 border-t border-border pt-3">
               <ProfileToolingControls profile={profile} onChange={updateToolingModes} />
             </div>
+
+            {(profile.provider === 'claude' || profile.provider === 'codex') && (
+              <ProfileUsageMeter profile={profile} />
+            )}
           </div>
         ))}
 
