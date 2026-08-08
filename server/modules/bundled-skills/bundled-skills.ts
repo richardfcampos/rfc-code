@@ -149,6 +149,40 @@ function pointsIntoBundle(linkPath: string): boolean {
   }
 }
 
+/**
+ * Relinks dangling bundle links in a profile, without changing its selection.
+ *
+ * The links are absolute, so moving the data directory to another machine (or
+ * relocating the bundle) leaves every one of them dangling and the profile's
+ * sessions with no skills at all. Only names that exist in the bundle are
+ * relinked; a dangling link with a foreign name is the user's own (its target
+ * may be temporarily unmounted) and is left alone, as are working links and
+ * real directories.
+ */
+export function repairSkillLinks(profileDir: string): void {
+  const skillsDir = resolveProfileSkillsDir(profileDir);
+
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(skillsDir, { withFileTypes: true });
+  } catch {
+    // No skills directory means nothing to repair — profiles that predate
+    // bundling have their own restore path.
+    return;
+  }
+
+  const bundledNames = new Set(listBundledSkills().map((skill) => skill.name));
+  for (const entry of entries) {
+    if (!entry.isSymbolicLink() || !bundledNames.has(entry.name)) {
+      continue;
+    }
+    if (fs.existsSync(path.join(skillsDir, entry.name))) {
+      continue;
+    }
+    enableSkill(profileDir, entry.name);
+  }
+}
+
 /** Removes the link for one bundled skill. Leaves user-owned dirs alone. */
 export function disableSkill(profileDir: string, name: string): void {
   const link = path.join(resolveProfileSkillsDir(profileDir), name);

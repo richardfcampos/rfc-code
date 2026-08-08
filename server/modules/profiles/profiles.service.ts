@@ -18,6 +18,7 @@ import {
   resolveProfileDir,
   resolveProviderEnv,
 } from '@/modules/profiles/profile-env.js';
+import { repairPluginConfigPaths } from '@/modules/profiles/profile-plugin-path-repair.js';
 import {
   profilesRepository,
   type ProfileRow,
@@ -27,6 +28,7 @@ import {
   enableAllSkills,
   listBundledSkills,
   listEnabledSkills,
+  repairSkillLinks,
   type BundledSkill,
 } from '@/modules/bundled-skills/index.js';
 import {
@@ -349,6 +351,27 @@ export const profilesService = {
    * Profiles created before this feature have no `skills/` directory at all, so
    * their sessions see no skills; this is the repair path for them.
    */
+  /**
+   * Repairs machine-specific paths across every profile.
+   *
+   * Skill links and plugin install locations are absolute paths, so migrating
+   * the data directory between machines breaks them all at once and those
+   * profiles' sessions silently lose their skills and plugins. Runs at
+   * startup; each profile keeps its own selection — only entries that already
+   * exist but point nowhere are refreshed.
+   */
+  repairAllProfilePaths(): void {
+    for (const row of profilesRepository.list()) {
+      const profileDir = resolveProfileDir(row.provider, row.slug);
+      try {
+        repairSkillLinks(profileDir);
+        repairPluginConfigPaths(profileDir);
+      } catch {
+        // One unreadable profile dir should not stop the others from healing.
+      }
+    }
+  },
+
   restoreAllSkills(profileId: string): { enabled: string[] } {
     const row = loadProfileOrThrow(profileId);
     const profileDir = resolveProfileDir(row.provider, row.slug);

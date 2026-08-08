@@ -12,6 +12,7 @@ import {
   enableSkill,
   listBundledSkills,
   listEnabledSkills,
+  repairSkillLinks,
   resolveProfileSkillsDir,
 } from '@/modules/bundled-skills/index.js';
 
@@ -167,6 +168,42 @@ test('a link into the bundle is refreshed rather than left stale', async () => {
       fs.realpathSync(path.join(skillsDir, 'alpha')),
       fs.realpathSync(path.join(bundleRoot, 'alpha')),
     );
+  });
+});
+
+test('repair relinks dangling bundle links and keeps the selection', async () => {
+  await withBundle(({ bundleRoot, profileDir }) => {
+    const skillsDir = resolveProfileSkillsDir(profileDir);
+    fs.mkdirSync(skillsDir, { recursive: true });
+
+    // "alpha" enabled but dangling — the bundle used to live somewhere else.
+    fs.symlinkSync(path.join(profileDir, 'old-machine', 'alpha'), path.join(skillsDir, 'alpha'));
+    // A dangling link with a foreign name is the user's own; not ours to touch.
+    fs.symlinkSync(path.join(profileDir, 'old-machine', 'mine'), path.join(skillsDir, 'mine'));
+
+    repairSkillLinks(profileDir);
+
+    assert.equal(
+      fs.realpathSync(path.join(skillsDir, 'alpha')),
+      fs.realpathSync(path.join(bundleRoot, 'alpha')),
+    );
+    // "beta" was never enabled, so repair must not add it.
+    assert.equal(fs.existsSync(path.join(skillsDir, 'beta')), false);
+    assert.equal(fs.readlinkSync(path.join(skillsDir, 'mine')).endsWith('mine'), true);
+  });
+});
+
+test('repair leaves working links and a missing skills dir alone', async () => {
+  await withBundle(({ bundleRoot, profileDir }) => {
+    // No skills dir at all: must be a no-op, not an error.
+    repairSkillLinks(profileDir);
+    assert.equal(fs.existsSync(resolveProfileSkillsDir(profileDir)), false);
+
+    enableSkill(profileDir, 'alpha');
+    repairSkillLinks(profileDir);
+
+    const link = path.join(resolveProfileSkillsDir(profileDir), 'alpha');
+    assert.equal(fs.realpathSync(link), fs.realpathSync(path.join(bundleRoot, 'alpha')));
   });
 });
 

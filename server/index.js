@@ -1605,6 +1605,13 @@ async function startServer() {
         // installed themselves.
         ensureDefaultConfigDirSkills();
 
+        // Profile-bound sessions only see skills and plugins under their own
+        // config dir, and those are recorded as absolute paths — a data
+        // directory migrated from another machine leaves skill links dangling
+        // and plugin installs pointing at the old filesystem. Refresh them so
+        // existing profiles heal on boot instead of silently losing them.
+        profilesService.repairAllProfilePaths();
+
         // Configure Web Push (VAPID keys)
         configureWebPush();
 

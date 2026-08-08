@@ -13,6 +13,7 @@ export {
   getBundledSkillsRoot,
   listBundledSkills,
   listEnabledSkills,
+  repairSkillLinks,
   resolveProfileSkillsDir,
   type BundledSkill,
 } from '@/modules/bundled-skills/bundled-skills.js';
