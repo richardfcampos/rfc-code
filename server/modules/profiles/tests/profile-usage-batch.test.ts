@@ -245,10 +245,13 @@ test('a fetch exceeding the render deadline returns pending and reports the late
     const profile = profilesService.createProfile({ provider: 'claude', name: 'Slow' });
     writeClaudeCredentials(profilesRoot, profile.slug, Date.now() + 3_600_000);
 
-    let releaseFetch: (() => void) | null = null;
+    // Boxed in an object because the only assignment happens inside a callback:
+    // control-flow analysis would otherwise narrow a bare `let` to `null` here
+    // and leave nothing callable after the assertion below.
+    const pending: { release: (() => void) | null } = { release: null };
     const fetchImpl: FetchLike = () =>
       new Promise((resolve) => {
-        releaseFetch = () =>
+        pending.release = () =>
           resolve({ ok: true, status: 200, json: () => Promise.resolve(USAGE_BODY) });
       });
 
@@ -267,8 +270,8 @@ test('a fetch exceeding the render deadline returns pending and reports the late
         lateEnvelope = envelope;
       });
 
-      assert.ok(releaseFetch, 'fetch should still be pending in the background');
-      releaseFetch!();
+      assert.ok(pending.release, 'fetch should still be pending in the background');
+      pending.release();
       await flush();
       await flush();
 
