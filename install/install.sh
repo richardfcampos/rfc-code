@@ -10,7 +10,8 @@
 # wrapper reads that file; this script is the only thing that writes it.
 #
 # Usage: install/install.sh [--workspaces-root <path>] [--bind <addr>]
-#                           [--port <n>] [--yes] [--dry-run]
+#                           [--port <n>] [--agents <list>] [--no-agents]
+#                           [--fix-codex-sandbox] [--yes] [--dry-run]
 
 set -euo pipefail
 
@@ -49,6 +50,23 @@ RTK_SHA_AMD64='ff8a1e7766496e175291a85aeca1dc97c9ff6df33e51e5893d1fbc78fea2a609'
 # so the service resolves them the same way an interactive shell would.
 AGENT_CLIS='node claude codex cursor-agent opencode rtk'
 
+# The subset this script can install, and how. Same sources the retired
+# container build used, each verified against the project's own docs — guessing
+# a package name here installs a different program under the right binary name.
+# node and rtk are absent on purpose: node is a preflight requirement and rtk
+# has its own pinned-and-checksummed step above.
+AGENT_INSTALLABLE='claude codex cursor-agent opencode'
+CURSOR_INSTALL_URL='https://cursor.com/install'
+
+agent_npm_package() {
+	case "$1" in
+		claude)   printf '@anthropic-ai/claude-code' ;;
+		codex)    printf '@openai/codex' ;;
+		opencode) printf 'opencode-ai' ;;
+		*)        return 1 ;;
+	esac
+}
+
 # --- Options -----------------------------------------------------------------
 
 WORKSPACES_ROOT="$HOME"
@@ -56,6 +74,9 @@ BIND='127.0.0.1'
 PORT='7789'
 ASSUME_YES=0
 DRY_RUN=0
+INSTALL_AGENTS=1
+AGENTS_SELECTION=''
+FIX_CODEX_SANDBOX=0
 
 # --- Output helpers ----------------------------------------------------------
 
@@ -71,9 +92,26 @@ RFC Code native installer
   --workspaces-root <path>  Parent directory of browsable projects (default: $HOME)
   --bind <addr>             Interface to listen on (default: 127.0.0.1)
   --port <n>                TCP port (default: 7789)
+  --agents <list>           Comma-separated agent CLIs to install when missing
+                            (claude, codex, cursor-agent, opencode).
+                            Default: all of them. Also accepts --agents=<list>.
+  --no-agents               Install no agent CLI; only probe for the ones present
+  --fix-codex-sandbox       Allow lowering kernel.apparmor_restrict_unprivileged_userns
+                            (Linux, host-wide) when codex's sandbox cannot start
   --yes                     Do not ask for confirmation
   --dry-run                 Print every mutating action instead of doing it
   -h, --help                This help
+
+cursor-agent has no npm package and no published checksum, so it can only be
+installed by piping the vendor's script into a shell. That is never done on its
+own in an unattended run: it happens when --agents names cursor-agent
+explicitly, or from a terminal (with --yes, or after confirming the printed
+command). Otherwise it is skipped with the command to run by hand.
+
+--fix-codex-sandbox follows the same rule for the same reason: it relaxes a
+host-wide kernel restriction (with sudo), so an unattended run never does it on
+its own. Pass the flag, or confirm from a terminal; otherwise the problem is
+explained, the commands are printed, and the install continues.
 EOF
 }
 
@@ -110,6 +148,10 @@ while [ $# -gt 0 ]; do
 		--workspaces-root) [ $# -ge 2 ] || die "--workspaces-root needs a value"; WORKSPACES_ROOT=$2; shift 2 ;;
 		--bind)            [ $# -ge 2 ] || die "--bind needs a value";            BIND=$2;            shift 2 ;;
 		--port)            [ $# -ge 2 ] || die "--port needs a value";            PORT=$2;            shift 2 ;;
+		--agents)          [ $# -ge 2 ] || die "--agents needs a value";          AGENTS_SELECTION=$2; shift 2 ;;
+		--agents=*)        AGENTS_SELECTION=${1#*=}; shift ;;
+		--no-agents)       INSTALL_AGENTS=0; shift ;;
+		--fix-codex-sandbox) FIX_CODEX_SANDBOX=1; shift ;;
 		--yes|-y)          ASSUME_YES=1; shift ;;
 		--dry-run)         DRY_RUN=1;    shift ;;
 		-h|--help)         usage; exit 0 ;;
@@ -142,6 +184,26 @@ esac
 
 [ -d "$WORKSPACES_ROOT" ] || die "--workspaces-root does not exist: $WORKSPACES_ROOT"
 WORKSPACES_ROOT=$(cd -- "$WORKSPACES_ROOT" && pwd)
+
+# Names the user asked for by hand; empty means "every installable CLI". Kept
+# apart from the default set because naming a CLI explicitly is also the opt-in
+# that lets the cursor-agent vendor script run unattended.
+AGENTS_EXPLICIT=''
+if [ -n "$AGENTS_SELECTION" ]; then
+	[ "$INSTALL_AGENTS" -eq 1 ] || die "--agents and --no-agents contradict each other; pass only one"
+	for agent in $(printf '%s' "$AGENTS_SELECTION" | tr ',' ' '); do
+		case " $AGENT_INSTALLABLE " in
+			*" $agent "*) ;;
+			*) die "--agents: unknown CLI \"$agent\" (valid: ${AGENT_INSTALLABLE// /, })" ;;
+		esac
+		case " $AGENTS_EXPLICIT " in
+			*" $agent "*) continue ;;
+		esac
+		AGENTS_EXPLICIT="$AGENTS_EXPLICIT $agent"
+	done
+	AGENTS_EXPLICIT=${AGENTS_EXPLICIT# }
+	[ -n "$AGENTS_EXPLICIT" ] || die "--agents needs at least one CLI name (valid: ${AGENT_INSTALLABLE// /, })"
+fi
 
 # URL host for the health check: IPv6 literals need brackets.
 HEALTH_HOST="$BIND"
@@ -238,6 +300,11 @@ info "prefix:           $PREFIX"
 info "listen:           http://$HEALTH_HOST:$PORT"
 info "workspaces root:  $WORKSPACES_ROOT"
 info "service:          $SERVICE_DESC"
+if [ "$INSTALL_AGENTS" -eq 0 ]; then
+	info "agent CLIs:       --no-agents (probe only, nothing installed)"
+else
+	info "agent CLIs:       install when missing: ${AGENTS_EXPLICIT:-$AGENT_INSTALLABLE}"
+fi
 if [ "$IS_LOOPBACK" -eq 0 ]; then
 	info "auth:             trusted + AUTH_TRUSTED_NATIVE_BIND=1 (non-loopback bind, no login)"
 else
@@ -328,6 +395,399 @@ else
 		RTK_EXTRA_DIR="$BIN_DIR"
 	fi
 fi
+
+# --- Agent CLIs --------------------------------------------------------------
+#
+# This step must stay ahead of the probe below: the probe is what records each
+# CLI's directory into PATH_PREPEND, so anything installed after it would end up
+# invisible to the service. Everything here is best-effort — a CLI that cannot
+# be installed only breaks the sessions that dispatch to it, which is not worth
+# aborting an otherwise complete install for.
+
+AGENTS_INSTALLED=''
+AGENTS_PRESENT=''
+AGENTS_FAILED=''
+AGENTS_SKIPPED=''
+
+# npm's global bin directory. A fresh `npm install -g` lands here, which is not
+# necessarily on this shell's PATH (custom prefix, nvm), so it is resolved
+# explicitly instead of trusting `command -v` to see it.
+NPM_GLOBAL_BIN=''
+npm_global_bin() {
+	if [ -z "$NPM_GLOBAL_BIN" ]; then
+		NPM_GLOBAL_BIN=$(npm prefix -g 2>/dev/null || true)
+		[ -z "$NPM_GLOBAL_BIN" ] || NPM_GLOBAL_BIN="$NPM_GLOBAL_BIN/bin"
+	fi
+	printf '%s' "$NPM_GLOBAL_BIN"
+}
+
+# Directory holding an executable named $1, looked for in the candidate dirs
+# given after it and then anywhere on the current PATH. Prints nothing and
+# fails when there is none.
+resolve_agent_dir() {
+	local cli=$1 dir found
+	shift
+	for dir in "$@"; do
+		[ -n "$dir" ] || continue
+		if [ -x "$dir/$cli" ]; then
+			( cd -- "$dir" && pwd )
+			return 0
+		fi
+	done
+	found=$(command -v "$cli" 2>/dev/null || true)
+	if [ -n "$found" ]; then
+		( cd -- "$(dirname -- "$found")" && pwd )
+		return 0
+	fi
+	return 1
+}
+
+# Puts a just-installed CLI's directory at the front of this script's PATH.
+# Neither `npm install -g` nor a `curl | bash` installer changes the PATH of the
+# shell that ran it, so without this the probe below would report the CLI as
+# still missing and its directory would never reach RFC_CODE_PATH_PREPEND.
+adopt_agent_dir() {
+	PATH="$1:$PATH"
+	export PATH
+	info "    -> $1 (added to PATH for the probe below)"
+}
+
+install_npm_agent() {
+	local cli=$1 pkg=$2 dir
+	info "$cli: npm install -g $pkg"
+	if [ "$DRY_RUN" -eq 1 ]; then
+		printf '    [dry-run] npm install -g %s --no-audit --no-fund\n' "$pkg"
+		AGENTS_INSTALLED="$AGENTS_INSTALLED $cli"
+		return 0
+	fi
+	if ! npm install -g "$pkg" --no-audit --no-fund; then
+		warn "$cli: \`npm install -g $pkg\` failed (a global prefix you cannot write to is the
+         usual cause — check \`npm prefix -g\`). Install it yourself and re-run this
+         script to pick it up; only $cli sessions are affected until then."
+		AGENTS_FAILED="$AGENTS_FAILED $cli"
+		return 0
+	fi
+	dir=$(resolve_agent_dir "$cli" "$(npm_global_bin)") || dir=''
+	if [ -z "$dir" ]; then
+		warn "$cli: $pkg installed but no \`$cli\` executable was found under $(npm_global_bin).
+         Add its directory to RFC_CODE_PATH_PREPEND in $ENV_FILE by hand."
+		AGENTS_FAILED="$AGENTS_FAILED $cli"
+		return 0
+	fi
+	adopt_agent_dir "$dir"
+	AGENTS_INSTALLED="$AGENTS_INSTALLED $cli"
+}
+
+# Whether the vendor script may be piped into a shell in this run. Explicitly
+# naming cursor-agent on the command line is the opt-in that works unattended;
+# otherwise it takes a terminal, where the command is shown before it runs.
+cursor_pipe_approved() {
+	local reply
+	case " $AGENTS_EXPLICIT " in
+		*" cursor-agent "*) return 0 ;;
+	esac
+	[ -t 0 ] || return 1
+	[ "$ASSUME_YES" -eq 0 ] || return 0
+	printf '    Pipe that script into bash? [y/N] '
+	read -r reply
+	case "$reply" in
+		y|Y|yes|YES) return 0 ;;
+	esac
+	return 1
+}
+
+install_cursor_agent() {
+	local dir
+	# There is no npm package and no published checksum for cursor-agent, so the
+	# pinned-asset-plus-sha256 treatment rtk gets is impossible here: the vendor
+	# script is whatever the URL serves at this moment. The trade is made visible
+	# rather than hidden — the exact command is printed, an unattended run never
+	# pipes it on its own, and declining costs only cursor-agent sessions.
+	info "cursor-agent: no npm package exists; the vendor's script is the only headless method."
+	info "              It is fetched over TLS and run as this user, unverified:"
+	info "                  curl -fsS $CURSOR_INSTALL_URL | bash"
+	if [ "$DRY_RUN" -eq 1 ]; then
+		printf '    [dry-run] curl -fsS %s | bash (a real run asks first unless --agents names it)\n' "$CURSOR_INSTALL_URL"
+		AGENTS_INSTALLED="$AGENTS_INSTALLED cursor-agent"
+		return 0
+	fi
+	if ! cursor_pipe_approved; then
+		warn "cursor-agent: skipped, nothing was piped into a shell. Install it yourself with
+         \`curl -fsS $CURSOR_INSTALL_URL | bash\` (or re-run with --agents=cursor-agent),
+         then re-run this script to pick it up."
+		AGENTS_SKIPPED="$AGENTS_SKIPPED cursor-agent"
+		return 0
+	fi
+	if ! curl -fsS "$CURSOR_INSTALL_URL" | bash; then
+		warn "cursor-agent: the vendor installer failed. Only cursor-agent sessions are affected."
+		AGENTS_FAILED="$AGENTS_FAILED cursor-agent"
+		return 0
+	fi
+	# The installer puts the launcher in ~/.local/bin, which this script does not
+	# add to PATH anywhere else.
+	dir=$(resolve_agent_dir cursor-agent "$HOME/.local/bin") || dir=''
+	if [ -z "$dir" ]; then
+		warn "cursor-agent: the installer ran but no \`cursor-agent\` executable was found in
+         $HOME/.local/bin. Add its directory to RFC_CODE_PATH_PREPEND in $ENV_FILE by hand."
+		AGENTS_FAILED="$AGENTS_FAILED cursor-agent"
+		return 0
+	fi
+	adopt_agent_dir "$dir"
+	AGENTS_INSTALLED="$AGENTS_INSTALLED cursor-agent"
+}
+
+install_agent_clis() {
+	local cli list pkg
+	list=${AGENTS_EXPLICIT:-$AGENT_INSTALLABLE}
+	for cli in $list; do
+		if command -v "$cli" >/dev/null 2>&1; then
+			# Left strictly alone: upgrading a CLI the user already manages (brew,
+			# a version manager, a checkout of their own) is not this installer's
+			# call. The probe below records whichever one they have.
+			AGENTS_PRESENT="$AGENTS_PRESENT $cli"
+			continue
+		fi
+		case "$cli" in
+			cursor-agent) install_cursor_agent ;;
+			*)
+				pkg=$(agent_npm_package "$cli") || die "no install method for agent CLI \"$cli\""
+				install_npm_agent "$cli" "$pkg"
+				;;
+		esac
+	done
+}
+
+step "Agent CLIs"
+if [ "$INSTALL_AGENTS" -eq 0 ]; then
+	info "--no-agents: nothing installed; the probe below reports what is already on PATH"
+else
+	install_agent_clis
+	if [ -n "$AGENTS_PRESENT" ]; then info "already present:${AGENTS_PRESENT}"; fi
+	if [ -n "$AGENTS_INSTALLED" ]; then
+		if [ "$DRY_RUN" -eq 1 ]; then
+			info "would install:${AGENTS_INSTALLED}"
+		else
+			info "installed:${AGENTS_INSTALLED}"
+		fi
+	fi
+	if [ -n "$AGENTS_SKIPPED" ]; then info "skipped:${AGENTS_SKIPPED}"; fi
+	if [ -n "$AGENTS_FAILED" ]; then info "failed:${AGENTS_FAILED}"; fi
+fi
+
+# --- Codex sandbox -----------------------------------------------------------
+#
+# On Linux, codex runs every command it is asked to execute inside a bwrap
+# sandbox built from an unprivileged user namespace. Ubuntu 24.04 and the other
+# distros carrying the AppArmor userns restriction ship
+# kernel.apparmor_restrict_unprivileged_userns=1, and bwrap then cannot build
+# that sandbox at all.
+#
+# The reason this is worth an install-time probe is how quietly it fails.
+# Collaboration participants backed by codex are run read-only inside that
+# sandbox; with the sandbox unavailable codex refuses to execute anything
+# (fail-closed, so nothing unsafe happens) — but the model turn still succeeds.
+# The participant gets a tool error, answers from the prompt alone without
+# having read a single file, and the collaboration returns a confident verdict
+# about a repository nobody could open, having billed every account that spoke.
+# Nothing in the transcript says "I could not read the repo".
+
+USERNS_SYSCTL_KEY='kernel.apparmor_restrict_unprivileged_userns'
+USERNS_SYSCTL_PROC='/proc/sys/kernel/apparmor_restrict_unprivileged_userns'
+USERNS_SYSCTL_FILE='/etc/sysctl.d/99-rfc-code-userns.conf'
+
+CODEX_SANDBOX_STATUS='not checked'
+CODEX_SANDBOX_BROKEN=0
+CODEX_SANDBOX_PROBE_OUT=''
+
+# The authoritative test: ask codex itself to run a trivial command under the
+# read-only profile the collaboration feature uses. Anything other than exit 0
+# means participants would not be able to read the repository, whatever the
+# reason turns out to be. Bounded by `timeout` where available so a wedged codex
+# cannot hang the install.
+codex_sandbox_probe() {
+	local rc=0 out
+	if command -v timeout >/dev/null 2>&1; then
+		out=$(timeout 30 codex sandbox -P :read-only -- true 2>&1) || rc=$?
+	else
+		out=$(codex sandbox -P :read-only -- true 2>&1) || rc=$?
+	fi
+	CODEX_SANDBOX_PROBE_OUT=$out
+	return "$rc"
+}
+
+# Diagnostic only — it explains a probe failure, it never decides one. The file
+# does not exist on distros without this AppArmor feature, which is not an error.
+userns_restricted() {
+	local value
+	[ -r "$USERNS_SYSCTL_PROC" ] || return 1
+	value=$(cat "$USERNS_SYSCTL_PROC" 2>/dev/null || true)
+	value=${value//[[:space:]]/}
+	case "$value" in
+		''|0) return 1 ;;
+	esac
+	return 0
+}
+
+# Privileged commands, minus the sudo call when this already runs as root.
+as_root() {
+	if [ "$(id -u)" -eq 0 ]; then
+		"$@"
+	else
+		sudo "$@"
+	fi
+}
+
+# Same discipline as the cursor-agent vendor script: relaxing a kernel setting
+# for the whole host is not something an unattended run may decide on its own.
+# The flag is the opt-in that works headless; otherwise it takes a terminal.
+codex_sandbox_fix_approved() {
+	local reply
+	[ "$FIX_CODEX_SANDBOX" -eq 0 ] || return 0
+	[ -t 0 ] || return 1
+	[ "$ASSUME_YES" -eq 0 ] || return 0
+	printf '    Lower that restriction now (needs sudo)? [y/N] '
+	read -r reply
+	case "$reply" in
+		y|Y|yes|YES) return 0 ;;
+	esac
+	return 1
+}
+
+# Applies the live change and the boot-time drop-in. Returns non-zero only when
+# the live change failed: a missing drop-in costs persistence, not correctness.
+apply_codex_sandbox_fix() {
+	if [ "$(id -u)" -ne 0 ] && ! command -v sudo >/dev/null 2>&1; then
+		warn "no sudo on PATH and this is not root — run the two commands above as root yourself."
+		return 1
+	fi
+	info "running: sudo sysctl -w $USERNS_SYSCTL_KEY=0"
+	if ! as_root sysctl -w "$USERNS_SYSCTL_KEY=0" >/dev/null; then
+		warn "sysctl -w failed (no sudo rights, or the kernel refused it). Nothing was changed."
+		return 1
+	fi
+	info "writing: $USERNS_SYSCTL_FILE (so it survives a reboot)"
+	if ! printf '%s\n' \
+		"# codex builds its read-only sandbox from an unprivileged user namespace;" \
+		"# the AppArmor restriction (default 1 on Ubuntu 24.04+) stops bwrap doing that." \
+		"$USERNS_SYSCTL_KEY = 0" | as_root tee "$USERNS_SYSCTL_FILE" >/dev/null; then
+		warn "could not write $USERNS_SYSCTL_FILE. The change is live now but will be lost at
+         the next reboot — create that file by hand with \"$USERNS_SYSCTL_KEY = 0\"."
+	fi
+	return 0
+}
+
+# What the user is being asked to trade away. Deliberately not softened.
+explain_userns_tradeoff() {
+	info ""
+	info "Before you accept: this is a host-wide kernel setting, not a codex one."
+	info "Setting it to 0 re-enables unprivileged user namespaces for every process on"
+	info "this machine. Other sandboxes want that too (rootless Docker/Podman, Flatpak,"
+	info "the Chrome and Firefox renderer sandboxes), but it also re-opens the attack"
+	info "surface the restriction exists to close: unprivileged user namespaces have"
+	info "repeatedly been the lever in local privilege-escalation exploits, which is"
+	info "why Ubuntu turned them off by default. You are lowering a security boundary"
+	info "for the whole host to make one feature work."
+	info "Leaving it at 1 is a legitimate choice. The cost of leaving it is that codex"
+	info "accounts must not be used as collaboration participants: they will answer"
+	info "without having read anything, and nothing will tell you so."
+}
+
+check_codex_sandbox() {
+	if codex_sandbox_probe; then
+		CODEX_SANDBOX_STATUS='working (codex sandbox probe passed)'
+		info "codex sandbox -P :read-only -- true => ok"
+		return 0
+	fi
+
+	CODEX_SANDBOX_BROKEN=1
+	warn "codex cannot build its read-only sandbox on this host."
+	info "probe:  codex sandbox -P :read-only -- true  (exit non-zero)"
+	if [ -n "$CODEX_SANDBOX_PROBE_OUT" ]; then
+		info "output: $(printf '%s' "$CODEX_SANDBOX_PROBE_OUT" | head -n 3 | tr '\n' ' ')"
+	fi
+	info ""
+	info "What this breaks: collaboration participants backed by codex run read-only"
+	info "inside that sandbox. Without it codex refuses to run their commands, so they"
+	info "cannot read the repository — but they still answer. The collaboration returns"
+	info "a confident verdict about code no participant could open, and every account"
+	info "that took part is billed for it. It fails silently, not visibly."
+
+	if ! userns_restricted; then
+		# The probe is what decides; the sysctl only explains. Reading 0 (or being
+		# absent) means the AppArmor restriction is not the cause here, so there is
+		# nothing to offer — lowering an unrelated setting would fix nothing.
+		if [ -r "$USERNS_SYSCTL_PROC" ]; then
+			info "cause:  not the AppArmor userns restriction ($USERNS_SYSCTL_KEY is already 0)."
+		else
+			info "cause:  not the AppArmor userns restriction (this kernel does not have it)."
+		fi
+		info "        Check the probe output above: an outdated codex, a missing bwrap or a"
+		info "        container without CAP_SYS_ADMIN produce the same failure."
+		CODEX_SANDBOX_STATUS='BROKEN — cause is not the AppArmor userns restriction'
+		return 0
+	fi
+
+	info "cause:  $USERNS_SYSCTL_KEY = 1 (the default on Ubuntu 24.04+)."
+	info "        It stops unprivileged processes creating user namespaces, which is how"
+	info "        codex's bundled bwrap builds the sandbox."
+	info "fix, now:      sudo sysctl -w $USERNS_SYSCTL_KEY=0"
+	info "fix, on boot:  echo '$USERNS_SYSCTL_KEY = 0' | sudo tee $USERNS_SYSCTL_FILE"
+	info "               sudo sysctl --system"
+	explain_userns_tradeoff
+	info ""
+
+	if [ "$DRY_RUN" -eq 1 ]; then
+		printf '    [dry-run] sudo sysctl -w %s=0 (a real run asks first unless --fix-codex-sandbox is passed)\n' "$USERNS_SYSCTL_KEY"
+		printf '    [dry-run] write %s with "%s = 0"\n' "$USERNS_SYSCTL_FILE" "$USERNS_SYSCTL_KEY"
+		printf '    [dry-run] re-run the probe to confirm it actually works\n'
+		CODEX_SANDBOX_STATUS='BROKEN — a real run would offer to fix it'
+		return 0
+	fi
+
+	if ! codex_sandbox_fix_approved; then
+		warn "codex sandbox: left as it is, nothing was changed. Run the two commands above
+         yourself (or re-run this script with --fix-codex-sandbox), then re-run the
+         probe. Until then, do not use codex accounts as collaboration participants."
+		CODEX_SANDBOX_STATUS='BROKEN — fix not applied'
+		return 0
+	fi
+
+	if ! apply_codex_sandbox_fix; then
+		CODEX_SANDBOX_STATUS='BROKEN — could not apply the fix'
+		return 0
+	fi
+
+	# Never report success from "the command exited 0": only the probe can say
+	# whether the sandbox builds now.
+	if codex_sandbox_probe; then
+		CODEX_SANDBOX_BROKEN=0
+		CODEX_SANDBOX_STATUS='fixed and verified (probe now passes)'
+		info "re-probe: codex sandbox -P :read-only -- true => ok"
+		return 0
+	fi
+
+	warn "the restriction was lowered but codex still cannot build its sandbox — the fix
+         did not work. Do not use codex accounts as collaboration participants until
+         the probe passes."
+	if [ -n "$CODEX_SANDBOX_PROBE_OUT" ]; then
+		info "re-probe output: $(printf '%s' "$CODEX_SANDBOX_PROBE_OUT" | head -n 3 | tr '\n' ' ')"
+	fi
+	info "You may want to undo the change: sudo rm $USERNS_SYSCTL_FILE && sudo sysctl -w $USERNS_SYSCTL_KEY=1"
+	CODEX_SANDBOX_STATUS='BROKEN — fix applied but the probe still fails'
+	return 0
+}
+
+step "Codex sandbox"
+if [ "$OS" != 'linux' ]; then
+	# macOS confines codex with Seatbelt, which has no bwrap and no user
+	# namespaces — there is nothing here that can be misconfigured.
+	CODEX_SANDBOX_STATUS="not applicable on $UNAME_S (codex uses the Seatbelt sandbox there)"
+elif ! command -v codex >/dev/null 2>&1; then
+	CODEX_SANDBOX_STATUS='not checked (codex is not installed)'
+else
+	check_codex_sandbox
+fi
+info "result: $CODEX_SANDBOX_STATUS"
 
 # --- CLI probe / PATH --------------------------------------------------------
 
@@ -562,6 +1022,19 @@ else
 	cat <<EOF
   Restart      systemctl --user restart $UNIT_NAME
   Uninstall    $SCRIPT_DIR/uninstall.sh   (data in $PREFIX/data is kept)
+EOF
+fi
+
+if [ "$CODEX_SANDBOX_BROKEN" -eq 1 ]; then
+	# Repeated here because the "Codex sandbox" step scrolls past long before the
+	# install ends, and the consequence is silent at runtime.
+	cat <<EOF
+
+  Codex sandbox  NOT working (see the "Codex sandbox" step above).
+                 Collaboration participants backed by codex cannot read the
+                 repository and will answer anyway — treat their output as
+                 ungrounded until this passes:
+                     codex sandbox -P :read-only -- true
 EOF
 fi
 

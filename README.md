@@ -107,6 +107,10 @@ This fork runs as a native system service instead of a Docker container, so it k
 
 Registers a macOS LaunchAgent or a Linux systemd user unit (`loginctl enable-linger`) so the service starts on login/boot and restarts on crash. Config lives in `~/.rfc-code/env`, data (DB + profiles) in `~/.rfc-code/data`. To remove it, run `./install/uninstall.sh` (data is kept).
 
+The four agent CLIs the app drives — `claude`, `codex`, `cursor-agent`, `opencode` — are installed when missing, and any you already have is left untouched. Use `--agents=codex,opencode` for a subset or `--no-agents` to install none. `cursor-agent` has no npm package, so it can only come from the vendor's `curl https://cursor.com/install | bash`: the installer prints that command and runs it only when you confirm at the prompt, pass `--yes` from a terminal, or name it in `--agents`; an unattended run skips it and tells you how to install it by hand.
+
+> **Linux + codex:** codex sandboxes everything it runs inside an unprivileged user namespace, which Ubuntu 24.04+ blocks by default (`kernel.apparmor_restrict_unprivileged_userns=1`). The installer probes it (`codex sandbox -P :read-only -- true`) and, if it fails, explains the consequence — collaboration participants backed by codex cannot read the repository yet still answer, so the result looks informed but is ungrounded — and prints the `sysctl` commands. It only applies them with `--fix-codex-sandbox` or your confirmation at the prompt, and re-runs the probe afterwards; an unattended run just warns and continues. Note that this lowers a host-wide kernel restriction, not a codex-specific one.
+
 > **macOS:** starting on boot needs auto-login enabled (System Settings → Users), and if your checkout or projects live on an external volume, the first launchd run may need you to grant the `node` binary Full Disk Access (System Settings → Privacy & Security) before it can read them.
 
 #### Docker Sandboxes (Experimental)
