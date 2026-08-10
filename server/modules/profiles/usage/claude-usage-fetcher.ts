@@ -38,6 +38,38 @@ interface ClaudeCredentials {
   expiresAt: number | null;
 }
 
+/** Maps an HTTP failure status to the reason surfaced on the snapshot. */
+function classifyUnavailableReason(status: number): ProfileUsageSnapshot['reason'] {
+  if (status === 429) {
+    return 'rate_limited';
+  }
+  if (status >= 500) {
+    return 'server';
+  }
+  return 'unknown';
+}
+
+/**
+ * Parses `Retry-After` into milliseconds. The header is either a delay in
+ * seconds or an HTTP-date; either way only the derived number leaves this
+ * module, never the raw header value.
+ */
+function parseRetryAfterMs(headerValue: string | null | undefined, now: Date): number | undefined {
+  if (!headerValue) {
+    return undefined;
+  }
+  const trimmed = headerValue.trim();
+  if (/^\d+$/.test(trimmed)) {
+    const seconds = Number(trimmed);
+    return Number.isFinite(seconds) ? Math.max(0, seconds * 1000) : undefined;
+  }
+  const parsedDate = Date.parse(trimmed);
+  if (Number.isNaN(parsedDate)) {
+    return undefined;
+  }
+  return Math.max(0, parsedDate - now.getTime());
+}
+
 function readCredentials(profileDir: string): ClaudeCredentials | null {
   try {
     const raw = fs.readFileSync(path.join(profileDir, '.credentials.json'), 'utf8');
@@ -151,7 +183,12 @@ export async function fetchClaudeUsage(
       return { ...base, status: 'unauthenticated' };
     }
     if (!response.ok) {
-      return { ...base, status: 'unavailable' };
+      const reason = classifyUnavailableReason(response.status);
+      const retryAfterMs =
+        reason === 'rate_limited'
+          ? parseRetryAfterMs(response.headers?.get('retry-after'), now())
+          : undefined;
+      return { ...base, status: 'unavailable', reason, retryAfterMs };
     }
 
     const payload = (await response.json()) as Record<string, unknown>;
@@ -167,6 +204,6 @@ export async function fetchClaudeUsage(
     };
   } catch {
     // Network failure or timeout — usage is a nice-to-have, never an error page.
-    return { ...base, status: 'unavailable' };
+    return { ...base, status: 'unavailable', reason: 'network' };
   }
 }

@@ -10,6 +10,7 @@ import {
   initializeDatabase,
 } from '@/modules/database/index.js';
 import { profilesService } from '@/modules/profiles/profiles.service.js';
+import { fetchClaudeUsage } from '@/modules/profiles/usage/claude-usage-fetcher.js';
 import { profileUsageService } from '@/modules/profiles/usage/profile-usage.service.js';
 import type { FetchLike } from '@/modules/profiles/usage/profile-usage.types.js';
 
@@ -64,6 +65,19 @@ function jsonResponse(status: number, body: unknown): ReturnType<FetchLike> {
     ok: status >= 200 && status < 300,
     status,
     json: () => Promise.resolve(body),
+  });
+}
+
+function jsonResponseWithHeaders(
+  status: number,
+  body: unknown,
+  headers: Record<string, string>,
+): ReturnType<FetchLike> {
+  return Promise.resolve({
+    ok: status >= 200 && status < 300,
+    status,
+    json: () => Promise.resolve(body),
+    headers: { get: (name: string) => headers[name.toLowerCase()] ?? null },
   });
 }
 
@@ -300,5 +314,89 @@ test('unknown profile id rejects with a not-found error', async () => {
       () => profileUsageService.getUsage('no-such-profile'),
       /was not found/,
     );
+  });
+});
+
+test('claude 429 with Retry-After in seconds maps to rate_limited with retryAfterMs', async () => {
+  await withProfilesEnvironment(async (profilesRoot) => {
+    const profile = profilesService.createProfile({ provider: 'claude', name: 'Main' });
+    writeClaudeCredentials(profilesRoot, profile.slug, Date.now() + 3_600_000);
+    const profileDir = path.join(profilesRoot, 'claude', profile.slug);
+
+    const usage = await fetchClaudeUsage(profileDir, {
+      fetchImpl: () => jsonResponseWithHeaders(429, {}, { 'retry-after': '30' }),
+    });
+
+    assert.equal(usage.status, 'unavailable');
+    assert.equal(usage.reason, 'rate_limited');
+    assert.equal(usage.retryAfterMs, 30_000);
+  });
+});
+
+test('claude 429 with Retry-After as an HTTP-date maps to rate_limited with retryAfterMs', async () => {
+  await withProfilesEnvironment(async (profilesRoot) => {
+    const profile = profilesService.createProfile({ provider: 'claude', name: 'Main' });
+    writeClaudeCredentials(profilesRoot, profile.slug, Date.now() + 3_600_000);
+    const profileDir = path.join(profilesRoot, 'claude', profile.slug);
+
+    const fixedNow = new Date('2026-08-10T00:00:00.000Z');
+    const retryAt = new Date(fixedNow.getTime() + 30_000).toUTCString();
+
+    const usage = await fetchClaudeUsage(profileDir, {
+      fetchImpl: () => jsonResponseWithHeaders(429, {}, { 'retry-after': retryAt }),
+      now: () => fixedNow,
+    });
+
+    assert.equal(usage.status, 'unavailable');
+    assert.equal(usage.reason, 'rate_limited');
+    assert.equal(usage.retryAfterMs, 30_000);
+  });
+});
+
+test('claude 429 without Retry-After leaves retryAfterMs undefined', async () => {
+  await withProfilesEnvironment(async (profilesRoot) => {
+    const profile = profilesService.createProfile({ provider: 'claude', name: 'Main' });
+    writeClaudeCredentials(profilesRoot, profile.slug, Date.now() + 3_600_000);
+    const profileDir = path.join(profilesRoot, 'claude', profile.slug);
+
+    const usage = await fetchClaudeUsage(profileDir, {
+      fetchImpl: () => jsonResponse(429, {}),
+    });
+
+    assert.equal(usage.status, 'unavailable');
+    assert.equal(usage.reason, 'rate_limited');
+    assert.equal(usage.retryAfterMs, undefined);
+  });
+});
+
+test('claude 500 maps to unavailable with reason server', async () => {
+  await withProfilesEnvironment(async (profilesRoot) => {
+    const profile = profilesService.createProfile({ provider: 'claude', name: 'Main' });
+    writeClaudeCredentials(profilesRoot, profile.slug, Date.now() + 3_600_000);
+    const profileDir = path.join(profilesRoot, 'claude', profile.slug);
+
+    const usage = await fetchClaudeUsage(profileDir, {
+      fetchImpl: () => jsonResponse(503, {}),
+    });
+
+    assert.equal(usage.status, 'unavailable');
+    assert.equal(usage.reason, 'server');
+    assert.equal(usage.retryAfterMs, undefined);
+  });
+});
+
+test('claude fetch rejection maps to unavailable with reason network', async () => {
+  await withProfilesEnvironment(async (profilesRoot) => {
+    const profile = profilesService.createProfile({ provider: 'claude', name: 'Main' });
+    writeClaudeCredentials(profilesRoot, profile.slug, Date.now() + 3_600_000);
+    const profileDir = path.join(profilesRoot, 'claude', profile.slug);
+
+    const usage = await fetchClaudeUsage(profileDir, {
+      fetchImpl: () => Promise.reject(new Error('ECONNRESET')),
+    });
+
+    assert.equal(usage.status, 'unavailable');
+    assert.equal(usage.reason, 'network');
+    assert.equal(usage.retryAfterMs, undefined);
   });
 });

@@ -9,7 +9,8 @@
  * so the snapshot carries `asOf` for the UI to caveat.
  */
 
-import fs from 'node:fs';
+import type { Dirent } from 'node:fs';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import {
@@ -27,11 +28,11 @@ interface RateLimitWindow {
 }
 
 /** Newest rollout file, exploiting the date-named directory layout. */
-function findLatestRollout(sessionsDir: string): string | null {
-  const descend = (dir: string, depth: number): string | null => {
-    let entries: fs.Dirent[];
+async function findLatestRollout(sessionsDir: string): Promise<string | null> {
+  const descend = async (dir: string, depth: number): Promise<string | null> => {
+    let entries: Dirent[];
     try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
+      entries = await fs.readdir(dir, { withFileTypes: true });
     } catch {
       return null;
     }
@@ -51,7 +52,7 @@ function findLatestRollout(sessionsDir: string): string | null {
       .sort()
       .reverse();
     for (const name of subdirs) {
-      const found = descend(path.join(dir, name), depth - 1);
+      const found = await descend(path.join(dir, name), depth - 1);
       if (found) {
         return found;
       }
@@ -62,16 +63,16 @@ function findLatestRollout(sessionsDir: string): string | null {
   return descend(sessionsDir, 3);
 }
 
-function readTail(filePath: string): string {
-  const { size } = fs.statSync(filePath);
+async function readTail(filePath: string): Promise<string> {
+  const { size } = await fs.stat(filePath);
   const start = Math.max(0, size - TAIL_BYTES);
   const length = size - start;
   const buffer = Buffer.alloc(length);
-  const fd = fs.openSync(filePath, 'r');
+  const handle = await fs.open(filePath, 'r');
   try {
-    fs.readSync(fd, buffer, 0, length, start);
+    await handle.read(buffer, 0, length, start);
   } finally {
-    fs.closeSync(fd);
+    await handle.close();
   }
   return buffer.toString('utf8');
 }
@@ -146,11 +147,11 @@ export async function fetchCodexUsage(
   };
 
   try {
-    const rollout = findLatestRollout(path.join(profileDir, 'sessions'));
+    const rollout = await findLatestRollout(path.join(profileDir, 'sessions'));
     if (!rollout) {
       return { ...base, status: 'unavailable' };
     }
-    const extracted = extractLatestRateLimits(readTail(rollout));
+    const extracted = extractLatestRateLimits(await readTail(rollout));
     if (!extracted) {
       return { ...base, status: 'unavailable' };
     }

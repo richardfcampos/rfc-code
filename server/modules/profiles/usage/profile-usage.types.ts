@@ -22,6 +22,9 @@ export interface ProfileUsageWindow {
 
 export type ProfileUsageStatus = 'ok' | 'unauthenticated' | 'unavailable';
 
+/** Narrower cause for `status: 'unavailable'`, used to drive retry/backoff decisions. */
+export type ProfileUsageUnavailableReason = 'rate_limited' | 'network' | 'server' | 'unknown';
+
 export interface ProfileUsageSnapshot {
   /** False when the provider has no known plan-usage source (cursor, opencode). */
   supported: boolean;
@@ -36,6 +39,13 @@ export interface ProfileUsageSnapshot {
    */
   asOf: string | null;
   fetchedAt: string;
+  /** Set only when `status === 'unavailable'`; unset otherwise. */
+  reason?: ProfileUsageUnavailableReason;
+  /**
+   * Milliseconds until the source itself expects to allow another request.
+   * Derived from the raw `Retry-After` header, which never leaves the fetcher.
+   */
+  retryAfterMs?: number;
 }
 
 /** Injectable fetch so tests can exercise HTTP paths without global mocks. */
@@ -47,6 +57,21 @@ export type FetchLike = (
     body?: string;
     signal?: AbortSignal;
   },
-) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
+) => Promise<{
+  ok: boolean;
+  status: number;
+  json(): Promise<unknown>;
+  /** Optional so existing mocks without header support keep typechecking. */
+  headers?: { get(name: string): string | null };
+}>;
+
+/** Public shape returned by the batch route and the `profile_usage` WS event. */
+export interface ProfileUsageEnvelope {
+  profileId: string;
+  state: 'cached' | 'pending';
+  snapshot: ProfileUsageSnapshot | null;
+  /** ISO timestamp, derived from `retryAfterMs` at response time. */
+  retryAt?: string;
+}
 
 export const clampUtilization = (value: number): number => Math.min(100, Math.max(0, value));
