@@ -41,10 +41,15 @@ async function withProfilesEnvironment(
 // that profile so later dispatch (and the header badge) know which account is
 // in use, without waiting for a synchronizer pass to discover it on disk.
 test('createAppSession persists the given profileId on the session row', async () => {
-  await withProfilesEnvironment(() => {
+  await withProfilesEnvironment(async () => {
     const profile = profilesService.createProfile({ provider: 'claude', name: 'Account A' });
 
-    const result = sessionsService.createAppSession('claude', '/workspace/demo', profile.id);
+    const result = await sessionsService.createAppSession(
+      'claude',
+      '/workspace/demo',
+      profile.id,
+      async (cwd) => ({ projectPath: cwd, worktreePath: null, worktreeBranch: null }),
+    );
 
     assert.equal(sessionsDb.getSessionById(result.sessionId)?.profile_id, profile.id);
   });
@@ -52,8 +57,13 @@ test('createAppSession persists the given profileId on the session row', async (
 
 // Retrocompat: no profileId keeps upstream behavior — session has no owning profile.
 test('createAppSession leaves profile_id null when no profileId is given', async () => {
-  await withProfilesEnvironment(() => {
-    const result = sessionsService.createAppSession('claude', '/workspace/demo');
+  await withProfilesEnvironment(async () => {
+    const result = await sessionsService.createAppSession(
+      'claude',
+      '/workspace/demo',
+      undefined,
+      async (cwd) => ({ projectPath: cwd, worktreePath: null, worktreeBranch: null }),
+    );
 
     assert.equal(sessionsDb.getSessionById(result.sessionId)?.profile_id, null);
   });
@@ -61,9 +71,15 @@ test('createAppSession leaves profile_id null when no profileId is given', async
 
 // A dangling profile id is a hard error, never a silently persisted ghost reference.
 test('createAppSession rejects an unknown profileId', async () => {
-  await withProfilesEnvironment(() => {
-    assert.throws(
-      () => sessionsService.createAppSession('claude', '/workspace/demo', 'does-not-exist'),
+  await withProfilesEnvironment(async () => {
+    await assert.rejects(
+      () =>
+        sessionsService.createAppSession(
+          'claude',
+          '/workspace/demo',
+          'does-not-exist',
+          async (cwd) => ({ projectPath: cwd, worktreePath: null, worktreeBranch: null }),
+        ),
       /not.*found/i,
     );
   });

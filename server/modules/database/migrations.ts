@@ -2,6 +2,8 @@ import { Database } from 'better-sqlite3';
 
 import {
   APP_CONFIG_TABLE_SCHEMA_SQL,
+  COLLABORATIONS_TABLE_SCHEMA_SQL,
+  COLLABORATION_TURNS_TABLE_SCHEMA_SQL,
   LAST_SCANNED_AT_SQL,
   NOTIFICATION_CHANNEL_ENDPOINTS_TABLE_SCHEMA_SQL,
   PROFILES_TABLE_SCHEMA_SQL,
@@ -433,6 +435,25 @@ const addCavemanModeToSessions = (db: Database): void => {
 };
 
 /**
+ * Adds worktree execution context to sessions.
+ *
+ * worktree_path stores the absolute path to the worktree where the session
+ * executes. NULL means the session runs at the project root (standard behavior).
+ *
+ * worktree_branch stores the branch label displayed in the session list as a
+ * badge, refreshed on each sync. NULL when worktree_path is NULL.
+ *
+ * Existing sessions stay NULL for both columns, preserving their standard
+ * repository root execution.
+ */
+const addWorktreeColumnsToSessions = (db: Database): void => {
+  const columnNames = getTableInfo(db, 'sessions').map((column) => column.name);
+
+  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'worktree_path', 'TEXT');
+  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'worktree_branch', 'TEXT');
+};
+
+/**
  * Adds the per-profile agent tooling defaults.
  *
  * Both stay NULL for profiles that predate the feature, which resolves to off
@@ -508,6 +529,13 @@ export const runMigrations = (db: Database) => {
     db.exec(PROFILES_TABLE_SCHEMA_SQL);
     db.exec('CREATE INDEX IF NOT EXISTS idx_profiles_provider ON profiles(provider)');
     addAgentToolingColumnsToProfiles(db);
+
+    db.exec(COLLABORATIONS_TABLE_SCHEMA_SQL);
+    db.exec('CREATE INDEX IF NOT EXISTS idx_collaborations_project ON collaborations(project_path)');
+    db.exec(COLLABORATION_TURNS_TABLE_SCHEMA_SQL);
+    db.exec('CREATE INDEX IF NOT EXISTS idx_collaboration_turns_collab ON collaboration_turns(collaboration_id)');
+
+    addWorktreeColumnsToSessions(db);
 
     db.exec('CREATE INDEX IF NOT EXISTS idx_session_ids_lookup ON sessions(session_id)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_provider_session_id ON sessions(provider_session_id)');

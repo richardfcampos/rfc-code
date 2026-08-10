@@ -542,7 +542,7 @@ router.post(
     const provider = parseProvider(body.provider);
     const projectPath = typeof body.projectPath === 'string' ? body.projectPath : '';
     const profileId = typeof body.profileId === 'string' && body.profileId.trim() ? body.profileId.trim() : undefined;
-    const result = sessionsService.createAppSession(provider, projectPath, profileId);
+    const result = await sessionsService.createAppSession(provider, projectPath, profileId);
     res.status(201).json(createApiSuccessResponse(result));
   }),
 );

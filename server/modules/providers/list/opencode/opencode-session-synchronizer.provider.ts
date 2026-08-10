@@ -5,7 +5,13 @@ import Database from 'better-sqlite3';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import { resolveProfileRootForPath, resolveProfileScanRoots } from '@/modules/profiles/index.js';
+// Imported directly from the service (not the `worktrees` barrel): the barrel
+// re-exports `worktrees.module.ts`, which pulls in the projects module, which
+// pulls in this providers module back in — a real import cycle that trips a
+// "cannot access before initialization" error on the synchronizer classes.
+import { resolveWorktreeContext } from '@/modules/repo-context/index.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
+import type { GitCommandRunner } from '@/shared/types.js';
 import {
   getOpenCodeDatabasePath,
   normalizeProviderTimestamp,
@@ -36,6 +42,14 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
   private readonly provider = 'opencode' as const;
 
   /**
+   * `runGit` is only ever supplied by tests, so they can fake worktree
+   * resolution without shelling out to a real git binary. Production code
+   * leaves it undefined and `resolveWorktreeContext` falls back to the real
+   * runner.
+   */
+  constructor(private readonly runGit?: GitCommandRunner) {}
+
+  /**
    * Scans the default shared opencode.db plus every profile's isolated
    * opencode.db, upserting active sessions with the owning profile id (null for
    * the default db, keeping pre-feature sessions profile-less).
@@ -51,7 +65,7 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
 
     let processed = 0;
     for (const root of dbRoots) {
-      processed += this.synchronizeRows(root.dbPath, root.profileId, since).processed;
+      processed += (await this.synchronizeRows(root.dbPath, root.profileId, since)).processed;
     }
     return processed;
   }
@@ -65,16 +79,16 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
     }
 
     const profileId = resolveProfileRootForPath(this.provider, filePath)?.profileId ?? null;
-    const result = this.synchronizeRows(filePath, profileId, undefined, 1);
+    const result = await this.synchronizeRows(filePath, profileId, undefined, 1);
     return result.firstSessionId;
   }
 
-  private synchronizeRows(
+  private async synchronizeRows(
     dbPath: string,
     profileId: string | null,
     since?: Date,
     limit?: number
-  ): SynchronizeRowsResult {
+  ): Promise<SynchronizeRowsResult> {
     if (!fsSync.existsSync(dbPath)) {
       return { processed: 0, firstSessionId: null };
     }
@@ -103,7 +117,7 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
       let processed = 0;
       let firstSessionId: string | null = null;
       for (const row of rows) {
-        const indexedSessionId = this.upsertSession(db, row, profileId);
+        const indexedSessionId = await this.upsertSession(db, row, profileId);
         if (!indexedSessionId) {
           continue;
         }
@@ -124,21 +138,21 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
     }
   }
 
-  private upsertSession(
+  private async upsertSession(
     db: Database.Database,
     row: OpenCodeSessionRow,
     profileId: string | null
-  ): string | null {
+  ): Promise<string | null> {
     const sessionId = readOptionalString(row.id);
-    const projectPath = readOptionalString(row.directory) ?? readOptionalString(row.worktree);
-    if (!sessionId || !projectPath) {
+    const cwd = readOptionalString(row.directory) ?? readOptionalString(row.worktree);
+    if (!sessionId || !cwd) {
       return null;
     }
 
     const fallbackTitle = 'Untitled OpenCode Session';
     const pendingAppSession = sessionsDb.getSessionByProviderSessionId(sessionId)
       ?? sessionsDb.getSessionById(sessionId)
-      ?? sessionsDb.findLatestPendingAppSession(this.provider, projectPath);
+      ?? sessionsDb.findLatestPendingAppSession(this.provider, cwd);
     if (pendingAppSession && !pendingAppSession.provider_session_id) {
       // Slow networks can let the sqlite watcher index opencode.db before the
       // runtime reports its provider id back through the websocket mapping.
@@ -173,6 +187,8 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
       nextName = readOptionalString(row.title) ?? this.readFirstUserText(db, sessionId);
     }
 
+    const context = await resolveWorktreeContext(cwd, this.runGit);
+
     // OpenCode stores every session in one shared sqlite database, so jsonl_path
     // must stay null to avoid deleting opencode.db when one app session is removed.
     // Return the canonical stored row id so watcher-triggered sidebar updates
@@ -180,12 +196,14 @@ export class OpenCodeSessionSynchronizer implements IProviderSessionSynchronizer
     return sessionsDb.createSession(
       sessionId,
       this.provider,
-      projectPath,
+      context.projectPath,
       normalizeSessionName(nextName, fallbackTitle),
       normalizeProviderTimestamp(row.time_created),
       normalizeProviderTimestamp(row.time_updated ?? row.time_created),
       null,
       profileId,
+      context.worktreePath,
+      context.worktreeBranch,
     );
   }
 

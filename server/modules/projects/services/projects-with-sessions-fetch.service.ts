@@ -16,6 +16,11 @@ type SessionSummary = {
   // Owning account profile (HUB-05 AC2 badge); null for sessions with no
   // profile (upstream default behavior, and every pre-feature session).
   profileId: string | null;
+  // Execution worktree for sessions that run outside the repository root.
+  // Same camelCase contract as listArchivedSessions, so the sidebar renders
+  // the branch badge from a single shape. Null = session runs in the root.
+  worktreePath: string | null;
+  worktreeBranch: string | null;
 };
 
 type SessionRepositoryRow = {
@@ -25,6 +30,8 @@ type SessionRepositoryRow = {
   updated_at?: string | null;
   created_at?: string | null;
   profile_id?: string | null;
+  worktree_path?: string | null;
+  worktree_branch?: string | null;
 };
 
 export type ProjectListItem = {
@@ -129,6 +136,8 @@ function mapSessionRowToSummary(row: SessionRepositoryRow): SessionSummary {
     messageCount: 0,
     lastActivity: row.updated_at ?? row.created_at ?? new Date().toISOString(),
     profileId: row.profile_id ?? null,
+    worktreePath: row.worktree_path ?? null,
+    worktreeBranch: row.worktree_branch ?? null,
   };
 }
 

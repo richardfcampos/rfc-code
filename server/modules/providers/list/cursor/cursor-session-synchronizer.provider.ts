@@ -7,6 +7,11 @@ import readline from 'node:readline';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import { resolveProfileRootForPath, resolveProfileScanRoots } from '@/modules/profiles/index.js';
+// Imported directly from the service (not the `worktrees` barrel): the barrel
+// re-exports `worktrees.module.ts`, which pulls in the projects module, which
+// pulls in this providers module back in — a real import cycle that trips a
+// "cannot access before initialization" error on the synchronizer classes.
+import { resolveWorktreeContext } from '@/modules/repo-context/index.js';
 import {
   extractFirstValidJsonlData,
   findFilesRecursivelyCreatedAfter,
@@ -14,10 +19,11 @@ import {
   readFileTimestamps,
 } from '@/shared/utils.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
+import type { GitCommandRunner } from '@/shared/types.js';
 
 type ParsedSession = {
   sessionId: string;
-  projectPath: string;
+  cwd: string;
   sessionName?: string;
 };
 
@@ -40,6 +46,14 @@ async function listDirectoryEntriesSafe(
 export class CursorSessionSynchronizer implements IProviderSessionSynchronizer {
   private readonly provider = 'cursor' as const;
   private readonly cursorHome = path.join(os.homedir(), '.cursor');
+
+  /**
+   * `runGit` is only ever supplied by tests, so they can fake worktree
+   * resolution without shelling out to a real git binary. Production code
+   * leaves it undefined and `resolveWorktreeContext` falls back to the real
+   * runner.
+   */
+  constructor(private readonly runGit?: GitCommandRunner) {}
 
   /**
    * Scans the default ~/.cursor home plus every profile's isolated cursor home,
@@ -74,16 +88,19 @@ export class CursorSessionSynchronizer implements IProviderSessionSynchronizer {
         continue;
       }
 
+      const context = await resolveWorktreeContext(parsed.cwd, this.runGit);
       const timestamps = await readFileTimestamps(filePath);
       sessionsDb.createSession(
         parsed.sessionId,
         this.provider,
-        parsed.projectPath,
+        context.projectPath,
         parsed.sessionName,
         timestamps.createdAt,
         timestamps.updatedAt,
         filePath,
-        profileId
+        profileId,
+        context.worktreePath,
+        context.worktreeBranch
       );
       processed += 1;
     }
@@ -104,16 +121,19 @@ export class CursorSessionSynchronizer implements IProviderSessionSynchronizer {
       return null;
     }
 
+    const context = await resolveWorktreeContext(parsed.cwd, this.runGit);
     const timestamps = await readFileTimestamps(filePath);
     return sessionsDb.createSession(
       parsed.sessionId,
       this.provider,
-      parsed.projectPath,
+      context.projectPath,
       parsed.sessionName,
       timestamps.createdAt,
       timestamps.updatedAt,
       filePath,
-      resolveProfileRootForPath(this.provider, filePath)?.profileId ?? null
+      resolveProfileRootForPath(this.provider, filePath)?.profileId ?? null,
+      context.worktreePath,
+      context.worktreeBranch
     );
   }
 
@@ -148,9 +168,9 @@ export class CursorSessionSynchronizer implements IProviderSessionSynchronizer {
     const sessionId = path.basename(filePath, '.jsonl');
     const grandparentDir = path.dirname(path.dirname(path.dirname(filePath)));
     const workerLogPath = path.join(grandparentDir, 'worker.log');
-    const projectPath = await this.extractProjectPathFromWorkerLog(workerLogPath);
+    const cwd = await this.extractProjectPathFromWorkerLog(workerLogPath);
 
-    if (!projectPath) {
+    if (!cwd) {
       return null;
     }
 
@@ -171,7 +191,7 @@ export class CursorSessionSynchronizer implements IProviderSessionSynchronizer {
 
       return {
         sessionId,
-        projectPath,
+        cwd,
         sessionName: normalizeSessionName(firstLine, 'Untitled Cursor Session'),
       };
     });

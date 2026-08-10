@@ -66,6 +66,9 @@ export type SessionViewModel = {
   sessionName: string;
   sessionTime: string;
   messageCount: number;
+  // Branch badge label for sessions running inside a git worktree; null for
+  // sessions that run in the repository root (no badge rendered).
+  worktreeLabel: string | null;
 };
 
 export type MCPServerStatus = {

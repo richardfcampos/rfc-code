@@ -1,3 +1,4 @@
+import { stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { WebSocket } from 'ws';
@@ -128,6 +129,21 @@ function sendProtocolError(
   });
 }
 
+/**
+ * Whether `directoryPath` is still a directory on disk.
+ *
+ * Any failure (missing path, permission denied, path replaced by a file)
+ * counts as "not usable as a working directory" — the caller only wants to
+ * know whether it is safe to spawn a runtime there.
+ */
+async function isExistingDirectory(directoryPath: string): Promise<boolean> {
+  try {
+    return (await stat(directoryPath)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 function readRequiredSessionId(data: AnyRecord): string | null {
   const sessionId = typeof data.sessionId === 'string' ? data.sessionId.trim() : '';
   return sessionId.length > 0 ? sessionId : null;
@@ -168,6 +184,24 @@ async function handleChatSend(
     return;
   }
 
+  // A session pinned to a worktree only runs inside that worktree. Once the
+  // directory is gone (`git worktree remove`, manual delete), spawning would
+  // either fail deep inside the runtime or silently run somewhere else, so the
+  // send is rejected and the user decides what to do next — no worktree is
+  // recreated here. The check runs before the run is registered: nothing has
+  // been claimed in the registry yet, so an early return cannot leave the
+  // session stuck in "processing". Sessions without a worktree skip the stat
+  // entirely — the normal path must not pay a syscall per message.
+  if (session.worktree_path && !(await isExistingDirectory(session.worktree_path))) {
+    sendProtocolError(
+      ws,
+      'WORKTREE_MISSING',
+      `The worktree "${session.worktree_path}" for this session no longer exists on disk.`,
+      sessionId
+    );
+    return;
+  }
+
   const run = chatRunRegistry.startRun({
     appSessionId: sessionId,
     provider,
@@ -200,7 +234,11 @@ async function handleChatSend(
     images: filterImagesToUploadStore(clientOptions.images),
     sessionId: session.provider_session_id ?? undefined,
     resume: Boolean(session.provider_session_id),
-    cwd: clientOptions.cwd ?? session.project_path ?? undefined,
+    // The session's worktree outranks the client's `cwd`: the browser sends
+    // the path of the selected project (the parent repo, since worktree
+    // sessions are listed under it), and no composer option may drag an
+    // isolated session out of the tree it was started in.
+    cwd: session.worktree_path ?? clientOptions.cwd ?? session.project_path ?? undefined,
     projectPath: session.project_path ?? clientOptions.projectPath,
     // The owning account profile is a property of the session, so it is read
     // from the session row rather than trusted from the per-message options.

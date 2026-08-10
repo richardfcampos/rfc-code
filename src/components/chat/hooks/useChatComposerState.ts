@@ -72,10 +72,12 @@ interface UseChatComposerStateArgs {
    */
   worktreeEnabled?: boolean;
   /**
-   * Called with the project registered for a freshly created worktree, so the
-   * app can switch to it and re-sync the sidebar before the session starts.
+   * Called after a worktree is created for a brand-new session so the app can
+   * re-sync the sidebar project list. The active project selection is left
+   * untouched — the session is grouped under the parent repository, and only
+   * its working directory points at the worktree.
    */
-  onWorktreeProjectCreated?: (project: Project) => void;
+  onWorktreeCreated?: () => void;
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
   onShowSettings?: () => void;
   scrollToBottom: () => void;
@@ -223,7 +225,7 @@ export function useChatComposerState({
   onSessionEstablished,
   onInputFocusChange,
   worktreeEnabled = false,
-  onWorktreeProjectCreated,
+  onWorktreeCreated,
   onFileOpen,
   onShowSettings,
   scrollToBottom,
@@ -741,7 +743,7 @@ export function useChatComposerState({
       // Per-session worktree. Runs before the image upload and before the
       // session is allocated, so a failure here costs the user nothing but the
       // error message — the input is still in the box.
-      let worktreeProject: Project | null = null;
+      let worktreeCwd: string | null = null;
       const isNewConversation = !(selectedSession?.id || currentSessionId);
       if (worktreeEnabled && isNewConversation) {
         const branch = buildWorktreeBranchName(messageContent, Date.now());
@@ -757,14 +759,20 @@ export function useChatComposerState({
           });
           const payload = await response.json();
 
-          if (!response.ok || !payload?.data?.project) {
+          const worktreeProject = payload?.data?.project as Project | undefined;
+          if (!response.ok || !worktreeProject) {
             const reason = payload?.error?.message || `Failed to create worktree (${response.status})`;
             const details = payload?.error?.details;
             throw new Error(typeof details === 'string' && details ? `${reason}: ${details}` : reason);
           }
 
-          worktreeProject = payload.data.project as Project;
-          onWorktreeProjectCreated?.(worktreeProject);
+          // Only the working directory is kept. The selected project stays on
+          // the parent repository — that is where the session will be listed.
+          worktreeCwd = worktreeProject.fullPath || worktreeProject.path || null;
+          if (!worktreeCwd) {
+            throw new Error('Worktree was created but no usable path was returned');
+          }
+          onWorktreeCreated?.();
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Unknown error';
           addMessage({
@@ -775,8 +783,6 @@ export function useChatComposerState({
           return;
         }
       }
-
-      const sessionProject = worktreeProject ?? selectedProject;
 
       let uploadedImages: unknown[] = [];
       if (attachedImages.length > 0) {
@@ -810,7 +816,7 @@ export function useChatComposerState({
         }
       }
 
-      const resolvedProjectPath = sessionProject.fullPath || sessionProject.path || '';
+      const resolvedProjectPath = selectedProject.fullPath || selectedProject.path || '';
       const sessionSummary = getNotificationSessionSummary(selectedSession, currentInput);
 
       // The conversation always has a stable backend-allocated session id
@@ -820,11 +826,14 @@ export function useChatComposerState({
       let targetSessionId = selectedSession?.id || currentSessionId || null;
       if (!targetSessionId) {
         try {
+          // `projectPath` is the desired working directory. When it points at
+          // a worktree, the backend resolves the parent repository root and
+          // groups the session under it, keeping the worktree as the cwd.
           const response = await authenticatedFetch('/api/providers/sessions', {
             method: 'POST',
             body: JSON.stringify({
               provider,
-              projectPath: resolvedProjectPath,
+              projectPath: worktreeCwd ?? resolvedProjectPath,
               profileId: selectedProfileId || undefined,
             }),
           });
@@ -853,9 +862,10 @@ export function useChatComposerState({
           return;
         }
 
+        // Always the parent project: worktree sessions are listed under it.
         onSessionEstablished?.(targetSessionId, {
           provider,
-          project: sessionProject,
+          project: selectedProject,
           summary: sessionSummary,
         });
       }
@@ -926,7 +936,7 @@ export function useChatComposerState({
       setIsUserScrolledUp,
       slashCommands,
       worktreeEnabled,
-      onWorktreeProjectCreated,
+      onWorktreeCreated,
     ],
   );
 

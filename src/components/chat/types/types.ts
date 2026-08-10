@@ -137,8 +137,6 @@ export interface ChatInterfaceProps {
   newSessionTrigger?: number;
   onTaskClick?: (...args: unknown[]) => void;
   onShowAllTasks?: (() => void) | null;
-  /** Switches the app to another project — used when a session opens its own worktree. */
-  onProjectSelect?: (project: Project) => void;
   /** Silently re-syncs the sidebar project list after a worktree project is created. */
   onProjectsRefresh?: () => void;
 }

@@ -14,10 +14,12 @@ export type SessionRow = {
   isArchived: number;
   created_at: string;
   updated_at: string;
+  worktree_path: string | null;
+  worktree_branch: string | null;
 };
 
 const SESSION_ROW_COLUMNS =
-  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, profile_id, caveman_mode, isArchived, created_at, updated_at';
+  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, profile_id, caveman_mode, isArchived, created_at, updated_at, worktree_path, worktree_branch';
 
 const SQLITE_UTC_TIMESTAMP_REGEX = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 
@@ -68,6 +70,14 @@ export const sessionsDb = {
    * `provider_session_id` so a session that was first created by the app
    * (with an app-allocated `session_id`) is updated in place once its
    * transcript shows up on disk, instead of producing a duplicate row.
+   *
+   * `worktreePath`/`worktreeBranch` come from resolving the session's `cwd`
+   * against its repository (done by the caller, not here). They always
+   * overwrite the previous value rather than COALESCE-ing: unlike
+   * `customName`/`profileId`, which are user-set and should survive a sync
+   * pass that doesn't know them, the worktree pair reflects the *current*
+   * git state, so a session that stopped running in a worktree must fall
+   * back to NULL on the next resolution instead of keeping a stale badge.
    */
   createSession(
     providerSessionId: string,
@@ -77,16 +87,22 @@ export const sessionsDb = {
     createdAt?: string,
     updatedAt?: string,
     jsonlPath?: string | null,
-    profileId?: string | null
+    profileId?: string | null,
+    worktreePath?: string | null,
+    worktreeBranch?: string | null
   ): string {
     const db = getConnection();
     const createdAtValue = normalizeTimestamp(createdAt);
     const updatedAtValue = normalizeTimestamp(updatedAt);
     const normalizedProjectPath = normalizeProjectPathForProvider(provider, projectPath);
     const profileIdValue = profileId ?? null;
+    const worktreePathValue = worktreePath ?? null;
+    const worktreeBranchValue = worktreeBranch ?? null;
 
     // First, ensure the project path is recorded in the projects table,
-    // since it's a foreign key in the sessions table.
+    // since it's a foreign key in the sessions table. Only the resolved repo
+    // root is ever passed here — never the worktree path — so no project row
+    // is ever created for a worktree directory.
     projectsDb.createProjectPath(normalizedProjectPath);
 
     const existing = db
@@ -106,7 +122,9 @@ export const sessionsDb = {
            jsonl_path = ?,
            isArchived = 0,
            custom_name = COALESCE(?, custom_name),
-           profile_id = COALESCE(?, profile_id)
+           profile_id = COALESCE(?, profile_id),
+           worktree_path = ?,
+           worktree_branch = ?
          WHERE session_id = ?`
       ).run(
         provider,
@@ -115,6 +133,8 @@ export const sessionsDb = {
         jsonlPath ?? null,
         customName ?? null,
         profileIdValue,
+        worktreePathValue,
+        worktreeBranchValue,
         existing.session_id
       );
 
@@ -125,8 +145,8 @@ export const sessionsDb = {
     // keyed by the provider-native id for both columns. The ON CONFLICT path
     // covers legacy rows that predate the provider_session_id mapping.
     db.prepare(
-      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, profile_id, isArchived, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
+      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, profile_id, worktree_path, worktree_branch, isArchived, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
        ON CONFLICT(session_id) DO UPDATE SET
          provider = excluded.provider,
          provider_session_id = excluded.provider_session_id,
@@ -135,7 +155,9 @@ export const sessionsDb = {
          jsonl_path = excluded.jsonl_path,
          isArchived = 0,
          custom_name = COALESCE(excluded.custom_name, sessions.custom_name),
-         profile_id = COALESCE(excluded.profile_id, sessions.profile_id)`
+         profile_id = COALESCE(excluded.profile_id, sessions.profile_id),
+         worktree_path = excluded.worktree_path,
+         worktree_branch = excluded.worktree_branch`
     ).run(
       providerSessionId,
       provider,
@@ -144,6 +166,8 @@ export const sessionsDb = {
       normalizedProjectPath,
       jsonlPath ?? null,
       profileIdValue,
+      worktreePathValue,
+      worktreeBranchValue,
       createdAtValue,
       updatedAtValue
     );
@@ -161,12 +185,18 @@ export const sessionsDb = {
    * stamps which account profile owns the session from creation, so the
    * websocket dispatch (and the session header badge) know which account is
    * in use without waiting for a synchronizer pass to discover it on disk.
+   *
+   * `worktreePath`/`worktreeBranch` are the resolved pair for the `cwd` the
+   * session was started with; `projectPath` must already be the repo root,
+   * never the worktree directory, so no project row is created for it.
    */
   createAppSession(
     sessionId: string,
     provider: string,
     projectPath: string,
-    profileId?: string | null
+    profileId?: string | null,
+    worktreePath?: string | null,
+    worktreeBranch?: string | null
   ): string {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPathForProvider(provider, projectPath);
@@ -174,9 +204,16 @@ export const sessionsDb = {
     projectsDb.createProjectPath(normalizedProjectPath);
 
     db.prepare(
-      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, profile_id, isArchived, created_at, updated_at)
-       VALUES (?, ?, NULL, NULL, ?, NULL, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-    ).run(sessionId, provider, normalizedProjectPath, profileId ?? null);
+      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, profile_id, worktree_path, worktree_branch, isArchived, created_at, updated_at)
+       VALUES (?, ?, NULL, NULL, ?, NULL, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+    ).run(
+      sessionId,
+      provider,
+      normalizedProjectPath,
+      profileId ?? null,
+      worktreePath ?? null,
+      worktreeBranch ?? null
+    );
 
     return sessionId;
   },

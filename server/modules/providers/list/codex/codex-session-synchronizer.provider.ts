@@ -4,6 +4,11 @@ import { readFile } from 'node:fs/promises';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import { resolveProfileRootForPath, resolveProfileScanRoots } from '@/modules/profiles/index.js';
+// Imported directly from the service (not the `worktrees` barrel): the barrel
+// re-exports `worktrees.module.ts`, which pulls in the projects module, which
+// pulls in this providers module back in — a real import cycle that trips a
+// "cannot access before initialization" error on the synchronizer classes.
+import { resolveWorktreeContext } from '@/modules/repo-context/index.js';
 import {
   buildLookupMap,
   extractFirstValidJsonlData,
@@ -12,10 +17,11 @@ import {
   readFileTimestamps,
 } from '@/shared/utils.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
+import type { GitCommandRunner } from '@/shared/types.js';
 
 type ParsedSession = {
   sessionId: string;
-  projectPath: string;
+  cwd: string;
   sessionName?: string;
 };
 
@@ -25,6 +31,14 @@ type ParsedSession = {
 export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
   private readonly provider = 'codex' as const;
   private readonly codexHome = path.join(os.homedir(), '.codex');
+
+  /**
+   * `runGit` is only ever supplied by tests, so they can fake worktree
+   * resolution without shelling out to a real git binary. Production code
+   * leaves it undefined and `resolveWorktreeContext` falls back to the real
+   * runner.
+   */
+  constructor(private readonly runGit?: GitCommandRunner) {}
 
   /**
    * Scans the default ~/.codex home plus every profile's isolated CODEX_HOME,
@@ -72,16 +86,19 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
         }
       }
 
+      const context = await resolveWorktreeContext(parsed.cwd, this.runGit);
       const timestamps = await readFileTimestamps(filePath);
       sessionsDb.createSession(
         parsed.sessionId,
         this.provider,
-        parsed.projectPath,
+        context.projectPath,
         parsed.sessionName,
         timestamps.createdAt,
         timestamps.updatedAt,
         filePath,
-        profileId
+        profileId,
+        context.worktreePath,
+        context.worktreeBranch
       );
       processed += 1;
     }
@@ -105,16 +122,19 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       return null;
     }
 
+    const context = await resolveWorktreeContext(parsed.cwd, this.runGit);
     const timestamps = await readFileTimestamps(filePath);
     return sessionsDb.createSession(
       parsed.sessionId,
       this.provider,
-      parsed.projectPath,
+      context.projectPath,
       parsed.sessionName,
       timestamps.createdAt,
       timestamps.updatedAt,
       filePath,
-      owningRoot?.profileId ?? null
+      owningRoot?.profileId ?? null,
+      context.worktreePath,
+      context.worktreeBranch
     );
   }
 
@@ -129,15 +149,15 @@ export class CodexSessionSynchronizer implements IProviderSessionSynchronizer {
       const data = rawData as Record<string, unknown>;
       const payload = data.payload as Record<string, unknown> | undefined;
       const sessionId = typeof payload?.id === 'string' ? payload.id : undefined;
-      const projectPath = typeof payload?.cwd === 'string' ? payload.cwd : undefined;
+      const cwd = typeof payload?.cwd === 'string' ? payload.cwd : undefined;
 
-      if (!sessionId || !projectPath) {
+      if (!sessionId || !cwd) {
         return null;
       }
 
       return {
         sessionId,
-        projectPath,
+        cwd,
         isSubagent: payload ? this.isSubagentSessionMeta(payload) : false,
       };
     });

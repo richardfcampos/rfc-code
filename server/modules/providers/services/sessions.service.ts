@@ -6,6 +6,7 @@ import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { chatRunRegistry } from '@/modules/websocket/index.js';
 import { profilesService } from '@/modules/profiles/index.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
+import { resolveWorktreeContext } from '@/modules/repo-context/index.js';
 import type {
   FetchHistoryOptions,
   FetchHistoryResult,
@@ -31,6 +32,8 @@ type ArchivedSessionListItem = {
   updatedAt: string | null;
   lastActivity: string | null;
   isProjectArchived: boolean;
+  worktreePath: string | null;
+  worktreeBranch: string | null;
 };
 
 /**
@@ -125,12 +128,22 @@ export const sessionsService = {
    * creation (HUB-05 AC2): it is validated against the profile registry so a
    * dangling id fails loudly here rather than silently persisting a ghost
    * reference the UI can never resolve to a name.
+   *
+   * The caller-supplied `projectPath` is treated as the desired cwd, which
+   * may point inside a worktree — the frontend no longer decides which
+   * project a session groups under. `resolveWorktreeContext` derives the
+   * owning repository root and, when the cwd is a secondary worktree, the
+   * worktree path/branch to persist alongside the row. A plain directory
+   * resolves to itself, so existing behavior is unchanged for non-worktree
+   * projects. `resolveContext` is injectable so callers (tests) can avoid
+   * shelling out to git.
    */
-  createAppSession(
+  async createAppSession(
     provider: LLMProvider,
     projectPath: string,
     profileId?: string | null,
-  ): CreateAppSessionResult {
+    resolveContext: typeof resolveWorktreeContext = resolveWorktreeContext,
+  ): Promise<CreateAppSessionResult> {
     const normalizedProjectPath = projectPath.trim();
     if (!normalizedProjectPath) {
       throw new AppError('projectPath is required.', {
@@ -144,13 +157,22 @@ export const sessionsService = {
       profilesService.getProfile(profileId);
     }
 
+    const context = await resolveContext(normalizedProjectPath);
     const sessionId = randomUUID();
-    sessionsDb.createAppSession(sessionId, provider, normalizedProjectPath, profileId ?? null);
+    sessionsDb.createAppSession(
+      sessionId,
+      provider,
+      context.projectPath,
+      profileId ?? null,
+      context.worktreePath,
+      context.worktreeBranch,
+    );
 
     return {
       sessionId,
       provider,
-      projectPath: normalizedProjectPath,
+      // Reflects the resolved repository root, not the cwd the caller sent.
+      projectPath: context.projectPath,
     };
   },
 
@@ -234,6 +256,8 @@ export const sessionsService = {
         updatedAt: session.updated_at ?? null,
         lastActivity: session.updated_at ?? session.created_at ?? null,
         isProjectArchived: Boolean(project?.isArchived),
+        worktreePath: session.worktree_path ?? null,
+        worktreeBranch: session.worktree_branch ?? null,
       };
     });
   },

@@ -80,6 +80,28 @@ export const getSessionTime = (session: SessionWithProvider): string => {
   return getUpdatedTimestamp(session) || getCreatedTimestamp(session);
 };
 
+/**
+ * Label for the worktree branch badge. The branch may be unresolvable (e.g. a
+ * worktree created outside the app), so the basename of the worktree path is
+ * the fallback; sessions without a worktree get no label and no badge.
+ */
+export const getSessionWorktreeLabel = (session: ProjectSession): string | null => {
+  const worktreePath = typeof session.worktreePath === 'string' ? session.worktreePath.trim() : '';
+  if (!worktreePath) {
+    return null;
+  }
+
+  const worktreeBranch = typeof session.worktreeBranch === 'string' ? session.worktreeBranch.trim() : '';
+  if (worktreeBranch) {
+    return worktreeBranch;
+  }
+
+  // Basename that tolerates both separators, since paths come from the server
+  // host and may be Windows-style.
+  const segments = worktreePath.split(/[\\/]/).filter(Boolean);
+  return segments[segments.length - 1] ?? worktreePath;
+};
+
 export const createSessionViewModel = (
   session: SessionWithProvider,
   currentTime: Date,
@@ -93,6 +115,7 @@ export const createSessionViewModel = (
     sessionName: getSessionName(session, t),
     sessionTime: getSessionTime(session),
     messageCount: Number(session.messageCount || 0),
+    worktreeLabel: getSessionWorktreeLabel(session),
   };
 };
 

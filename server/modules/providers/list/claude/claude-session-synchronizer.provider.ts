@@ -4,6 +4,11 @@ import { readFile } from 'node:fs/promises';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import { resolveProfileRootForPath, resolveProfileScanRoots } from '@/modules/profiles/index.js';
+// Imported directly from the service (not the `worktrees` barrel): the barrel
+// re-exports `worktrees.module.ts`, which pulls in the projects module, which
+// pulls in this providers module back in — a real import cycle that trips a
+// "cannot access before initialization" error on the synchronizer classes.
+import { resolveWorktreeContext } from '@/modules/repo-context/index.js';
 import {
   buildLookupMap,
   extractFirstValidJsonlData,
@@ -12,10 +17,11 @@ import {
   readFileTimestamps,
 } from '@/shared/utils.js';
 import type { IProviderSessionSynchronizer } from '@/shared/interfaces.js';
+import type { GitCommandRunner } from '@/shared/types.js';
 
 type ParsedSession = {
   sessionId: string;
-  projectPath: string;
+  cwd: string;
   sessionName?: string;
 };
 
@@ -25,6 +31,14 @@ type ParsedSession = {
 export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
   private readonly provider = 'claude' as const;
   private readonly claudeHome = path.join(os.homedir(), '.claude');
+
+  /**
+   * `runGit` is only ever supplied by tests, so they can fake worktree
+   * resolution without shelling out to a real git binary. Production code
+   * leaves it undefined and `resolveWorktreeContext` falls back to the real
+   * runner.
+   */
+  constructor(private readonly runGit?: GitCommandRunner) {}
 
   /**
    * Returns true when a JSONL file is a subagent transcript rather than a
@@ -82,16 +96,19 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
         continue;
       }
 
+      const context = await resolveWorktreeContext(parsed.cwd, this.runGit);
       const timestamps = await readFileTimestamps(filePath);
       sessionsDb.createSession(
         parsed.sessionId,
         this.provider,
-        parsed.projectPath,
+        context.projectPath,
         parsed.sessionName,
         timestamps.createdAt,
         timestamps.updatedAt,
         filePath,
-        profileId
+        profileId,
+        context.worktreePath,
+        context.worktreeBranch
       );
       processed += 1;
     }
@@ -118,16 +135,19 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
       return null;
     }
 
+    const context = await resolveWorktreeContext(parsed.cwd, this.runGit);
     const timestamps = await readFileTimestamps(filePath);
     return sessionsDb.createSession(
       parsed.sessionId,
       this.provider,
-      parsed.projectPath,
+      context.projectPath,
       parsed.sessionName,
       timestamps.createdAt,
       timestamps.updatedAt,
       filePath,
-      owningRoot?.profileId ?? null
+      owningRoot?.profileId ?? null,
+      context.worktreePath,
+      context.worktreeBranch
     );
   }
 
@@ -141,15 +161,15 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
     const parsed = await extractFirstValidJsonlData(filePath, (rawData) => {
       const data = rawData as Record<string, unknown>;
       const sessionId = typeof data.sessionId === 'string' ? data.sessionId : undefined;
-      const projectPath = typeof data.cwd === 'string' ? data.cwd : undefined;
+      const cwd = typeof data.cwd === 'string' ? data.cwd : undefined;
 
-      if (!sessionId || !projectPath) {
+      if (!sessionId || !cwd) {
         return null;
       }
 
       return {
         sessionId,
-        projectPath,
+        cwd,
       };
     });
 
