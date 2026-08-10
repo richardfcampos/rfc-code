@@ -55,6 +55,12 @@ import settingsRoutes from './routes/settings.js';
 import agentRoutes from './routes/agent.js';
 import projectModuleRoutes from './modules/projects/projects.routes.js';
 import { worktreesRoutes } from './modules/worktrees/index.js';
+import {
+    collabRoutes,
+    configureCollabClaudeRuntime,
+    failOrphanedCollaborations,
+} from './modules/collab/index.js';
+import { runWorktreeSessionBackfill } from './modules/repo-context/index.js';
 import notificationRoutes from './modules/notifications/notifications.routes.js';
 import userRoutes from './routes/user.js';
 import pluginsRoutes from './routes/plugins.js';
@@ -224,6 +230,9 @@ app.use('/api/browser-use', authenticateToken, browserUseRoutes);
 app.use('/api/providers', authenticateToken, providerRoutes);
 
 app.use('/api/profiles', authenticateToken, profilesRoutes);
+
+// Multi-account collaborations (protected)
+app.use('/api/collaborations', authenticateToken, collabRoutes);
 
 // Agent API Routes (uses API key authentication)
 app.use('/api/agent', agentRoutes);
@@ -1592,6 +1601,34 @@ async function startServer() {
 
         // Initialize authentication database
         await initializeDatabase();
+
+        // Collaborations dispatch to Claude with no websocket behind them, so
+        // the module receives the SDK entry points instead of importing them —
+        // the same seam the chat runtimes are wired through above.
+        configureCollabClaudeRuntime({
+            query: queryClaudeSDK,
+            abortSession: abortClaudeSDKSession,
+            resolveToolApproval,
+        });
+
+        // A collaboration's round loop lives in memory and died with the last
+        // process, so rows still marked running will never advance. Close them
+        // as failures before anything can poll them.
+        const orphanedCollaborations = failOrphanedCollaborations();
+        if (orphanedCollaborations > 0) {
+            console.log(`[Collab] Closed ${orphanedCollaborations} collaboration(s) left running by a restart`);
+        }
+
+        // Sessions recorded before worktrees were a per-session concern are
+        // still grouped under the worktree directory they ran in, which hides
+        // them from the repository they belong to. One-shot pass, guarded by
+        // its own flag, and it never rejects — boot proceeds either way.
+        const worktreeBackfill = await runWorktreeSessionBackfill();
+        if (worktreeBackfill.reassignedSessions > 0) {
+            console.log(
+                `[Worktrees] Regrouped ${worktreeBackfill.reassignedSessions} session(s) from ${worktreeBackfill.reassignedPaths} worktree(s) under their repositories`
+            );
+        }
 
         // Trusted mode skips the registration screen, so seed a user if none
         // exists yet — otherwise no request could ever pass authenticateToken's

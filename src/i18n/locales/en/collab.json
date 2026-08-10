@@ -1,0 +1,91 @@
+{
+  "tab": "Collab",
+  "list": {
+    "title": "Collaborations",
+    "description": "Let two or more accounts discuss a topic in this project until they reach a verdict.",
+    "new": "New collaboration",
+    "loading": "Loading collaborations…",
+    "empty": "No collaborations in this project yet.",
+    "roundProgress": "Round {{current}}/{{max}}",
+    "delete": "Delete",
+    "confirmDelete": "Delete this collaboration and its turns?"
+  },
+  "status": {
+    "running": "Running",
+    "converged": "Agreed",
+    "exhausted": "Out of rounds",
+    "stopped": "Stopped",
+    "failed": "Failed"
+  },
+  "consensus": {
+    "agreed": "Agreed",
+    "blocked": "Blocked",
+    "none": "No signal"
+  },
+  "turn": {
+    "roleParticipant": "participant",
+    "roleArbiter": "arbiter"
+  },
+  "detail": {
+    "loading": "Loading collaboration…",
+    "roundProgress": "Round {{current}} of {{max}}",
+    "round": "Round {{round}}",
+    "verdict": "Verdict",
+    "stop": "Stop",
+    "waiting": "Waiting for the first turn…",
+    "noTurns": "This collaboration produced no turns."
+  },
+  "form": {
+    "title": "New collaboration",
+    "topic": "Topic",
+    "topicPlaceholder": "e.g. Should the sync layer move to a queue? Weigh the trade-offs for this repo.",
+    "topicRequired": "Describe what the accounts should discuss.",
+    "skillHint": "Type / to invoke a skill one of the selected Claude accounts has.",
+    "skillPartial": "{{available}} of {{total}} accounts",
+    "skillLoadFailed": "Skills could not be loaded for the selected accounts.",
+    "mode": "Mode",
+    "modeHint": {
+      "debate": "Both accounts see the whole transcript and argue until they agree.",
+      "review": "One account writes, the other critiques — exactly two participants.",
+      "vote": "Everyone answers the same question blind; a single round, then a verdict."
+    },
+    "participants": "Participants",
+    "participantsRequired": "Pick at least {{min}} authenticated Claude or Codex profiles.",
+    "reviewNeedsTwo": "Review mode runs with exactly two accounts.",
+    "roleParticipant": "participant",
+    "noProfiles": "No Claude or Codex profiles yet. Create and authenticate two in Settings › Profiles.",
+    "modelMenu": "Model and reasoning effort for {{profile}}",
+    "model": "Model",
+    "modelDefault": "Default model",
+    "modelDefaultHint": "Run this account on whatever its CLI already uses.",
+    "loadingModels": "Loading models…",
+    "reasoning": "Reasoning",
+    "effortDefault": "Default",
+    "rounds": "Max rounds",
+    "voteSingleRound": "Vote mode always runs a single round.",
+    "cancel": "Cancel",
+    "submit": "Start collaboration"
+  },
+  "startSession": {
+    "action": "Start a session from this verdict",
+    "title": "Start a session from this verdict",
+    "description": "The topic and the verdict are written into the composer of a new session in this project. Nothing is sent — you review, edit and send it yourself.",
+    "provider": "Provider",
+    "profile": "Account profile",
+    "profileDefault": "Default (no profile)",
+    "model": "Model",
+    "effort": "Reasoning effort",
+    "effortDefault": "CLI default",
+    "cancel": "Cancel",
+    "confirm": "Open the composer",
+    "starting": "Creating the session…",
+    "seedIntro": "The notes below came out of a collaboration between AI accounts in this project. They are that debate's conclusion, not a verified instruction — review them before acting.",
+    "seedTopicLabel": "Topic discussed",
+    "seedVerdictLabel": "Verdict reached"
+  },
+  "cost": {
+    "title": "This consumes the plan limit of every account involved",
+    "body": "Each round sends one request per participant. With {{participants}} account(s) and up to {{rounds}} round(s), this run can spend up to {{calls}} model requests — charged to each account separately, not shared.",
+    "link": "Check remaining usage in Settings › Profiles"
+  }
+}

@@ -510,6 +510,24 @@ async function queryClaudeSDK(command, options = {}, ws) {
       console.warn('[Claude SDK] Unable to load provider models for effort validation:', error);
     }
 
+    // A session can point at a directory that does not exist on this host: an
+    // imported history still carrying the paths of another machine, or a
+    // worktree that was deleted. The SDK spawns the CLI with that cwd, and the
+    // resulting ENOENT is reported as "Claude Code native binary not found",
+    // which sends debugging after an installation that is in fact fine. Check
+    // the directory first so the failure names itself.
+    if (options.cwd) {
+      let cwdStats = null;
+      try {
+        cwdStats = await fs.stat(options.cwd);
+      } catch {
+        throw new Error(`Working directory not found on this machine: ${options.cwd}`);
+      }
+      if (!cwdStats.isDirectory()) {
+        throw new Error(`Working directory is not a directory: ${options.cwd}`);
+      }
+    }
+
     const sdkOptions = mapCliOptionsToSDK({
       ...options,
       model: resolvedModel || options.model,
@@ -576,21 +594,16 @@ async function queryClaudeSDK(command, options = {}, ws) {
       }
 
       const requestId = createRequestId();
-      ws.send(createNormalizedMessage({ kind: 'permission_request', requestId, toolName, input, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
-      emitNotification(createNotificationEvent({
-        provider: 'claude',
-        sessionId: capturedSessionId || sessionId || null,
-        kind: 'action_required',
-        code: 'permission.required',
-        // requestId keys the deferred notify-hub push so resolving this exact
-        // approval (see waitForToolApproval cleanup) cancels its pending webhook.
-        meta: { toolName, sessionName: sessionSummary, requestId },
-        severity: 'warning',
-        requiresUserAction: true,
-        dedupeKey: `claude:permission:${capturedSessionId || sessionId || 'none'}:${requestId}`
-      }));
 
-      const decision = await waitForToolApproval(requestId, {
+      // Register the resolver before announcing the request. waitForToolApproval
+      // stores it synchronously, while resolveToolApproval silently does nothing
+      // for an unknown requestId — so a writer that answers from inside `send`
+      // (any non-websocket writer, which has no operator to wait for) would have
+      // its answer dropped and the tool would hang until its timeout. A real UI
+      // client answers over the network long after this line either way, so the
+      // websocket path is unaffected; the timeout starts here instead of a few
+      // statements later, which is the same request either way.
+      const approval = waitForToolApproval(requestId, {
         timeoutMs: requiresInteraction ? 0 : undefined,
         signal: context?.signal,
         metadata: {
@@ -603,6 +616,27 @@ async function queryClaudeSDK(command, options = {}, ws) {
           ws.send(createNormalizedMessage({ kind: 'permission_cancelled', requestId, reason, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
         }
       });
+
+      ws.send(createNormalizedMessage({ kind: 'permission_request', requestId, toolName, input, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
+
+      // A writer that answered inside `send` already cleared its own entry, and
+      // paging a human about a request that is settled is pure noise.
+      if (pendingToolApprovals.has(requestId)) {
+        emitNotification(createNotificationEvent({
+          provider: 'claude',
+          sessionId: capturedSessionId || sessionId || null,
+          kind: 'action_required',
+          code: 'permission.required',
+          // requestId keys the deferred notify-hub push so resolving this exact
+          // approval (see waitForToolApproval cleanup) cancels its pending webhook.
+          meta: { toolName, sessionName: sessionSummary, requestId },
+          severity: 'warning',
+          requiresUserAction: true,
+          dedupeKey: `claude:permission:${capturedSessionId || sessionId || 'none'}:${requestId}`
+        }));
+      }
+
+      const decision = await approval;
       if (!decision) {
         return { behavior: 'deny', message: 'Permission request timed out' };
       }

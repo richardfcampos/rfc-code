@@ -1,4 +1,4 @@
-import { MessageSquare, Terminal, Folder, GitBranch, ClipboardCheck, MonitorPlay, type LucideIcon } from 'lucide-react';
+import { MessageSquare, Terminal, Folder, GitBranch, ClipboardCheck, MonitorPlay, Users, type LucideIcon } from 'lucide-react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -18,6 +18,8 @@ type BuiltInTab = {
   kind: 'builtin';
   id: AppTab;
   labelKey: string;
+  /** Fallback label for tabs whose key is not in the shared locale files yet. */
+  defaultLabel?: string;
   icon: LucideIcon;
 };
 
@@ -36,6 +38,7 @@ const BASE_TABS: BuiltInTab[] = [
   { kind: 'builtin', id: 'shell', labelKey: 'tabs.shell', icon: Terminal },
   { kind: 'builtin', id: 'files', labelKey: 'tabs.files', icon: Folder },
   { kind: 'builtin', id: 'git',   labelKey: 'tabs.git',   icon: GitBranch },
+  { kind: 'builtin', id: 'collab', labelKey: 'tabs.collab', defaultLabel: 'Collab', icon: Users },
 ];
 
 const BROWSER_TAB: BuiltInTab = {
@@ -83,7 +86,9 @@ export default function MainContentTabSwitcher({
     <PillBar>
       {tabs.map((tab) => {
         const isActive = tab.id === activeTab;
-        const displayLabel = tab.kind === 'builtin' ? t(tab.labelKey) : tab.label;
+        const displayLabel = tab.kind === 'builtin'
+          ? t(tab.labelKey, { defaultValue: tab.defaultLabel ?? tab.labelKey })
+          : tab.label;
 
         return (
           <Tooltip key={tab.id} content={displayLabel} position="bottom">

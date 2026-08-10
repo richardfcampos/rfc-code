@@ -7,11 +7,11 @@ import { useWebSocket } from '../../../contexts/WebSocketContext';
 import PermissionContext from '../../../contexts/PermissionContext';
 import { QuickSettingsPanel } from '../../quick-settings-panel';
 import type { ChatInterfaceProps, Provider  } from '../types/types';
-import type { Project } from '../../../types/app';
 import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '../hooks/useChatComposerState';
+import { subscribeToChatSessionSeed } from '../utils/sessionSeed';
 import { useSessionStore } from '../../../stores/useSessionStore';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
@@ -37,7 +37,6 @@ function ChatInterface({
   externalMessageUpdate,
   newSessionTrigger,
   onShowAllTasks,
-  onProjectSelect,
   onProjectsRefresh,
 }: ChatInterfaceProps) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
@@ -79,12 +78,12 @@ function ChatInterface({
     });
   }, [worktreeToggleKey]);
 
-  // The worktree is registered as its own project, so the app has to move to it
-  // before the session is allocated against that path.
-  const handleWorktreeProjectCreated = useCallback((project: Project) => {
+  // The worktree still gets its own project row (for the Worktrees tab), so
+  // the sidebar list needs a re-sync — but the selection stays on the parent
+  // repository, because that is where the new session will be listed.
+  const handleWorktreeCreated = useCallback(() => {
     onProjectsRefresh?.();
-    onProjectSelect?.(project);
-  }, [onProjectSelect, onProjectsRefresh]);
+  }, [onProjectsRefresh]);
 
   const resetStreamingState = useCallback(() => {
     if (streamTimerRef.current) {
@@ -252,7 +251,7 @@ function ChatInterface({
     onSessionEstablished: handleSessionEstablished,
     onInputFocusChange,
     worktreeEnabled,
-    onWorktreeProjectCreated: handleWorktreeProjectCreated,
+    onWorktreeCreated: handleWorktreeCreated,
     onFileOpen,
     onShowSettings,
     scrollToBottom,
@@ -261,6 +260,25 @@ function ChatInterface({
     setPendingPermissionRequests,
     resolvePermissionModeForProvider,
   });
+
+  // A session opened from another surface (today: a collaboration verdict)
+  // arrives with its provider settings already decided and its first message
+  // already written. Applying the seed only fills the composer — sending stays
+  // a human action, which is the entire reason the text is seeded instead of
+  // dispatched.
+  useEffect(() => subscribeToChatSessionSeed((seed) => {
+    setProvider(seed.provider);
+    if (seed.model) {
+      // No session scope on purpose: the session has no turn yet, so the model
+      // is stored as the provider default instead of being pushed through the
+      // running-session endpoint (which only accepts a live provider session).
+      void selectProviderModel(seed.provider, seed.model, null).catch((error) => {
+        console.error('Error applying the seeded session model:', error);
+      });
+    }
+    setStoredProviderEffort(seed.provider, seed.effort);
+    setInput(seed.content);
+  }), [selectProviderModel, setInput, setProvider, setStoredProviderEffort]);
 
   // On WebSocket reconnect, re-fetch the current session's messages from the
   // server so missed streaming events are shown, then re-subscribe — the

@@ -6,6 +6,7 @@ import StandaloneShell from '../../standalone-shell/view/StandaloneShell';
 import GitPanel from '../../git-panel/view/GitPanel';
 import PluginTabContent from '../../plugins/view/PluginTabContent';
 import { BrowserUsePanel } from '../../browser-use';
+import { CollabPanel } from '../../collab';
 import type { MainContentProps } from '../types/types';
 import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { usePaletteOpsRegister } from '../../../contexts/PaletteOpsContext';
@@ -178,7 +179,6 @@ function MainContent({
                 externalMessageUpdate={externalMessageUpdate}
                 newSessionTrigger={newSessionTrigger}
                 onShowAllTasks={tasksEnabled ? () => setActiveTab('tasks') : null}
-                onProjectSelect={onProjectSelect}
                 onProjectsRefresh={onProjectsRefresh}
               />
             </ErrorBoundary>
@@ -210,6 +210,17 @@ function MainContent({
                 onProjectSelect={onProjectSelect}
                 onProjectsRefresh={onProjectsRefresh}
               />
+            </div>
+          )}
+
+          {activeTab === 'collab' && (
+            <div className="h-full overflow-hidden">
+              <ErrorBoundary showDetails>
+                <CollabPanel
+                  projectPath={selectedProject.path || selectedProject.fullPath}
+                  onShowSettings={onShowSettings}
+                />
+              </ErrorBoundary>
             </div>
           )}
 

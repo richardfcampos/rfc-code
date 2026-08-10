@@ -2,6 +2,7 @@ import { useCallback, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
+import { subscribeToChatSessionSeed } from '../chat/utils/sessionSeed';
 import Sidebar from '../sidebar/view/Sidebar';
 import MainContent from '../main-content/view/MainContent';
 import CommandPalette from '../command-palette/CommandPalette';
@@ -144,6 +145,24 @@ function AppContentInner() {
     openSettings,
     refreshProjects: refreshProjectsSilently,
   });
+
+  // A session seeded from another tab (a collaboration verdict) is created
+  // straight through the API, so this app has never heard of it: register it
+  // the same way the composer's own first send does, and bring the chat tab
+  // forward — the user asked for it from somewhere else. The composer text
+  // itself is applied by ChatInterface, which owns the composer.
+  useEffect(() => subscribeToChatSessionSeed((seed) => {
+    setActiveTab('chat');
+    if (!selectedProject) {
+      return;
+    }
+    registerOptimisticSession({
+      sessionId: seed.sessionId,
+      provider: seed.provider,
+      project: selectedProject,
+      summary: seed.summary ?? null,
+    });
+  }), [registerOptimisticSession, selectedProject, setActiveTab]);
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
