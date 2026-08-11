@@ -49,7 +49,7 @@ export default function CollapsibleUserContent({ content }: { content: string })
 
   if (!isLong) {
     return (
-      <div dir="auto" className="whitespace-pre-wrap break-words font-serif text-sm">
+      <div dir="auto" className="whitespace-pre-wrap break-words text-[13px] leading-[1.55]">
         {content}
       </div>
     );
@@ -60,7 +60,7 @@ export default function CollapsibleUserContent({ content }: { content: string })
   return (
     <div className="flex flex-col gap-1.5">
       {skill && (
-        <div className="flex items-center gap-1.5 text-xs font-medium text-blue-100">
+        <div className="flex items-center gap-1.5 font-mono text-[11px] font-medium tracking-wide text-primary">
           <Sparkles className="h-3.5 w-3.5" />
           <span className="truncate">
             {t('userMessage.skillInvoked', {
@@ -74,7 +74,7 @@ export default function CollapsibleUserContent({ content }: { content: string })
       <div className="relative">
         <div
           dir="auto"
-          className={`whitespace-pre-wrap break-words font-serif text-sm ${
+          className={`whitespace-pre-wrap break-words text-[13px] leading-[1.55] ${
             isExpanded ? '' : 'max-h-40 overflow-hidden'
           }`}
         >
@@ -85,7 +85,7 @@ export default function CollapsibleUserContent({ content }: { content: string })
           // the message ending mid-sentence.
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-b from-transparent to-blue-600"
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-b from-transparent to-card"
           />
         )}
       </div>
@@ -94,7 +94,7 @@ export default function CollapsibleUserContent({ content }: { content: string })
         type="button"
         onClick={() => setIsExpanded((value) => !value)}
         aria-expanded={isExpanded}
-        className="flex items-center gap-1 self-start rounded px-1 py-0.5 text-xs text-blue-100 underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+        className="flex items-center gap-1 self-start rounded-ctl px-1 py-0.5 text-[11px] text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {isExpanded ? (
           <>

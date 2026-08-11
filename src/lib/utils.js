@@ -1,5 +1,13 @@
 import { clsx } from "clsx"
-import { twMerge } from "tailwind-merge"
+import { extendTailwindMerge } from "tailwind-merge"
+
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      rounded: [{ rounded: ['ctl', 'card', 'composer'] }],
+    },
+  },
+})
 
 export function cn(...inputs) {
   return twMerge(clsx(inputs))

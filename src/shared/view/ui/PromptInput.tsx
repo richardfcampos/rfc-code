@@ -41,7 +41,9 @@ export const PromptInput = React.forwardRef<HTMLFormElement, PromptInputProps>(
           ref={ref}
           data-slot="prompt-input"
           className={cn(
-            'relative overflow-hidden rounded-xl border border-border/50 bg-card/80 shadow-sm backdrop-blur-sm transition-all duration-200 focus-within:border-primary/30 focus-within:shadow-md focus-within:ring-1 focus-within:ring-primary/15',
+            // The composer is the cockpit: one calm surface, a single hairline that
+            // firms up on focus. Elevation comes from the float shadow, never a ring.
+            'relative overflow-hidden rounded-composer border border-border bg-card shadow-[var(--shadow-float)] transition-colors duration-150 ease-out focus-within:border-border-strong',
             className
           )}
           {...props}
@@ -94,7 +96,9 @@ export const PromptInputTextarea = React.forwardRef<
     ref={ref}
     data-slot="prompt-input-textarea"
     className={cn(
-      'chat-input-placeholder block max-h-[40vh] w-full resize-none overflow-y-auto bg-transparent px-4 py-2 text-sm leading-6 text-foreground placeholder-muted-foreground/50 focus:outline-none sm:max-h-[300px]',
+      // Metrics here are mirrored by the composer's mention-highlight overlay —
+      // keep px/py/font-size/line-height in sync with it or mentions drift.
+      'chat-input-placeholder block max-h-[40vh] w-full resize-none overflow-y-auto bg-transparent px-4 py-3 text-[13px] leading-[1.55] text-foreground placeholder-faint focus:outline-none sm:max-h-[300px]',
       className
     )}
     {...props}
@@ -111,7 +115,7 @@ export const PromptInputFooter = React.forwardRef<
   <div
     ref={ref}
     data-slot="prompt-input-footer"
-    className={cn('flex items-center justify-between border-t border-border/30 px-3 py-2', className)}
+    className={cn('flex items-center justify-between gap-2 border-t border-border px-2 py-2', className)}
     {...props}
   />
 ));
@@ -126,7 +130,7 @@ export const PromptInputTools = React.forwardRef<
   <div
     ref={ref}
     data-slot="prompt-input-tools"
-    className={cn('flex items-center gap-1', className)}
+    className={cn('flex min-w-0 items-center gap-1', className)}
     {...props}
   />
 ));
@@ -152,7 +156,7 @@ export const PromptInputButton = React.forwardRef<HTMLButtonElement, PromptInput
         type="button"
         variant="ghost"
         size="icon"
-        className={cn('h-8 w-8 [&_svg]:size-4', className)}
+        className={cn('h-8 w-8 shrink-0 rounded-ctl [&_svg]:size-4', className)}
         {...props}
       >
         {children}
@@ -166,7 +170,9 @@ export const PromptInputButton = React.forwardRef<HTMLButtonElement, PromptInput
             tooltip.shortcut ? (
               <span className="flex items-center gap-1.5">
                 {tooltip.content}
-                <kbd className="rounded bg-white/20 px-1 text-[10px]">{tooltip.shortcut}</kbd>
+                <kbd className="rounded-ctl bg-[var(--hover)] px-1 font-mono text-[10px] tracking-wide">
+                  {tooltip.shortcut}
+                </kbd>
               </span>
             ) : (
               tooltip.content
@@ -202,7 +208,8 @@ export const PromptInputSubmit = React.forwardRef<HTMLButtonElement, PromptInput
         type={isActive ? 'button' : 'submit'}
         variant="default"
         size="icon"
-        className={cn('h-8 w-8 shrink-0 rounded-lg', className)}
+        // The one solid action in the toolbar — everything else is ghost or outline.
+        className={cn('h-8 w-8 shrink-0 rounded-ctl', className)}
         {...props}
       >
         {children ?? (isActive ? (

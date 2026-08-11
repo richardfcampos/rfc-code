@@ -18,7 +18,7 @@ export default function VoiceInputButton({ state, onToggle, errorMsg }: Props) {
 
   const icon =
     state === 'recording' ? (
-      <Square className="text-red-500" />
+      <Square className="text-danger" />
     ) : state === 'transcribing' ? (
       <Loader2 className="animate-spin" />
     ) : (
@@ -28,7 +28,7 @@ export default function VoiceInputButton({ state, onToggle, errorMsg }: Props) {
   return (
     <span className="relative inline-flex">
       {errorMsg && (
-        <span className="absolute bottom-full left-1/2 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-red-600 px-2 py-1 text-xs text-white shadow-lg">
+        <span className="absolute bottom-full left-1/2 mb-1 -translate-x-1/2 whitespace-nowrap rounded-ctl border border-[var(--danger-line)] bg-[var(--danger-tint)] px-2 py-1 text-[11px] text-danger shadow-[var(--shadow-pop)]">
           {errorMsg}
         </span>
       )}

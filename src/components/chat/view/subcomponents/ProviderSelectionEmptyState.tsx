@@ -195,10 +195,10 @@ export default function ProviderSelectionEmptyState({
       <div className="flex h-full items-center justify-center px-4">
         <div className="w-full max-w-[34.25rem]">
           <div className="mb-8 text-center">
-            <h2 className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">
+            <h2 className="text-[15px] font-semibold tracking-tight text-foreground sm:text-base">
               {t("providerSelection.title")}
             </h2>
-            <p className="mt-1 text-[13px] text-muted-foreground">
+            <p className="mt-1.5 text-[13px] leading-[1.65] text-muted-foreground">
               {t("providerSelection.description")}
             </p>
           </div>
@@ -206,7 +206,7 @@ export default function ProviderSelectionEmptyState({
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Card
-                className="group mx-auto max-w-xs cursor-pointer border-border/60 transition-all duration-150 hover:border-border hover:shadow-md active:scale-[0.99]"
+                className="group mx-auto max-w-xs cursor-pointer rounded-card border-border transition-colors duration-150 ease-out hover:border-border-strong hover:bg-[var(--hover-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 role="button"
                 tabIndex={0}
               >
@@ -217,29 +217,29 @@ export default function ProviderSelectionEmptyState({
                   />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1">
-                      <span className="text-xs font-semibold text-foreground">
+                      <span className="text-xs font-medium text-foreground">
                         {getProviderDisplayName(provider)}
                       </span>
-                      <span className="text-xs text-muted-foreground">·</span>
-                      <span className="truncate text-xs text-foreground">
+                      <span className="text-xs text-faint">·</span>
+                      <span className="truncate font-mono text-[11px] tracking-wide text-foreground">
                         {currentModelLabel}
                       </span>
                     </div>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    <p className="mt-0.5 text-[11px] text-faint">
                       {t("providerSelection.clickToChange", {
                         defaultValue: "Click to change model",
                       })}
                     </p>
                   </div>
-                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-y-0.5" />
+                  <ChevronDown className="h-3.5 w-3.5 shrink-0 text-faint transition-transform duration-150 ease-out group-hover:translate-y-0.5" />
                 </div>
               </Card>
             </DialogTrigger>
 
             <DialogContent className="max-w-md overflow-hidden p-0">
               <DialogTitle>Model Selector</DialogTitle>
-              <div className="border-b border-border/60 bg-muted/20 px-4 py-3">
-                <p className="text-sm font-semibold text-foreground">Choose a model</p>
+              <div className="border-b border-border bg-[var(--hover-soft)] px-4 py-3">
+                <p className="text-[13px] font-medium text-foreground">Choose a model</p>
               </div>
               <Command filter={modelSearchFilter}>
                 <CommandInput
@@ -258,7 +258,7 @@ export default function ProviderSelectionEmptyState({
                       key={group.id}
                       className={
                         idx > 0
-                          ? "border-t border-border/40 [&_[cmdk-group-heading]]:mt-1 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
+                          ? "border-t border-border [&_[cmdk-group-heading]]:mt-1 [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
                           : "[&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider"
                       }
                       heading={
@@ -269,7 +269,7 @@ export default function ProviderSelectionEmptyState({
                       }
                     >
                       {group.models.length === 0 && providerModelsLoading ? (
-                        <CommandItem disabled className="ml-4 border-l border-border/40 pl-4 text-muted-foreground">
+                        <CommandItem disabled className="ml-4 border-l border-border pl-4 text-muted-foreground">
                           {t("providerSelection.loadingModels", { defaultValue: "Loading models…" })}
                         </CommandItem>
                       ) : null}
@@ -280,7 +280,7 @@ export default function ProviderSelectionEmptyState({
                             key={`${group.id}-${model.value}`}
                             value={`${group.name} ${model.label} ${model.description || ''}`}
                             onSelect={() => handleModelSelect(group.id, model.value)}
-                            className="ml-4 border-l border-border/40 pl-4"
+                            className="ml-4 border-l border-border pl-4"
                           >
                             <div className="min-w-0 flex-1">
                               <div className="truncate">{model.label}</div>
@@ -311,7 +311,7 @@ export default function ProviderSelectionEmptyState({
             <div className="mx-auto mt-3 max-w-xs">
               <label
                 htmlFor="chat-profile-select"
-                className="mb-1 block text-center text-[11px] text-muted-foreground"
+                className="mb-1 block text-center font-mono text-[10px] uppercase tracking-[0.08em] text-faint"
               >
                 {t("providerSelection.profile.label", { defaultValue: "Account profile" })}
               </label>
@@ -319,7 +319,7 @@ export default function ProviderSelectionEmptyState({
                 id="chat-profile-select"
                 value={selectedProfileId ?? ""}
                 onChange={(event) => setSelectedProfileId(event.target.value || null)}
-                className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                className="w-full rounded-ctl border border-border bg-card px-3 py-2 text-[13px] text-foreground transition-colors duration-150 ease-out focus-visible:border-border-strong focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <option value="">
                   {t("providerSelection.profile.default", { defaultValue: "Default (no profile)" })}
@@ -333,7 +333,7 @@ export default function ProviderSelectionEmptyState({
             </div>
           )}
 
-          <p className="mt-4 text-center text-sm text-muted-foreground/70">
+          <p className="mt-4 text-center font-mono text-[11px] tracking-wide text-muted-foreground">
             {
               {
                 claude: t("providerSelection.readyPrompt.claude", {
@@ -353,14 +353,14 @@ export default function ProviderSelectionEmptyState({
             }
           </p>
 
-          <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground/60">
+          <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[11px] text-faint">
             <Trans
               ns="chat"
               i18nKey="providerSelection.pressToSearch"
               values={{ shortcut: MOD_KEY === "⌘" ? "⌘K" : "Ctrl+K" }}
               components={{
                 kbd: (
-                  <kbd className="inline-flex items-center gap-0.5 rounded border border-border/60 bg-muted/40 px-1.5 py-0.5 font-mono text-[10px]" />
+                  <kbd className="inline-flex items-center gap-0.5 rounded-ctl border border-border bg-[var(--hover)] px-1.5 py-0.5 font-mono text-[10px] tracking-wide text-muted-foreground" />
                 ),
               }}
             />
@@ -383,10 +383,10 @@ export default function ProviderSelectionEmptyState({
     return (
       <div className="flex h-full items-center justify-center">
         <div className="max-w-[34.25rem] px-6 text-center">
-          <p className="mb-1.5 text-lg font-semibold text-foreground">
+          <p className="mb-1.5 text-[15px] font-semibold text-foreground">
             {t("session.continue.title")}
           </p>
-          <p className="text-sm leading-relaxed text-muted-foreground">
+          <p className="text-[13px] leading-[1.65] text-muted-foreground">
             {t("session.continue.description")}
           </p>
 

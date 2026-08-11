@@ -1,5 +1,6 @@
 import { AlertCircle, CheckCircle, Settings, X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+
 import { cn } from '../../../../lib/utils';
 
 type TaskIndicatorStatus =
@@ -45,8 +46,8 @@ const getIndicatorConfig = (status: TaskIndicatorStatus): IndicatorConfig => {
   if (status === 'fully-configured') {
     return {
       icon: CheckCircle,
-      colorClassName: 'text-green-500 dark:text-green-400',
-      backgroundClassName: 'bg-green-50 dark:bg-green-950',
+      colorClassName: 'text-success',
+      backgroundClassName: 'bg-success/10',
       label: 'TaskMaster Ready',
       title: 'TaskMaster fully configured with MCP server',
     };
@@ -55,8 +56,8 @@ const getIndicatorConfig = (status: TaskIndicatorStatus): IndicatorConfig => {
   if (status === 'taskmaster-only') {
     return {
       icon: Settings,
-      colorClassName: 'text-blue-500 dark:text-blue-400',
-      backgroundClassName: 'bg-blue-50 dark:bg-blue-950',
+      colorClassName: 'text-primary',
+      backgroundClassName: 'bg-primary/10',
       label: 'TaskMaster Init',
       title: 'TaskMaster initialized, MCP server needs setup',
     };
@@ -65,8 +66,8 @@ const getIndicatorConfig = (status: TaskIndicatorStatus): IndicatorConfig => {
   if (status === 'mcp-only') {
     return {
       icon: AlertCircle,
-      colorClassName: 'text-amber-500 dark:text-amber-400',
-      backgroundClassName: 'bg-amber-50 dark:bg-amber-950',
+      colorClassName: 'text-warning',
+      backgroundClassName: 'bg-warning/10',
       label: 'MCP Ready',
       title: 'MCP server configured, TaskMaster needs initialization',
     };
@@ -74,8 +75,8 @@ const getIndicatorConfig = (status: TaskIndicatorStatus): IndicatorConfig => {
 
   return {
     icon: X,
-    colorClassName: 'text-gray-400 dark:text-gray-500',
-    backgroundClassName: 'bg-gray-50 dark:bg-gray-900',
+    colorClassName: 'text-muted-foreground',
+    backgroundClassName: 'bg-idle/20',
     label: 'No TaskMaster',
     title: 'TaskMaster not configured',
   };
@@ -94,7 +95,7 @@ export default function TaskIndicator({
     return (
       <div
         className={cn(
-          'inline-flex items-center gap-1.5 text-xs rounded-md px-2 py-1 transition-colors',
+          'inline-flex items-center gap-1.5 text-xs rounded-ctl px-2 py-1 transition-colors duration-150 ease-out',
           indicatorConfig.backgroundClassName,
           indicatorConfig.colorClassName,
           className,

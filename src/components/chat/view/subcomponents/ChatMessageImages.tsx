@@ -99,7 +99,7 @@ function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClos
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-[var(--scrim)] backdrop-blur-sm"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -109,7 +109,7 @@ function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClos
         type="button"
         onClick={onClose}
         aria-label="Close image preview"
-        className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20"
+        className="absolute right-4 top-4 rounded-ctl border border-border bg-card p-2 text-foreground transition-colors duration-150 ease-out hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <X className="h-5 w-5" />
       </button>

@@ -13,7 +13,7 @@ export default function QuickSettingsSection({
 }: QuickSettingsSectionProps) {
   return (
     <div className={`space-y-2 ${className}`}>
-      <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+      <h4 className="mb-2 font-mono text-[10px] uppercase tracking-[0.08em] text-faint">
         {title}
       </h4>
       {children}

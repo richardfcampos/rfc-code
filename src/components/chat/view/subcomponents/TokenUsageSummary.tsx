@@ -43,15 +43,13 @@ export default function TokenUsageSummary({ usage, onClick }: TokenUsageSummaryP
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border/70 bg-background/70 px-2 text-xs text-muted-foreground shadow-sm transition-colors hover:border-primary/25 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:gap-2 sm:px-2.5"
+      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-ctl border border-border bg-[var(--hover-soft)] px-2 font-mono text-[11px] tracking-wide text-muted-foreground transition-colors duration-150 ease-out hover:border-border-strong hover:bg-[var(--hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-2.5"
       title={`${usedTokens.toLocaleString()} tokens used`}
       aria-label="Show token usage"
     >
-      <span className="grid h-5 w-5 place-items-center rounded-md bg-primary/10 text-primary">
-        <ActivityIcon className="h-3.5 w-3.5" />
-      </span>
+      <ActivityIcon className="h-3.5 w-3.5 shrink-0" />
       <span className="font-medium text-foreground">{formatTokenCount(usedTokens)}</span>
-      <span className="hidden text-muted-foreground/70 sm:inline">tokens</span>
+      <span className="hidden text-faint sm:inline">tokens</span>
     </button>
   );
 }

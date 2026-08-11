@@ -29,15 +29,15 @@ export default function LanguageSelector({ compact = false }: LanguageSelectorPr
   // Compact style for QuickSettingsPanel
   if (compact) {
     return (
-      <div className="flex items-center justify-between rounded-lg border border-transparent bg-muted/50 p-3 transition-colors hover:border-border hover:bg-accent">
+      <div className="flex items-center justify-between rounded-ctl border border-transparent bg-[var(--hover-soft)] p-3 transition-colors duration-150 ease-out hover:border-border hover:bg-[var(--hover)]">
         <span className="flex items-center gap-2 text-sm text-foreground">
-          <Languages className="h-4 w-4 text-muted-foreground" />
+          <Languages className="h-4 w-4 text-faint" />
           {t('account.language')}
         </span>
         <select
           value={i18n.language}
           onChange={handleLanguageChange}
-          className="w-auto min-w-[120px] max-w-[160px] rounded-lg border border-input bg-card p-2 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary"
+          className="w-auto min-w-[120px] max-w-[160px] rounded-ctl border border-input bg-card p-2 text-sm text-foreground transition-colors duration-150 ease-out focus:border-border-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {languages.map((lang) => (
             <option key={lang.value} value={lang.value}>
@@ -63,7 +63,7 @@ export default function LanguageSelector({ compact = false }: LanguageSelectorPr
       <select
         value={i18n.language}
         onChange={handleLanguageChange}
-        className="w-36 rounded-lg border border-input bg-card p-2 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary"
+        className="w-36 rounded-ctl border border-input bg-card p-2 text-sm text-foreground transition-colors duration-150 ease-out focus:border-border-strong focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {languages.map((lang) => (
           <option key={lang.value} value={lang.value}>

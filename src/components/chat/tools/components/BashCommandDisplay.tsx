@@ -66,10 +66,9 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
   return (
     <div
       className={cn(
-        'group/cmd overflow-hidden rounded-lg border bg-muted/40 backdrop-blur-sm transition-all duration-200',
-        isError ? 'border-red-500/30' : 'border-border/60',
-        hasOutput && !open && 'hover:border-border hover:bg-muted/60',
-        open && 'bg-muted/50 shadow-sm',
+        'group/cmd overflow-hidden rounded-card border bg-card transition-colors duration-150 ease-out',
+        isError ? 'border-[var(--danger-line)]' : 'border-border',
+        hasOutput && !open && 'hover:border-border-strong hover:bg-[var(--hover-soft)]',
       )}
     >
       {/* Command header — clickable when there is output to expand */}
@@ -86,22 +85,22 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
         }}
         className={cn(
           'flex items-center gap-2 px-2.5 py-1.5 outline-none',
-          hasOutput && 'cursor-pointer focus-visible:ring-1 focus-visible:ring-ring',
+          hasOutput && 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         )}
       >
         <ChevronRight
           className={cn(
-            'h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/70 transition-transform duration-200',
+            'h-3.5 w-3.5 flex-shrink-0 text-faint transition-transform duration-150 ease-out',
             open && 'rotate-90',
             !hasOutput && 'opacity-0',
           )}
         />
-        <span className="flex-shrink-0 select-none font-mono text-xs font-semibold text-emerald-500 dark:text-emerald-400">
+        <span className="flex-shrink-0 select-none font-mono text-[11px] font-semibold tracking-wide text-success">
           $
         </span>
         <code
           className={cn(
-            'min-w-0 flex-1 font-mono text-xs text-foreground',
+            'min-w-0 flex-1 font-mono text-[11px] tracking-wide text-foreground',
             open ? 'whitespace-pre-wrap break-all' : 'truncate',
           )}
         >
@@ -109,11 +108,11 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
         </code>
 
         {isRunning && (
-          <span className="h-2.5 w-2.5 flex-shrink-0 animate-spin rounded-full border-[1.5px] border-muted-foreground/30 border-t-emerald-400" />
+          <span className="h-2.5 w-2.5 flex-shrink-0 animate-spin rounded-full border-[1.5px] border-border border-t-primary" />
         )}
         {status && status !== 'running' && <ToolStatusBadge status={status} className="flex-shrink-0" />}
         {!open && hasOutput && !isRunning && (
-          <span className="flex-shrink-0 text-[10px] tabular-nums text-muted-foreground/70 transition-opacity group-hover/cmd:opacity-0">
+          <span className="flex-shrink-0 font-mono text-[10px] tabular-nums tracking-wide text-faint transition-opacity duration-150 ease-out group-hover/cmd:opacity-0">
             {outputLineCount} {outputLineCount === 1 ? 'line' : 'lines'}
           </span>
         )}
@@ -121,30 +120,30 @@ export const BashCommandDisplay: React.FC<BashCommandDisplayProps> = ({
         <button
           onClick={handleCopy}
           onKeyDown={(event) => event.stopPropagation()}
-          className="flex-shrink-0 rounded p-0.5 text-muted-foreground/60 opacity-0 transition-all hover:bg-foreground/10 hover:text-foreground focus:opacity-100 group-hover/cmd:opacity-100"
+          className="flex-shrink-0 rounded-ctl p-0.5 text-faint opacity-0 transition-all duration-150 ease-out hover:bg-[var(--hover)] hover:text-foreground focus:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover/cmd:opacity-100"
           title="Copy command"
           aria-label="Copy command"
         >
-          {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
         </button>
       </div>
 
       {description && !open && (
-        <div className="truncate px-2.5 pb-1.5 pl-[2.4rem] text-[11px] italic text-muted-foreground/70">
+        <div className="truncate px-2.5 pb-1.5 pl-[2.4rem] text-[11px] italic text-faint">
           {description}
         </div>
       )}
 
       {/* Expanded output */}
       {open && hasOutput && (
-        <div className="settings-content-enter border-t border-border/50 bg-background/50">
+        <div className="settings-content-enter border-t border-border bg-background">
           {description && (
-            <div className="px-3 pt-2 text-[11px] italic text-muted-foreground/70">{description}</div>
+            <div className="px-3 pt-2 text-[11px] italic text-faint">{description}</div>
           )}
           <pre
             className={cn(
-              'max-h-80 overflow-auto whitespace-pre-wrap break-all px-3 py-2 font-mono text-xs leading-relaxed',
-              isError ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground',
+              'max-h-80 overflow-auto whitespace-pre-wrap break-all px-3 py-2 font-mono text-[11px] leading-[1.75] tracking-wide',
+              isError ? 'text-danger' : 'text-muted-foreground',
             )}
           >
             {trimmedOutput}

@@ -60,7 +60,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
 
   return (
     <Collapsible defaultOpen={defaultOpen}>
-      <Card className="my-1 flex flex-col shadow-none">
+      <Card className="my-1 flex flex-col rounded-card border-border bg-card shadow-none">
         {/* Header — always visible */}
         <CardHeader className="flex flex-row items-start justify-between space-y-0 px-4 pb-0 pt-4">
           <div className="flex items-center gap-2">
@@ -69,7 +69,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
               {isStreaming ? <Shimmer>{title}</Shimmer> : title}
             </CardTitle>
           </div>
-          <CollapsibleTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
+          <CollapsibleTrigger className="inline-flex h-8 w-8 items-center justify-center rounded-ctl text-muted-foreground transition-colors duration-150 ease-out hover:bg-[var(--hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <ChevronsUpDown className="h-4 w-4" />
             <span className="sr-only">Toggle plan</span>
           </CollapsibleTrigger>
@@ -91,9 +91,9 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
 
             {showRawParameters && rawContent && (
               <Collapsible className="mt-3">
-                <CollapsibleTrigger className="flex items-center gap-1.5 py-0.5 text-[11px] text-muted-foreground hover:text-foreground">
+                <CollapsibleTrigger className="flex items-center gap-1.5 rounded-ctl py-0.5 text-[11px] text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <svg
-                    className="h-2.5 w-2.5 flex-shrink-0 transition-transform duration-150 data-[state=open]:rotate-90"
+                    className="h-2.5 w-2.5 flex-shrink-0 transition-transform duration-150 ease-out data-[state=open]:rotate-90"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -103,7 +103,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
                   raw params
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  <pre className="mt-1 overflow-hidden whitespace-pre-wrap break-words rounded border border-border/40 bg-muted p-2 font-mono text-[11px] text-muted-foreground">
+                  <pre className="mt-1 overflow-hidden whitespace-pre-wrap break-words rounded-card border border-border bg-background p-2 font-mono text-[11px] leading-[1.75] tracking-wide text-muted-foreground">
                     {rawContent}
                   </pre>
                 </CollapsibleContent>
@@ -114,7 +114,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
 
         {/* Footer — always visible when permission is pending */}
         {pendingRequest && (
-          <CardFooter className="justify-end gap-2 border-t border-border/40 px-4 pb-3 pt-3">
+          <CardFooter className="justify-end gap-2 border-t border-border px-4 pb-3 pt-3">
             <Button
               variant="ghost"
               size="sm"
@@ -125,7 +125,7 @@ export const PlanDisplay: React.FC<PlanDisplayProps> = ({
             </Button>
             <Button size="sm" onClick={handleBuild}>
               Build{' '}
-              <kbd className="ml-1 rounded bg-primary-foreground/20 px-1 py-0.5 font-mono text-[10px]">
+              <kbd className="ml-1 rounded-ctl bg-primary-foreground/20 px-1 py-0.5 font-mono text-[10px] tracking-wide">
                 ⌘↩
               </kbd>
             </Button>

@@ -23,37 +23,77 @@
 
 @layer base {
   :root {
-    --background: 44 22% 96%;
-    --foreground: 36 25% 4%;
+    /* Light theme — cool-neutral surface ramp (hues 210-220, low saturation) */
+    --background: 210 12.5% 96.9%;
+    --foreground: 216 10.2% 9.6%;
     --card: 0 0% 100%;
-    --card-foreground: 36 25% 4%;
+    --card-foreground: 216 10.2% 9.6%;
     --popover: 0 0% 100%;
-    --popover-foreground: 36 25% 4%;
+    --popover-foreground: 216 10.2% 9.6%;
     --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 44 15% 91%;
-    --secondary-foreground: 36 15% 18%;
-    --muted: 44 15% 91%;
-    --muted-foreground: 40 5% 44%;
-    --accent: 44 15% 91%;
-    --accent-foreground: 36 15% 18%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 44 14% 87%;
-    --input: 44 14% 87%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 15.4% 94.9%;
+    --secondary-foreground: 216 10.2% 9.6%;
+    --muted: 210 15.4% 94.9%;
+    --muted-foreground: 220 8.9% 46.1%;
+    --accent: 210 15.4% 94.9%;
+    --accent-foreground: 216 10.2% 9.6%;
+    --destructive: 0 72.2% 50.6%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 12% 90.2%;
+    --input: 210 12% 90.2%;
     --ring: 221.2 83.2% 53.3%;
-    --radius: 0.5rem;
+
+    /* Extended neutral tiers — no shadcn equivalent */
+    --border-strong: 212.7 11.8% 81.8%;
+    --faint: 216 6.8% 71%;
+    --idle: 216 9.8% 80%;
+
+    /* Semantic status colors — shared across both themes */
+    --success: 142.1 76.2% 36.3%;
+    --warning: 32.1 94.6% 43.7%;
+    --danger: 0 72.2% 50.6%;
+
+    /* Tint/line overlays — consumed directly, not via hsl(var(--x)).
+       Shared across both themes; only the hover/scrim washes flip per theme. */
+    --accent-tint: rgba(37, 99, 235, 0.08);
+    --accent-line: rgba(37, 99, 235, 0.3);
+    --accent-line-strong: rgba(37, 99, 235, 0.5);
+    --success-tint: rgba(22, 163, 74, 0.08);
+    --success-line: rgba(22, 163, 74, 0.35);
+    --warning-tint: rgba(217, 119, 6, 0.08);
+    --warning-line: rgba(217, 119, 6, 0.35);
+    --danger-tint: rgba(220, 38, 38, 0.08);
+    --danger-line: rgba(220, 38, 38, 0.45);
+    --hover: rgba(22, 24, 27, 0.05);
+    --hover-soft: rgba(22, 24, 27, 0.03);
+    --scrim: rgba(22, 24, 27, 0.35);
+
+    /* Elevation */
+    --shadow-pop: 0 8px 24px rgba(16, 18, 20, 0.1);
+    --shadow-float: 0 10px 30px rgba(16, 18, 20, 0.09);
+
+    /* Motion — every color/border transition rides these two values */
+    --dur: 150ms;
+    --ease: ease-out;
+
+    /* Radius scale — three independent steps, not a subtractive ramp.
+       --radius stays for the Tailwind lg/md/sm derivations. */
+    --radius: 10px;
+    --radius-ctl: 6px;
+    --radius-card: 10px;
+    --radius-composer: 14px;
 
     /* Nav design tokens */
-    --nav-glass-bg: 44 22% 96% / 0.7;
+    --nav-glass-bg: 210 12.5% 96.9% / 0.7;
     --nav-glass-blur: 20px;
     --nav-glass-saturate: 1.8;
     --nav-tab-glow: 221.2 83.2% 53.3% / 0.18;
     --nav-tab-ring: 221.2 83.2% 53.3% / 0.10;
     --nav-float-shadow: 0 0% 0% / 0.06;
-    --nav-float-ring: 44 14% 87% / 0.5;
-    --nav-divider-color: 44 14% 87% / 0.5;
-    --nav-input-bg: 44 15% 91% / 0.5;
+    --nav-float-ring: 210 12% 90.2% / 0.5;
+    --nav-divider-color: 210 12% 90.2% / 0.5;
+    --nav-input-bg: 210 15.4% 94.9% / 0.5;
     --nav-input-focus-ring: 221.2 83.2% 53.3% / 0.22;
 
     /* Safe area CSS variables */
@@ -85,36 +125,52 @@
   }
 
   .dark {
-    --background: 0 0% 8%;
-    --foreground: 40 8% 93%;
-    --card: 0 0% 12%;
-    --card-foreground: 40 8% 93%;
-    --popover: 0 0% 12%;
-    --popover-foreground: 40 8% 93%;
+    --background: 210 11.1% 7.1%;
+    --foreground: 210 5.6% 92.9%;
+    --card: 216 9.8% 10%;
+    --card-foreground: 210 5.6% 92.9%;
+    --popover: 216 9.8% 10%;
+    --popover-foreground: 210 5.6% 92.9%;
+    /* Accent is lifted in dark mode rather than reused from the light theme:
+       the light accent measures only 3.67:1 against this background, below the
+       4.5:1 needed for accent-colored body text (links, @mentions). */
     --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 0 0% 8%;
-    --secondary: 0 0% 17%;
-    --secondary-foreground: 40 8% 93%;
-    --muted: 0 0% 17%;
-    --muted-foreground: 0 0% 60%;
-    --accent: 0 0% 17%;
-    --accent-foreground: 40 8% 93%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 40 8% 93%;
-    --border: 0 0% 17%;
-    --input: 0 0% 23%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 214.3 10.8% 12.7%;
+    --secondary-foreground: 210 5.6% 92.9%;
+    --muted: 214.3 10.8% 12.7%;
+    --muted-foreground: 212.7 5% 56.7%;
+    --accent: 214.3 10.8% 12.7%;
+    --accent-foreground: 210 5.6% 92.9%;
+    --destructive: 0 72.2% 50.6%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217.5 9.5% 16.5%;
+    --input: 217.5 9.5% 16.5%;
     --ring: 217.2 91.2% 59.8%;
 
+    /* Extended neutral tiers */
+    --border-strong: 216 8.9% 22%;
+    --faint: 216 5.6% 34.9%;
+    --idle: 216 7.8% 25.1%;
+
+    /* Semantic status colors are shared with the light theme — not re-declared.
+       Only the text-tinted washes and shadows flip. */
+    --hover: rgba(236, 237, 238, 0.06);
+    --hover-soft: rgba(236, 237, 238, 0.03);
+    --scrim: rgba(8, 9, 10, 0.62);
+    --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.35);
+    --shadow-float: 0 10px 30px rgba(0, 0, 0, 0.34);
+
     /* Nav design tokens — dark overrides */
-    --nav-glass-bg: 0 0% 12% / 0.55;
+    --nav-glass-bg: 216 9.8% 10% / 0.55;
     --nav-glass-blur: 24px;
     --nav-glass-saturate: 1.6;
     --nav-tab-glow: 217.2 91.2% 59.8% / 0.25;
     --nav-tab-ring: 217.2 91.2% 59.8% / 0.15;
     --nav-float-shadow: 0 0% 0% / 0.35;
-    --nav-float-ring: 0 0% 17% / 0.3;
-    --nav-divider-color: 0 0% 17% / 0.5;
-    --nav-input-bg: 0 0% 17% / 0.5;
+    --nav-float-ring: 217.5 9.5% 16.5% / 0.3;
+    --nav-divider-color: 217.5 9.5% 16.5% / 0.5;
+    --nav-input-bg: 214.3 10.8% 12.7% / 0.5;
     --nav-input-focus-ring: 217.2 91.2% 59.8% / 0.25;
   }
 }
@@ -129,7 +185,7 @@
   body {
     @apply bg-background text-foreground;
 
-    font-family: "Encode Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     margin: 0;
@@ -505,27 +561,32 @@
     -webkit-text-fill-color: rgb(75 85 99) !important;
   }
   
-  /* Custom class for chat input placeholder */
+  /* Custom class for chat input placeholder.
+     !important is required here to outrank the `textarea::placeholder`
+     !important rule above — between two !important declarations the higher
+     specificity wins, so this must stay important to take effect. Because it
+     also outranks unprefixed utilities, the color has to come from the theme
+     token rather than a literal. */
   .chat-input-placeholder::placeholder {
-    color: rgb(156 163 175) !important;
+    color: hsl(var(--faint)) !important;
     opacity: 1 !important;
   }
 
   .dark .chat-input-placeholder::placeholder {
-    color: rgb(75 85 99) !important;
+    color: hsl(var(--faint)) !important;
     opacity: 1 !important;
-    -webkit-text-fill-color: rgb(75 85 99) !important;
+    -webkit-text-fill-color: hsl(var(--faint)) !important;
   }
 
   .chat-input-placeholder::-webkit-input-placeholder {
-    color: rgb(156 163 175) !important;
+    color: hsl(var(--faint)) !important;
     opacity: 1 !important;
   }
 
   .dark .chat-input-placeholder::-webkit-input-placeholder {
-    color: rgb(75 85 99) !important;
+    color: hsl(var(--faint)) !important;
     opacity: 1 !important;
-    -webkit-text-fill-color: rgb(75 85 99) !important;
+    -webkit-text-fill-color: hsl(var(--faint)) !important;
   }
   
   /* WebKit specific placeholder styles */

@@ -34,23 +34,23 @@ export default function SidebarCollapsed({
       {/* Expand button with brand logo */}
       <button
         onClick={onExpand}
-        className="group flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-accent/80"
+        className="group flex h-8 w-8 items-center justify-center rounded-ctl transition-colors duration-150 ease-out hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={t('common:versionUpdate.ariaLabels.showSidebar')}
         title={t('common:versionUpdate.ariaLabels.showSidebar')}
       >
-        <PanelLeftOpen className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
+        <PanelLeftOpen className="h-4 w-4 text-muted-foreground transition-colors duration-150 ease-out group-hover:text-foreground" />
       </button>
 
-      <div className="nav-divider my-1 w-6" />
+      <div className="rail-sep nav-divider my-1 w-6" />
 
       {/* Settings */}
       <button
         onClick={onShowSettings}
-        className="group flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-accent/80"
+        className="group flex h-8 w-8 items-center justify-center rounded-ctl transition-colors duration-150 ease-out hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={t('actions.settings')}
         title={t('actions.settings')}
       >
-        <Settings className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
+        <Settings className="h-4 w-4 text-muted-foreground transition-colors duration-150 ease-out group-hover:text-foreground" />
       </button>
 
       {/* Report Issue */}
@@ -58,11 +58,11 @@ export default function SidebarCollapsed({
         href={GITHUB_ISSUES_URL}
         target="_blank"
         rel="noopener noreferrer"
-        className="group flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-accent/80"
+        className="group flex h-8 w-8 items-center justify-center rounded-ctl transition-colors duration-150 ease-out hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={t('actions.reportIssue')}
         title={t('actions.reportIssue')}
       >
-        <Bug className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
+        <Bug className="h-4 w-4 text-muted-foreground transition-colors duration-150 ease-out group-hover:text-foreground" />
       </a>
 
       {/* Discord */}
@@ -70,22 +70,22 @@ export default function SidebarCollapsed({
         href={DISCORD_INVITE_URL}
         target="_blank"
         rel="noopener noreferrer"
-        className="group flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-accent/80"
+        className="group flex h-8 w-8 items-center justify-center rounded-ctl transition-colors duration-150 ease-out hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={t('actions.joinCommunity')}
         title={t('actions.joinCommunity')}
       >
-        <DiscordIcon className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
+        <DiscordIcon className="h-4 w-4 text-muted-foreground transition-colors duration-150 ease-out group-hover:text-foreground" />
       </a>
 
       {/* Restart-required indicator */}
       {restartRequired && (
         <div
-          className="relative flex h-8 w-8 items-center justify-center rounded-lg"
+          className="relative flex h-8 w-8 items-center justify-center rounded-ctl"
           aria-label={t('version.restartRequired')}
           title={t('version.restartRequired')}
         >
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
-          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" />
+          <AlertTriangle className="h-4 w-4 text-warning" />
+          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-warning ring-2 ring-background" />
         </div>
       )}
 
@@ -93,12 +93,12 @@ export default function SidebarCollapsed({
       {updateAvailable && (
         <button
           onClick={onShowVersionModal}
-          className="relative flex h-8 w-8 items-center justify-center rounded-lg transition-colors hover:bg-accent/80"
+          className="relative flex h-8 w-8 items-center justify-center rounded-ctl transition-colors duration-150 ease-out hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           aria-label={t('common:versionUpdate.ariaLabels.updateAvailable')}
           title={t('common:versionUpdate.ariaLabels.updateAvailable')}
         >
-          <Sparkles className="h-4 w-4 text-blue-500" />
-          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-blue-500" />
+          <Sparkles className="h-4 w-4 text-primary" />
+          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 animate-pulse rounded-full bg-primary ring-2 ring-background" />
         </button>
       )}
     </div>

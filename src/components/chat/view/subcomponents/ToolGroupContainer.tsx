@@ -95,27 +95,29 @@ export default function ToolGroupContainer({
 
   return (
     <div className="chat-message tool px-3 sm:px-0" data-message-timestamp={group.timestamp || undefined}>
+      {/* Collapsed state is one mono summary line: chevron, tool mark, name,
+          run count, then the truncated argument — the card only opens on demand. */}
       <button
         type="button"
-        className={`group flex w-full items-center gap-2 border-l-2 ${borderClass} rounded-r-md bg-muted/25 px-3 py-2 text-left transition-colors hover:bg-muted/40 dark:bg-muted/10 dark:hover:bg-muted/20`}
+        className={`group flex w-full items-center gap-2 border-l-2 ${borderClass} rounded-r-card bg-card px-3 py-2 text-left transition-colors duration-150 ease-out hover:bg-[var(--hover-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
         onClick={() => setIsExpanded((current) => !current)}
         aria-expanded={isExpanded}
       >
         <ChevronRight
-          className={`h-3.5 w-3.5 flex-shrink-0 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+          className={`h-3.5 w-3.5 flex-shrink-0 text-faint transition-transform duration-150 ease-out ${isExpanded ? 'rotate-90' : ''}`}
           aria-hidden
         />
-        <span className={`${iconClass} flex h-5 w-5 flex-shrink-0 items-center justify-center rounded bg-background/80 text-xs font-medium`}>
+        <span className={`${iconClass} flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-ctl bg-[var(--hover)] font-mono text-[10px] font-medium`}>
           {icon}
         </span>
-        <span className="min-w-0 flex-shrink-0 text-xs font-medium text-foreground">{label}</span>
-        <span className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+        <span className="min-w-0 flex-shrink-0 font-mono text-[11px] font-medium tracking-wide text-foreground">{label}</span>
+        <span className="flex-shrink-0 rounded-ctl bg-[var(--hover)] px-1.5 py-0.5 font-mono text-[10px] tracking-wide text-muted-foreground">
           x{group.messages.length}
         </span>
         {preview && (
           <>
-            <span className="text-[10px] text-muted-foreground/40">/</span>
-            <span className="min-w-0 truncate font-mono text-xs text-muted-foreground">{preview}</span>
+            <span className="font-mono text-[10px] text-faint">/</span>
+            <span className="min-w-0 truncate font-mono text-[11px] tracking-wide text-muted-foreground">{preview}</span>
           </>
         )}
       </button>

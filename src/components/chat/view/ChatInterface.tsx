@@ -390,7 +390,7 @@ function ChatInterface({
     return (
       <div className="flex h-full items-center justify-center">
         <div className="text-center text-muted-foreground">
-          <p className="text-sm">
+          <p className="text-[13px] leading-[1.65]">
             {t('projectSelection.startChatWithProvider', {
               provider: selectedProviderLabel,
               defaultValue: 'Select a project to start chatting with {{provider}}',
@@ -462,7 +462,7 @@ function ChatInterface({
                 type="button"
                 onClick={scrollToBottomAndReset}
                 aria-label={t('input.scrollToBottom', { defaultValue: 'Scroll to bottom' })}
-                className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full border border-border/50 bg-card text-muted-foreground shadow-sm transition-all duration-200 hover:bg-accent hover:text-foreground"
+                className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-[var(--shadow-pop)] transition-colors duration-150 ease-out hover:border-border-strong hover:bg-[var(--hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 title={t('input.scrollToBottom', { defaultValue: 'Scroll to bottom' })}
               >
                 <ArrowDownIcon className="h-4 w-4" aria-hidden />

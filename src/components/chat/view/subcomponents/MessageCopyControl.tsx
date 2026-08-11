@@ -160,9 +160,8 @@ const MessageCopyControl = ({
     setIsDropdownOpen(false);
   };
 
-  const toneClass = messageType === 'user'
-    ? 'text-blue-100 hover:text-white'
-    : 'text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300';
+  // Both turns sit on token surfaces now, so the control reads the same in each.
+  const toneClass = 'text-faint hover:text-foreground';
   const copyTitle = copied ? t('copyMessage.copied') : t('copyMessage.copy');
   const rootClassName = canSelectCopyFormat
     ? 'relative flex min-w-0 flex-1 items-center gap-0.5 sm:min-w-max sm:flex-none sm:w-auto'
@@ -175,7 +174,7 @@ const MessageCopyControl = ({
         onClick={handleCopyClick}
         title={copyTitle}
         aria-label={copyTitle}
-        className={`inline-flex items-center gap-1 rounded px-1 py-0.5 transition-colors ${toneClass}`}
+        className={`inline-flex items-center gap-1 rounded-ctl px-1 py-0.5 transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${toneClass}`}
       >
         {copied ? (
           <svg className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
@@ -226,7 +225,7 @@ const MessageCopyControl = ({
             <div
               ref={menuRef}
               style={menuStyle}
-              className="min-w-36 rounded-md border border-border bg-popover p-1 shadow-lg"
+              className="min-w-36 rounded-card border border-border bg-popover p-1 shadow-[var(--shadow-pop)]"
             >
               {copyFormatOptions.map((option) => {
                 const isSelected = option.format === selectedFormat;
@@ -235,8 +234,8 @@ const MessageCopyControl = ({
                     key={option.format}
                     type="button"
                     onClick={() => handleFormatChange(option.format)}
-                    className={`block w-full rounded px-2 py-1.5 text-left transition-colors ${isSelected
-                      ? 'bg-accent text-foreground'
+                    className={`block w-full rounded px-2 py-1.5 text-left transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isSelected
+                      ? 'bg-[var(--accent-tint)] text-primary'
                       : 'text-foreground hover:bg-accent'
                       }`}
                   >

@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { AlertTriangle, EyeOff, Trash2 } from 'lucide-react';
 import type { TFunction } from 'i18next';
+
 import { Button } from '../../../../shared/view/ui';
 import Settings from '../../../settings/view/Settings';
 import VersionUpgradeModal from '../../../version-upgrade/view';
@@ -100,12 +101,12 @@ export default function SidebarModals({
 
       {deleteConfirmation &&
         ReactDOM.createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--scrim)] p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md overflow-hidden rounded-card border border-border bg-card shadow-[var(--shadow-pop)]">
               <div className="p-6">
                 <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/30">
-                    <AlertTriangle className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-[var(--warning-tint)]">
+                    <AlertTriangle className="h-6 w-6 text-warning" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <h3 className="mb-2 text-lg font-semibold text-foreground">
@@ -129,7 +130,7 @@ export default function SidebarModals({
               <div className="flex flex-col gap-2 border-t border-border bg-muted/30 p-4">
                 <Button
                   variant="outline"
-                  className="w-full justify-start"
+                  className="w-full justify-start rounded-ctl"
                   onClick={() => onConfirmDeleteProject(false)}
                 >
                   <EyeOff className="mr-2 h-4 w-4" />
@@ -137,13 +138,13 @@ export default function SidebarModals({
                 </Button>
                 <Button
                   variant="destructive"
-                  className="w-full justify-start bg-red-600 text-white hover:bg-red-700"
+                  className="w-full justify-start rounded-ctl"
                   onClick={() => onConfirmDeleteProject(true)}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   {t('deleteConfirmation.deleteAllData')}
                 </Button>
-                <Button variant="ghost" className="w-full" onClick={onCancelDeleteProject}>
+                <Button variant="ghost" className="w-full rounded-ctl" onClick={onCancelDeleteProject}>
                   {t('actions.cancel')}
                 </Button>
               </div>
@@ -154,12 +155,12 @@ export default function SidebarModals({
 
       {sessionDeleteConfirmation &&
         ReactDOM.createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--scrim)] p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md overflow-hidden rounded-card border border-border bg-card shadow-[var(--shadow-pop)]">
               <div className="p-6">
                 <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-                    <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
+                  <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-[var(--danger-tint)]">
+                    <AlertTriangle className="h-6 w-6 text-danger" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <h3 className="mb-2 text-lg font-semibold text-foreground">
@@ -184,7 +185,7 @@ export default function SidebarModals({
                 {!sessionDeleteConfirmation.isArchived && (
                   <Button
                     variant="outline"
-                    className="w-full justify-start"
+                    className="w-full justify-start rounded-ctl"
                     onClick={() => onConfirmDeleteSession(false)}
                   >
                     <EyeOff className="mr-2 h-4 w-4" />
@@ -193,13 +194,13 @@ export default function SidebarModals({
                 )}
                 <Button
                   variant="destructive"
-                  className="w-full justify-start bg-red-600 text-white hover:bg-red-700"
+                  className="w-full justify-start rounded-ctl"
                   onClick={() => onConfirmDeleteSession(true)}
                 >
                   <Trash2 className="mr-2 h-4 w-4" />
                   {t('deleteConfirmation.deleteSessionPermanently', 'Delete permanently')}
                 </Button>
-                <Button variant="ghost" className="w-full" onClick={onCancelDeleteSession}>
+                <Button variant="ghost" className="w-full rounded-ctl" onClick={onCancelDeleteSession}>
                   {t('actions.cancel')}
                 </Button>
               </div>

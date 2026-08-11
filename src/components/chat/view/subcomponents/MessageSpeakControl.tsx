@@ -18,7 +18,7 @@ const MessageSpeakControl = ({ content }: { content: string }) => {
   return (
     <span className="relative inline-flex">
       {error && (
-        <span className="absolute bottom-full left-1/2 z-10 mb-1 max-w-[240px] -translate-x-1/2 whitespace-normal rounded bg-red-600 px-2 py-1 text-center text-xs text-white shadow-lg">
+        <span className="absolute bottom-full left-1/2 z-10 mb-1 max-w-[240px] -translate-x-1/2 whitespace-normal rounded-ctl border border-[var(--danger-line)] bg-[var(--danger-tint)] px-2 py-1 text-center text-[11px] text-danger shadow-[var(--shadow-pop)]">
           {error}
         </span>
       )}
@@ -27,7 +27,7 @@ const MessageSpeakControl = ({ content }: { content: string }) => {
         onClick={toggle}
         title={title}
         aria-label={title}
-        className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-gray-400 transition-colors hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+        className="inline-flex items-center gap-1 rounded-ctl px-1 py-0.5 text-faint transition-colors duration-150 ease-out hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         {state === 'playing' ? (
           <Square className="h-3.5 w-3.5" />

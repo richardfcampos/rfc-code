@@ -82,8 +82,16 @@ export default function MainContentTabSwitcher({
 
   const tabs: TabDefinition[] = [...builtInTabs, ...pluginTabs];
 
+  // Active tab reads as a flat underline + accent glow (per the "precision
+  // instrument" tab-bar spec), not the segmented-control capsule PillBar
+  // renders by default — the container's own capsule chrome is neutralized
+  // below and each tab supplies its own accent treatment instead.
+  const activeTabClasses =
+    "relative bg-transparent text-foreground shadow-none nav-tab-active after:absolute after:inset-x-2 after:-bottom-1 after:h-[2px] after:rounded-full after:bg-primary after:content-['']";
+  const inactiveTabClasses = 'text-muted-foreground hover:bg-[var(--hover)] hover:text-foreground';
+
   return (
-    <PillBar>
+    <PillBar className="gap-1 rounded-none bg-transparent p-0">
       {tabs.map((tab) => {
         const isActive = tab.id === activeTab;
         const displayLabel = tab.kind === 'builtin'
@@ -95,7 +103,7 @@ export default function MainContentTabSwitcher({
             <Pill
               isActive={isActive}
               onClick={() => setActiveTab(tab.id)}
-              className="px-2.5 py-[5px]"
+              className={`rounded-ctl px-2.5 py-[5px] transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${isActive ? activeTabClasses : inactiveTabClasses}`}
             >
               {tab.kind === 'builtin' ? (
                 <tab.icon className="h-3.5 w-3.5" strokeWidth={isActive ? 2.2 : 1.8} />
@@ -106,7 +114,8 @@ export default function MainContentTabSwitcher({
                   className="flex h-3.5 w-3.5 items-center justify-center [&>svg]:h-full [&>svg]:w-full"
                 />
               )}
-              <span className="hidden lg:inline">{displayLabel}</span>
+              {/* Tablet fix: labels stay visible down to 640px — icon-only only below `sm:`. */}
+              <span className="hidden sm:inline">{displayLabel}</span>
             </Pill>
           </Tooltip>
         );

@@ -20,12 +20,12 @@ const CommandInput = React.forwardRef<
   React.ElementRef<typeof CommandPrimitive.Input>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>
 >(({ className, ...props }, ref) => (
-  <div className="flex items-center border-b px-3">
-    <Search className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+  <div className="flex items-center border-b border-border px-3">
+    <Search className="mr-2 h-4 w-4 shrink-0 text-faint" aria-hidden />
     <CommandPrimitive.Input
       ref={ref}
       className={cn(
-        'flex h-11 w-full rounded-md bg-transparent py-3 text-sm outline-none',
+        'flex h-11 w-full rounded-ctl bg-transparent py-3 text-sm text-foreground outline-none',
         'placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50',
         className,
       )}
@@ -67,7 +67,7 @@ const CommandGroup = React.forwardRef<
     ref={ref}
     className={cn(
       'overflow-hidden p-1 text-foreground',
-      '[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground',
+      '[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.08em] [&_[cmdk-group-heading]]:text-faint',
       className,
     )}
     {...props}
@@ -82,8 +82,8 @@ const CommandItem = React.forwardRef<
   <CommandPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none',
-      'data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground',
+      'relative flex cursor-pointer select-none items-center gap-2 rounded-ctl px-2 py-1.5 text-sm outline-none transition-colors duration-150 ease-out',
+      'data-[selected=true]:bg-[var(--accent-tint)] data-[selected=true]:text-primary',
       'data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50',
       className,
     )}

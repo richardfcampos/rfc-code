@@ -41,7 +41,7 @@ export default function LoadAllMessagesOverlay({
     >
       <style>{loadAllOverlayAnimationStyle}</style>
       {loadAllJustFinished ? (
-        <div className="flex items-center space-x-2 rounded-full bg-green-600 px-4 py-1.5 text-xs font-medium text-white shadow-lg dark:bg-green-500">
+        <div className="flex items-center gap-2 rounded-ctl border border-[var(--success-line)] bg-[var(--success-tint)] px-3 py-1.5 font-mono text-[11px] font-medium tracking-wide text-success shadow-[var(--shadow-pop)]">
           <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
           </svg>
@@ -49,12 +49,12 @@ export default function LoadAllMessagesOverlay({
         </div>
       ) : (
         <button
-          className="pointer-events-auto flex items-center space-x-2 rounded-full bg-blue-600 px-4 py-1.5 text-xs font-medium text-white shadow-lg transition-all duration-200 hover:scale-105 hover:bg-blue-700 disabled:cursor-wait disabled:opacity-75 dark:bg-blue-500 dark:hover:bg-blue-600"
+          className="pointer-events-auto flex items-center gap-2 rounded-ctl border border-border bg-card px-3 py-1.5 font-mono text-[11px] font-medium tracking-wide text-muted-foreground shadow-[var(--shadow-pop)] transition-colors duration-150 ease-out hover:border-border-strong hover:bg-[var(--hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-75"
           onClick={onLoadAllMessages}
           disabled={isLoadingAllMessages}
         >
           {isLoadingAllMessages && (
-            <div className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            <div className="h-3 w-3 animate-spin rounded-full border-2 border-border border-t-primary" />
           )}
           <span>
             {isLoadingAllMessages

@@ -68,19 +68,28 @@ export default function PermissionRequestsBanner({
           : [request.requestId];
 
         return (
-          <Confirmation key={request.requestId} approval="pending">
+          /* No banner exists in the design exports, so this is built strictly from
+             the token system: a calm card carrying a warning wash and a 2px warning
+             left edge — the same "needs a decision" signal the session list uses. */
+          <Confirmation
+            key={request.requestId}
+            approval="pending"
+            className="rounded-card border border-l-2 border-[var(--warning-line)] border-l-warning bg-[var(--warning-tint)] px-3 py-2.5"
+          >
             <ConfirmationTitle className="flex items-start gap-3">
-              <ShieldAlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <ShieldAlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
               <ConfirmationRequest>
-                <div>
-                  <span className="font-medium text-foreground">Permission required</span>
-                  <span className="ml-2 text-muted-foreground">
-                    Tool: <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{request.toolName}</code>
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span className="font-mono text-[11px] font-medium uppercase tracking-[0.08em] text-warning">
+                    Permission required
+                  </span>
+                  <span className="text-[13px] text-muted-foreground">
+                    Tool: <code className="rounded-ctl bg-[var(--hover)] px-1.5 py-0.5 font-mono text-[11px] tracking-wide text-foreground">{request.toolName}</code>
                   </span>
                 </div>
                 {permissionEntry && (
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    Allow rule: <code className="rounded bg-muted px-1 py-0.5 text-xs">{permissionEntry}</code>
+                  <div className="mt-1.5 text-xs text-muted-foreground">
+                    Allow rule: <code className="rounded-ctl bg-[var(--hover)] px-1 py-0.5 font-mono text-[11px] tracking-wide text-foreground">{permissionEntry}</code>
                   </div>
                 )}
               </ConfirmationRequest>
@@ -88,10 +97,10 @@ export default function PermissionRequestsBanner({
 
             {rawInput && (
               <details className="mt-2">
-                <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
+                <summary className="cursor-pointer text-xs text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   View tool input
                 </summary>
-                <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md border bg-muted/50 p-2 text-xs text-muted-foreground">
+                <pre className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-ctl border border-border bg-background p-2 font-mono text-[11px] leading-[1.75] tracking-wide text-muted-foreground">
                   {rawInput}
                 </pre>
               </details>

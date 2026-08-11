@@ -15,8 +15,12 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['"Encode Sans"', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', 'sans-serif'],
-        serif: ['Merriweather', 'Georgia', 'Cambria', '"Times New Roman"', 'serif'],
+        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', 'sans-serif'],
+        mono: ['"JetBrains Mono"', '"SFMono-Regular"', 'ui-monospace', 'Menlo', 'Consolas', 'monospace'],
+        // The design system has no serif face. `font-serif` still appears on a few
+        // headings, so the key is repointed at the sans stack instead of removed —
+        // drop it once those call sites migrate.
+        serif: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Helvetica Neue"', 'Arial', 'sans-serif'],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -52,11 +56,20 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        success: "hsl(var(--success))",
+        warning: "hsl(var(--warning))",
+        danger: "hsl(var(--danger))",
+        "border-strong": "hsl(var(--border-strong))",
+        faint: "hsl(var(--faint))",
+        idle: "hsl(var(--idle))",
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        ctl: "var(--radius-ctl)",
+        card: "var(--radius-card)",
+        composer: "var(--radius-composer)",
       },
       spacing: {
         'safe-area-inset-bottom': 'env(safe-area-inset-bottom)',

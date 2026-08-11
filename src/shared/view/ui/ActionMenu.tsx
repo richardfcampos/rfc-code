@@ -140,7 +140,7 @@ export default function ActionMenu({
           role="menu"
           tabIndex={-1}
           className={cn(
-            'absolute top-full z-50 mt-2 min-w-[220px] rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg',
+            'absolute top-full z-50 mt-2 min-w-[220px] rounded-card border border-border bg-popover p-1 text-popover-foreground shadow-[var(--shadow-pop)]',
             'animate-in fade-in-0 zoom-in-95',
             align === 'right' ? 'right-0' : 'left-0',
           )}
@@ -156,13 +156,13 @@ export default function ActionMenu({
                   disabled={item.disabled || item.loading}
                   onClick={() => runItem(item)}
                   className={cn(
-                    'flex w-full items-start gap-3 rounded-md px-3 py-2 text-left text-sm transition-colors',
-                    'focus:bg-accent focus:outline-none',
+                    'flex w-full items-start gap-3 rounded-ctl px-3 py-2 text-left text-sm transition-colors duration-150 ease-out',
+                    'focus:bg-[var(--hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                     item.disabled || item.loading
                       ? 'cursor-not-allowed opacity-50'
                       : item.isDanger
-                        ? 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950'
-                        : 'hover:bg-accent',
+                        ? 'text-danger hover:bg-[var(--danger-tint)]'
+                        : 'hover:bg-[var(--hover)]',
                   )}
                 >
                   {item.loading ? (

@@ -15,21 +15,21 @@ const formatFileSize = (bytes: number): string => {
 
 const FileAttachment = ({ file, onRemove, error }: FileAttachmentProps) => {
   return (
-    <div className="group relative flex h-20 w-40 flex-col justify-between overflow-hidden rounded-xl border border-border/50 bg-card p-2.5 shadow-sm">
+    <div className="group relative flex h-20 w-40 flex-col justify-between overflow-hidden rounded-card border border-border bg-card p-2.5">
       <div className="flex items-start gap-2">
         <FileTextIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
-        <span className="line-clamp-2 break-all text-xs font-medium leading-snug text-foreground" title={file.name}>
+        <span className="line-clamp-2 break-all font-mono text-[11px] font-medium leading-snug tracking-wide text-foreground" title={file.name}>
           {file.name}
         </span>
       </div>
-      <span className="text-[10px] text-muted-foreground">
+      <span className="font-mono text-[10px] tracking-wide text-faint">
         {error ?? formatFileSize(file.size)}
       </span>
-      {error && <div className="absolute inset-0 rounded-xl border border-destructive/60" />}
+      {error && <div className="absolute inset-0 rounded-card border border-[var(--danger-line)]" />}
       <button
         type="button"
         onClick={onRemove}
-        className="absolute -right-1.5 -top-1.5 rounded-full border border-border/40 bg-background/90 p-1 text-foreground shadow-sm backdrop-blur transition-opacity hover:bg-background focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+        className="absolute -right-1.5 -top-1.5 rounded-full border border-border bg-card p-1 text-muted-foreground shadow-[var(--shadow-pop)] transition-opacity duration-150 ease-out hover:text-foreground focus:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:opacity-0 sm:group-hover:opacity-100"
         aria-label="Remove file"
       >
         <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

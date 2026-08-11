@@ -86,6 +86,15 @@ export default function SidebarSessionItem({
   const editingContainerRef = useRef<HTMLDivElement>(null);
   const showAttentionIndicator = needsAttention && !isSelected;
   const showRecentIndicator = !showAttentionIndicator && !isProcessing && sessionView.isActive;
+  // Status dot semantics: needs-permission (warning, solid) takes priority over
+  // running (primary, pulsing) which takes priority over recently-active (success, solid).
+  const dotStatus: 'attn' | 'run' | 'ok' | null = showAttentionIndicator
+    ? 'attn'
+    : isProcessing
+      ? 'run'
+      : showRecentIndicator
+        ? 'ok'
+        : null;
 
   // The rename panel sits inside a group-hover opacity wrapper, so leaving the row
   // would visually hide it. While editing, dismiss only when the user clicks outside
@@ -123,22 +132,28 @@ export default function SidebarSessionItem({
 
   return (
     <div className="group relative">
-      {(showAttentionIndicator || showRecentIndicator) && (
+      {dotStatus && (
         <div className="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 transform">
           <Tooltip
-            content={showAttentionIndicator
+            content={dotStatus === 'attn'
               ? t('tooltips.attentionRequiredIndicator', { defaultValue: 'Session needs attention' })
-              : t('tooltips.activeSessionIndicator')}
+              : dotStatus === 'run'
+                ? t('tooltips.processingSessionIndicator', 'Processing session')
+                : t('tooltips.activeSessionIndicator')}
             position="right"
           >
             <div
               role="status"
-              aria-label={showAttentionIndicator
+              aria-label={dotStatus === 'attn'
                 ? t('tooltips.attentionRequiredIndicator', { defaultValue: 'Session needs attention' })
-                : t('tooltips.activeSessionIndicator')}
+                : dotStatus === 'run'
+                  ? t('tooltips.processingSessionIndicator', 'Processing session')
+                  : t('tooltips.activeSessionIndicator')}
               className={cn(
-                'h-2 w-2 animate-pulse rounded-full',
-                showAttentionIndicator ? 'bg-amber-500' : 'bg-green-500',
+                'h-2 w-2 rounded-full',
+                dotStatus === 'attn' && 'bg-warning',
+                dotStatus === 'run' && 'animate-pulse bg-primary',
+                dotStatus === 'ok' && 'bg-success',
               )}
             />
           </Tooltip>
@@ -148,20 +163,20 @@ export default function SidebarSessionItem({
       <div className="md:hidden">
         <div
           className={cn(
-            'p-2 mx-3 my-0.5 rounded-md bg-card border active:scale-[0.98] transition-all duration-150 relative',
-            isSelected ? 'bg-primary/5 border-primary/20' : '',
+            'p-2 mx-3 my-0.5 rounded-card bg-card border active:scale-[0.98] transition-colors duration-150 ease-out relative',
+            isSelected ? 'bg-[var(--accent-tint)] border-[var(--accent-line)]' : '',
             !isSelected && isProcessing
-              ? 'border-border/60 bg-muted/20'
+              ? 'border-border bg-muted/20'
               : !isSelected && sessionView.isActive
-              ? 'border-green-500/30 bg-green-50/5 dark:bg-green-900/5'
-              : 'border-border/30',
+              ? 'border-[var(--success-line)] bg-[var(--success-tint)]'
+              : 'border-border/60',
           )}
           onClick={selectMobileSession}
         >
           <div className="flex items-center gap-2">
             <div
               className={cn(
-                'w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0',
+                'w-5 h-5 rounded-ctl flex items-center justify-center flex-shrink-0',
                 isSelected ? 'bg-primary/10' : 'bg-muted/50',
               )}
             >
@@ -174,23 +189,23 @@ export default function SidebarSessionItem({
                 {isProcessing ? (
                   <span className="ml-auto flex-shrink-0">
                     <Tooltip content={t('tooltips.processingSessionIndicator', 'Processing session')} position="top">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-ctl text-primary">
                         <Loader2 className="h-3 w-3 animate-spin" />
                       </span>
                     </Tooltip>
                   </span>
                 ) : compactSessionAge && (
-                  <span className="ml-auto flex-shrink-0 text-[11px] text-muted-foreground">{compactSessionAge}</span>
+                  <span className="ml-auto flex-shrink-0 font-mono text-[11px] tracking-wide text-muted-foreground">{compactSessionAge}</span>
                 )}
               </div>
               <div className="mt-0.5 flex min-w-0 items-center gap-1">
                 {sessionView.messageCount > 0 && (
-                  <Badge variant="secondary" className="flex-shrink-0 px-1 py-0 text-xs">
+                  <Badge variant="secondary" className="flex-shrink-0 rounded-ctl px-1 py-0 font-mono text-[10px] tracking-wide">
                     {sessionView.messageCount}
                   </Badge>
                 )}
                 {sessionView.worktreeLabel && (
-                  <Badge variant="secondary" className="min-w-0 gap-1 px-1 py-0 text-xs font-normal">
+                  <Badge variant="secondary" className="min-w-0 gap-1 rounded-ctl px-1 py-0 font-mono text-[10px] font-normal tracking-wide">
                     <GitBranch className="h-2.5 w-2.5 flex-shrink-0" />
                     <span className="truncate">{sessionView.worktreeLabel}</span>
                   </Badge>
@@ -200,13 +215,13 @@ export default function SidebarSessionItem({
 
             {!isProcessing && (
               <button
-                className="ml-1 flex h-5 w-5 items-center justify-center rounded-md bg-red-50 opacity-70 transition-transform active:scale-95 dark:bg-red-900/20"
+                className="ml-1 flex h-5 w-5 items-center justify-center rounded-ctl bg-[var(--danger-tint)] opacity-70 transition-transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-95"
                 onClick={(event) => {
                   event.stopPropagation();
                   requestDeleteSession();
                 }}
               >
-                <Trash2 className="h-2.5 w-2.5 text-red-600 dark:text-red-400" />
+                <Trash2 className="h-2.5 w-2.5 text-danger" />
               </button>
             )}
           </div>
@@ -218,12 +233,12 @@ export default function SidebarSessionItem({
           href={`/session/${session.id}`}
           className={cn(
             buttonVariants({ variant: 'ghost' }),
-            'h-auto w-full justify-start rounded-md border bg-card p-2 text-left font-normal transition-all duration-150',
-            isSelected ? 'border-primary/20 bg-primary/5' : 'border-border/30',
+            'h-auto w-full justify-start rounded-card border bg-card p-2 text-left font-normal transition-colors duration-150 ease-out',
+            isSelected ? 'border-[var(--accent-line)] bg-[var(--accent-tint)]' : 'border-border/40',
             !isSelected && isProcessing
-              ? 'border-border/60 bg-muted/20 hover:bg-muted/25'
+              ? 'border-border bg-muted/20 hover:bg-muted/25'
               : !isSelected && sessionView.isActive
-                ? 'border-green-500/30 bg-green-50/5 hover:bg-green-50/10 dark:bg-green-900/5 dark:hover:bg-green-900/10'
+                ? 'border-[var(--success-line)] bg-[var(--success-tint)] hover:bg-[var(--success-tint)]'
                 : 'hover:bg-accent/50',
           )}
           // Left-click keeps in-app navigation; Ctrl/Cmd/middle-click and the
@@ -237,7 +252,7 @@ export default function SidebarSessionItem({
           <div className="flex w-full min-w-0 items-center gap-2">
             <div
               className={cn(
-                'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-md',
+                'flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-ctl',
                 isSelected ? 'bg-primary/10' : 'bg-muted/50',
               )}
             >
@@ -249,12 +264,12 @@ export default function SidebarSessionItem({
                 {isProcessing ? (
                   <span
                     className={cn(
-                      'ml-auto flex-shrink-0 transition-opacity duration-200',
+                      'ml-auto flex-shrink-0 transition-opacity duration-150 ease-out',
                       isEditing ? 'opacity-0' : 'group-hover:opacity-0',
                     )}
                   >
                     <Tooltip content={t('tooltips.processingSessionIndicator', 'Processing session')} position="top">
-                      <span className="flex h-5 w-5 items-center justify-center rounded-md text-muted-foreground">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-ctl text-primary">
                         <Loader2 className="h-3 w-3 animate-spin" />
                       </span>
                     </Tooltip>
@@ -262,7 +277,7 @@ export default function SidebarSessionItem({
                 ) : compactSessionAge && (
                   <span
                     className={cn(
-                      'ml-auto flex-shrink-0 text-[11px] text-muted-foreground transition-opacity duration-200',
+                      'ml-auto flex-shrink-0 font-mono text-[11px] tracking-wide text-muted-foreground transition-opacity duration-150 ease-out',
                       isEditing ? 'opacity-0' : 'group-hover:opacity-0',
                     )}
                   >
@@ -271,9 +286,9 @@ export default function SidebarSessionItem({
                 )}
               </div>
               <div className="mt-0.5 flex min-w-0 items-center gap-1">
-                {sessionView.messageCount > 0 && <Badge variant="secondary" className="flex-shrink-0 px-1 py-0 text-xs">{sessionView.messageCount}</Badge>}
+                {sessionView.messageCount > 0 && <Badge variant="secondary" className="flex-shrink-0 rounded-ctl px-1 py-0 font-mono text-[10px] tracking-wide">{sessionView.messageCount}</Badge>}
                 {sessionView.worktreeLabel && (
-                  <Badge variant="secondary" className="min-w-0 gap-1 px-1 py-0 text-xs font-normal">
+                  <Badge variant="secondary" className="min-w-0 gap-1 rounded-ctl px-1 py-0 font-mono text-[10px] font-normal tracking-wide">
                     <GitBranch className="h-2.5 w-2.5 flex-shrink-0" />
                     <span className="truncate">{sessionView.worktreeLabel}</span>
                   </Badge>
@@ -286,7 +301,7 @@ export default function SidebarSessionItem({
         <div
           ref={editingContainerRef}
           className={cn(
-            'absolute right-2 top-1/2 flex -translate-y-1/2 transform items-center gap-1 transition-all duration-200',
+            'absolute right-2 top-1/2 flex -translate-y-1/2 transform items-center gap-1 transition-opacity duration-150 ease-out',
             isEditing ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
           )}
         >
@@ -305,52 +320,52 @@ export default function SidebarSessionItem({
                     }
                   }}
                   onClick={(event) => event.stopPropagation()}
-                  className="w-32 rounded border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="w-32 rounded-ctl border border-border bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
                   autoFocus
                 />
                 <button
-                  className="flex h-6 w-6 items-center justify-center rounded bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40"
+                  className="flex h-6 w-6 items-center justify-center rounded-ctl bg-success/10 hover:bg-success/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={(event) => {
                     event.stopPropagation();
                     saveEditedSession();
                   }}
                   title={t('tooltips.save')}
                 >
-                  <Check className="h-3 w-3 text-green-600 dark:text-green-400" />
+                  <Check className="h-3 w-3 text-success" />
                 </button>
                 <button
-                  className="flex h-6 w-6 items-center justify-center rounded bg-gray-50 hover:bg-gray-100 dark:bg-gray-900/20 dark:hover:bg-gray-900/40"
+                  className="flex h-6 w-6 items-center justify-center rounded-ctl bg-muted hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={(event) => {
                     event.stopPropagation();
                     onCancelEditingSession();
                   }}
                   title={t('tooltips.cancel')}
                 >
-                  <X className="h-3 w-3 text-gray-600 dark:text-gray-400" />
+                  <X className="h-3 w-3 text-muted-foreground" />
                 </button>
               </>
             ) : (
               <>
                 <button
-                  className="flex h-6 w-6 items-center justify-center rounded bg-gray-50 hover:bg-gray-100 dark:bg-gray-900/20 dark:hover:bg-gray-900/40"
+                  className="flex h-6 w-6 items-center justify-center rounded-ctl bg-muted hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   onClick={(event) => {
                     event.stopPropagation();
                     onStartEditingSession(session.id, sessionView.sessionName);
                   }}
                   title={t('tooltips.editSessionName')}
                 >
-                  <Edit2 className="h-3 w-3 text-gray-600 dark:text-gray-400" />
+                  <Edit2 className="h-3 w-3 text-muted-foreground" />
                 </button>
                 {!isProcessing && (
                   <button
-                    className="flex h-6 w-6 items-center justify-center rounded bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40"
+                    className="flex h-6 w-6 items-center justify-center rounded-ctl bg-[var(--danger-tint)] hover:bg-danger/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     onClick={(event) => {
                       event.stopPropagation();
                       requestDeleteSession();
                     }}
                     title={t('tooltips.deleteSessionOptions', 'Archive or permanently delete this session')}
                   >
-                    <Trash2 className="h-3 w-3 text-red-600 dark:text-red-400" />
+                    <Trash2 className="h-3 w-3 text-danger" />
                   </button>
                 )}
               </>

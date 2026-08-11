@@ -1,12 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { TFunction } from 'i18next';
 
-import SidebarSessionItem from './SidebarSessionItem';
 import type { Project } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
+
+import SidebarSessionItem from './SidebarSessionItem';
 
 // Render coverage for the worktree branch badge: a session that runs inside a
 // git worktree shows the branch (or the worktree folder name when the branch

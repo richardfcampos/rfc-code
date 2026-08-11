@@ -283,14 +283,14 @@ export default function ChatComposer({
 
       {!hasQuestionPanel && <div className="relative mx-auto max-w-[54.25rem]">
         {showFileDropdown && filteredFiles.length > 0 && (
-          <div className="absolute bottom-full left-0 right-0 z-50 mb-2 max-h-48 overflow-y-auto rounded-xl border border-border/50 bg-card/95 shadow-lg backdrop-blur-md">
+          <div className="absolute bottom-full left-0 right-0 z-50 mb-2 max-h-48 overflow-y-auto rounded-card border border-border bg-popover shadow-[var(--shadow-pop)]">
             {filteredFiles.map((file, index) => (
               <div
                 key={file.path}
-                className={`cursor-pointer touch-manipulation border-b border-border/30 px-4 py-3 last:border-b-0 ${
+                className={`cursor-pointer touch-manipulation border-b border-border px-4 py-3 transition-colors duration-150 ease-out last:border-b-0 ${
                   index === selectedFileIndex
-                    ? 'bg-primary/8 text-primary'
-                    : 'text-foreground hover:bg-accent/50'
+                    ? 'bg-[var(--accent-tint)] text-primary'
+                    : 'text-foreground hover:bg-[var(--hover)]'
                 }`}
                 onMouseDown={(event) => {
                   event.preventDefault();
@@ -302,8 +302,8 @@ export default function ChatComposer({
                   onSelectFile(file);
                 }}
               >
-                <div className="text-sm font-medium">{file.name}</div>
-                <div className="font-mono text-xs text-muted-foreground">{file.path}</div>
+                <div className="text-[13px] font-medium">{file.name}</div>
+                <div className="font-mono text-[10px] tracking-wide text-muted-foreground">{file.path}</div>
               </div>
             ))}
           </div>
@@ -329,8 +329,8 @@ export default function ChatComposer({
           {...getRootProps()}
         >
           {isDragActive && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center rounded-2xl border-2 border-dashed border-primary/50 bg-primary/15">
-              <div className="rounded-xl border border-border/30 bg-card p-4 shadow-lg">
+            <div className="absolute inset-0 z-50 flex items-center justify-center rounded-composer border border-dashed border-[var(--accent-line)] bg-[var(--accent-tint)]">
+              <div className="rounded-card border border-border bg-card p-4 shadow-[var(--shadow-pop)]">
                 <svg className="mx-auto mb-2 h-8 w-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
                     strokeLinecap="round"
@@ -339,14 +339,14 @@ export default function ChatComposer({
                     d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                   />
                 </svg>
-                <p className="text-sm font-medium">Drop files here</p>
+                <p className="text-[13px] font-medium text-foreground">Drop files here</p>
               </div>
             </div>
           )}
 
           {(attachedImages.length > 0 || attachedFiles.length > 0) && (
             <PromptInputHeader>
-              <div className="rounded-xl bg-muted/40 p-2">
+              <div className="rounded-card bg-[var(--hover-soft)] p-2">
                 <div className="flex flex-wrap gap-2">
                   {attachedImages.map((file, index) => (
                     <ImageAttachment
@@ -373,8 +373,9 @@ export default function ChatComposer({
           <input {...getInputProps()} />
 
           <PromptInputBody>
-            <div ref={inputHighlightRef} aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
-              <div className="chat-input-placeholder block w-full whitespace-pre-wrap break-words px-4 py-2 text-sm leading-6 text-transparent">
+            <div ref={inputHighlightRef} aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-composer">
+              {/* Metrics mirror PromptInputTextarea exactly — any change there must land here too. */}
+              <div className="chat-input-placeholder block w-full whitespace-pre-wrap break-words px-4 py-3 text-[13px] leading-[1.55] text-transparent">
                 {renderInputWithMentions(input)}
               </div>
             </div>
@@ -408,19 +409,22 @@ export default function ChatComposer({
               <VoiceInputButton state={voiceState} onToggle={voiceToggle} errorMsg={voiceError} />
             )}
 
+            {/* Mode is a semantic signal, not decoration: neutral when nothing is
+                relaxed, success once edits flow on their own, primary for plan mode,
+                warning when permission checks are bypassed. One wash + one line each. */}
             <button
               type="button"
               onClick={onModeSwitch}
-              className={`inline-flex h-8 items-center rounded-lg border px-2 text-xs font-medium transition-all duration-200 sm:px-2.5 ${
+              className={`inline-flex h-8 shrink-0 items-center rounded-ctl border px-2 font-mono text-[11px] font-medium tracking-wide transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-2.5 ${
                 permissionMode === 'default'
-                  ? 'border-border/60 bg-muted/50 text-muted-foreground hover:bg-muted'
+                  ? 'border-border bg-[var(--hover-soft)] text-muted-foreground hover:bg-[var(--hover)]'
                   : permissionMode === 'acceptEdits'
-                    ? 'border-green-300/60 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-600/40 dark:bg-green-900/15 dark:text-green-300 dark:hover:bg-green-900/25'
+                    ? 'border-[var(--success-line)] bg-[var(--success-tint)] text-success hover:bg-success/15'
                     : permissionMode === 'auto'
-                      ? 'border-blue-300/60 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-600/40 dark:bg-blue-900/15 dark:text-blue-300 dark:hover:bg-blue-900/25'
+                      ? 'border-[var(--success-line)] bg-[var(--success-tint)] text-success hover:bg-success/15'
                       : permissionMode === 'bypassPermissions'
-                        ? 'border-orange-300/60 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:border-orange-600/40 dark:bg-orange-900/15 dark:text-orange-300 dark:hover:bg-orange-900/25'
-                        : 'border-primary/20 bg-primary/5 text-primary hover:bg-primary/10'
+                        ? 'border-[var(--warning-line)] bg-[var(--warning-tint)] text-warning hover:bg-warning/15'
+                        : 'border-[var(--accent-line)] bg-[var(--accent-tint)] text-primary hover:bg-primary/15'
               }`}
               title={t('input.clickToChangeMode')}
             >
@@ -428,13 +432,13 @@ export default function ChatComposer({
                 <div
                   className={`h-2.5 w-2.5 rounded-full sm:h-1.5 sm:w-1.5 ${
                     permissionMode === 'default'
-                      ? 'bg-muted-foreground'
+                      ? 'bg-idle'
                       : permissionMode === 'acceptEdits'
-                        ? 'bg-green-500'
+                        ? 'bg-success'
                         : permissionMode === 'auto'
-                          ? 'bg-blue-500'
+                          ? 'bg-success'
                           : permissionMode === 'bypassPermissions'
-                            ? 'bg-orange-500'
+                            ? 'bg-warning'
                             : 'bg-primary'
                   }`}
                 />
@@ -454,10 +458,10 @@ export default function ChatComposer({
                 onClick={onToggleWorktree}
                 role="switch"
                 aria-checked={worktreeEnabled}
-                className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2 text-xs font-medium transition-colors sm:px-2.5 ${
+                className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-ctl border px-2 font-mono text-[11px] font-medium tracking-wide transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-2.5 ${
                   worktreeEnabled
-                    ? 'border-violet-300/60 bg-violet-50 text-violet-700 hover:bg-violet-100 dark:border-violet-600/40 dark:bg-violet-900/15 dark:text-violet-300 dark:hover:bg-violet-900/25'
-                    : 'border-border/60 bg-muted/40 text-muted-foreground hover:bg-muted'
+                    ? 'border-[var(--accent-line-strong)] bg-[var(--accent-tint)] text-primary'
+                    : 'border-border bg-[var(--hover-soft)] text-muted-foreground hover:bg-[var(--hover)]'
                 }`}
                 title={t('composer.worktreeHint', {
                   defaultValue: 'Run this session in its own git worktree',
@@ -492,7 +496,7 @@ export default function ChatComposer({
               <MessageSquareIcon />
               {slashCommandsCount > 0 && (
                 <span
-                  className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground"
+                  className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-medium tracking-wide text-primary-foreground"
                 >
                   {slashCommandsCount}
                 </span>
@@ -513,7 +517,7 @@ export default function ChatComposer({
 
           <div className="flex items-center gap-2">
             <div
-              className={`hidden text-xs text-muted-foreground/50 transition-opacity duration-200 lg:block ${
+              className={`hidden whitespace-nowrap text-[11px] text-faint transition-opacity duration-150 ease-out lg:block ${
                 input.trim() && !canQueueDraft ? 'opacity-0' : 'opacity-100'
               }`}
             >
@@ -538,7 +542,7 @@ export default function ChatComposer({
               disabled={isLoading ? false : isRecording ? false : isTranscribing ? true : !input.trim()}
               aria-label={submitAriaLabel}
               title={submitAriaLabel}
-              className="h-10 w-10 sm:h-10 sm:w-10"
+              className="h-11 w-11 sm:h-8 sm:w-8"
             >
               {isTranscribing ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

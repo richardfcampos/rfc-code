@@ -126,11 +126,11 @@ export default function SidebarProjectItem({
         <div className="md:hidden">
           <div
             className={cn(
-              'p-3 mx-3 my-1 rounded-lg bg-card border border-border/50 active:scale-[0.98] transition-all duration-150',
-              isSelected && 'bg-primary/5 border-primary/20',
+              'p-3 mx-3 my-1 rounded-card bg-card border border-border active:scale-[0.98] transition-colors duration-150 ease-out',
+              isSelected && 'bg-[var(--accent-tint)] border-[var(--accent-line)]',
               isStarred &&
                 !isSelected &&
-                'bg-yellow-50/50 dark:bg-yellow-900/5 border-yellow-200/30 dark:border-yellow-800/30',
+                'bg-[var(--warning-tint)] border-[var(--warning-line)]',
             )}
             onClick={toggleProject}
           >
@@ -138,10 +138,10 @@ export default function SidebarProjectItem({
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 <button
                   className={cn(
-                    'w-8 h-8 rounded-lg flex items-center justify-center active:scale-90 transition-all duration-150 border',
+                    'w-8 h-8 rounded-ctl flex items-center justify-center active:scale-90 transition-colors duration-150 ease-out border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                     isStarred
-                      ? 'bg-yellow-500/10 dark:bg-yellow-900/30 border-yellow-200 dark:border-yellow-800'
-                      : 'bg-gray-500/10 dark:bg-gray-900/30 border-gray-200 dark:border-gray-800',
+                      ? 'bg-[var(--warning-tint)] border-[var(--warning-line)]'
+                      : 'bg-muted/40 border-border',
                   )}
                   onClick={(event) => {
                     event.stopPropagation();
@@ -151,10 +151,10 @@ export default function SidebarProjectItem({
                 >
                   <Star
                     className={cn(
-                      'w-4 h-4 transition-colors',
+                      'w-4 h-4 transition-colors duration-150 ease-out',
                       isStarred
-                        ? 'text-yellow-600 dark:text-yellow-400 fill-current'
-                        : 'text-gray-600 dark:text-gray-400',
+                        ? 'text-warning fill-current'
+                        : 'text-muted-foreground',
                     )}
                   />
                 </button>
@@ -165,7 +165,7 @@ export default function SidebarProjectItem({
                       type="text"
                       value={editingName}
                       onChange={(event) => onEditingNameChange(event.target.value)}
-                      className="w-full rounded-lg border-2 border-primary/40 bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-all duration-200 focus:border-primary focus:shadow-md focus:outline-none"
+                      className="w-full rounded-ctl border-2 border-primary/40 bg-background px-3 py-2 text-sm text-foreground shadow-sm transition-colors duration-150 ease-out focus:border-primary focus:outline-none"
                       placeholder={t('projects.projectNamePlaceholder')}
                       autoFocus
                       autoComplete="off"
@@ -182,7 +182,6 @@ export default function SidebarProjectItem({
                       style={{
                         fontSize: '16px',
                         WebkitAppearance: 'none',
-                        borderRadius: '8px',
                       }}
                     />
                   ) : (
@@ -197,7 +196,7 @@ export default function SidebarProjectItem({
                           />
                         )}
                       </div>
-                      <p className="text-xs text-muted-foreground">{sessionCountLabel}</p>
+                      <p className="font-mono text-[11px] tracking-wide text-muted-foreground">{sessionCountLabel}</p>
                     </>
                   )}
                 </div>
@@ -207,38 +206,38 @@ export default function SidebarProjectItem({
                 {isEditing ? (
                   <>
                     <button
-                      className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-500 shadow-sm transition-all duration-150 active:scale-90 active:shadow-none dark:bg-green-600"
+                      className="flex h-8 w-8 items-center justify-center rounded-ctl bg-success shadow-sm transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-90 active:shadow-none"
                       onClick={(event) => {
                         event.stopPropagation();
                         saveProjectName();
                       }}
                     >
-                      <Check className="h-4 w-4 text-white" />
+                      <Check className="h-4 w-4 text-primary-foreground" />
                     </button>
                     <button
-                      className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-500 shadow-sm transition-all duration-150 active:scale-90 active:shadow-none dark:bg-gray-600"
+                      className="flex h-8 w-8 items-center justify-center rounded-ctl bg-muted-foreground/70 shadow-sm transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-90 active:shadow-none"
                       onClick={(event) => {
                         event.stopPropagation();
                         onCancelEditingProject();
                       }}
                     >
-                      <X className="h-4 w-4 text-white" />
+                      <X className="h-4 w-4 text-background" />
                     </button>
                   </>
                 ) : (
                   <>
                     <button
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-500/10 active:scale-90 dark:border-red-800 dark:bg-red-900/30"
+                      className="flex h-8 w-8 items-center justify-center rounded-ctl border border-[var(--danger-line)] bg-[var(--danger-tint)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-90"
                       onClick={(event) => {
                         event.stopPropagation();
                         onDeleteProject(project);
                       }}
                     >
-                      <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
+                      <Trash2 className="h-4 w-4 text-danger" />
                     </button>
 
                     <button
-                      className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 active:scale-90 dark:border-primary/30 dark:bg-primary/20"
+                      className="flex h-8 w-8 items-center justify-center rounded-ctl border border-primary/20 bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-90"
                       onClick={(event) => {
                         event.stopPropagation();
                         onStartEditingProject(project);
@@ -247,7 +246,7 @@ export default function SidebarProjectItem({
                       <Edit3 className="h-4 w-4 text-primary" />
                     </button>
 
-                    <div className="flex h-6 w-6 items-center justify-center rounded-md bg-muted/30">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-ctl bg-muted/30">
                       {isExpanded ? (
                         <ChevronDown className="h-3 w-3 text-muted-foreground" />
                       ) : (
@@ -264,20 +263,20 @@ export default function SidebarProjectItem({
         <Button
           variant="ghost"
           className={cn(
-            'hidden md:flex w-full justify-between p-2 h-auto font-normal hover:bg-accent/50',
-            isSelected && 'bg-accent text-accent-foreground',
+            'hidden md:flex w-full justify-between p-2 h-auto rounded-ctl font-normal hover:bg-accent/50',
+            isSelected && 'bg-[var(--accent-tint)] text-foreground border border-[var(--accent-line)]',
             isStarred &&
               !isSelected &&
-              'bg-yellow-50/50 dark:bg-yellow-900/10 hover:bg-yellow-100/50 dark:hover:bg-yellow-900/20',
+              'bg-[var(--warning-tint)] hover:bg-[var(--warning-tint)]',
           )}
           onClick={selectAndToggleProject}
         >
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <div
               className={cn(
-                'w-6 h-6 flex items-center justify-center rounded cursor-pointer transition-all duration-200',
+                'w-6 h-6 flex items-center justify-center rounded-ctl cursor-pointer transition-colors duration-150 ease-out',
                 isStarred
-                  ? 'hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
+                  ? 'hover:bg-[var(--warning-tint)]'
                   : 'opacity-40 hover:opacity-100 hover:bg-accent',
               )}
               onClick={(event) => {
@@ -288,9 +287,9 @@ export default function SidebarProjectItem({
             >
               <Star
                 className={cn(
-                  'w-3 h-3 transition-colors',
+                  'w-3 h-3 transition-colors duration-150 ease-out',
                   isStarred
-                    ? 'text-yellow-600 dark:text-yellow-400 fill-current'
+                    ? 'text-warning fill-current'
                     : 'text-muted-foreground',
                 )}
               />
@@ -302,7 +301,7 @@ export default function SidebarProjectItem({
                     type="text"
                     value={editingName}
                     onChange={(event) => onEditingNameChange(event.target.value)}
-                    className="w-full rounded border border-border bg-background px-2 py-1 text-sm text-foreground focus:ring-2 focus:ring-primary/20"
+                    className="w-full rounded-ctl border border-border bg-background px-2 py-1 text-sm text-foreground focus:ring-2 focus:ring-primary/20"
                     placeholder={t('projects.projectNamePlaceholder')}
                     autoFocus
                     onKeyDown={(event) => {
@@ -314,7 +313,7 @@ export default function SidebarProjectItem({
                       }
                     }}
                   />
-                  <div className="truncate text-xs text-muted-foreground" title={project.fullPath}>
+                  <div className="truncate font-mono text-[10px] tracking-wide text-muted-foreground" title={project.fullPath}>
                     {project.fullPath}
                   </div>
                 </div>
@@ -323,7 +322,7 @@ export default function SidebarProjectItem({
                   <div className="truncate text-sm font-normal text-foreground" title={project.displayName}>
                     {project.displayName}
                   </div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="font-mono text-[10px] tracking-wide text-muted-foreground">
                     {sessionCountDisplay}
                     {project.fullPath !== project.displayName && (
                       <span className="ml-1 opacity-60" title={project.fullPath}>
@@ -341,7 +340,7 @@ export default function SidebarProjectItem({
             {isEditing ? (
               <>
                 <div
-                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-green-600 transition-colors hover:bg-green-50 hover:text-green-700 dark:hover:bg-green-900/20"
+                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-ctl text-success transition-colors duration-150 ease-out hover:bg-success/10"
                   onClick={(event) => {
                     event.stopPropagation();
                     saveProjectName();
@@ -350,7 +349,7 @@ export default function SidebarProjectItem({
                   <Check className="h-3 w-3" />
                 </div>
                 <div
-                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700 dark:hover:bg-gray-800"
+                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-ctl text-muted-foreground transition-colors duration-150 ease-out hover:bg-accent hover:text-foreground"
                   onClick={(event) => {
                     event.stopPropagation();
                     onCancelEditingProject();
@@ -362,7 +361,7 @@ export default function SidebarProjectItem({
             ) : (
               <>
                 <div
-                  className="touch:opacity-100 flex h-6 w-6 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-accent group-hover:opacity-100"
+                  className="touch:opacity-100 flex h-6 w-6 cursor-pointer items-center justify-center rounded-ctl opacity-0 transition-colors duration-150 ease-out hover:bg-accent group-hover:opacity-100"
                   onClick={(event) => {
                     event.stopPropagation();
                     onStartEditingProject(project);
@@ -372,19 +371,19 @@ export default function SidebarProjectItem({
                   <Edit3 className="h-3 w-3" />
                 </div>
                 <div
-                  className="touch:opacity-100 flex h-6 w-6 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-red-50 group-hover:opacity-100 dark:hover:bg-red-900/20"
+                  className="touch:opacity-100 flex h-6 w-6 cursor-pointer items-center justify-center rounded-ctl opacity-0 transition-colors duration-150 ease-out hover:bg-[var(--danger-tint)] group-hover:opacity-100"
                   onClick={(event) => {
                     event.stopPropagation();
                     onDeleteProject(project);
                   }}
                   title={t('tooltips.deleteProject')}
                 >
-                  <Trash2 className="h-3 w-3 text-red-600 dark:text-red-400" />
+                  <Trash2 className="h-3 w-3 text-danger" />
                 </div>
                 {isExpanded ? (
-                  <ChevronDown className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
+                  <ChevronDown className="h-4 w-4 text-muted-foreground transition-colors duration-150 ease-out group-hover:text-foreground" />
                 ) : (
-                  <ChevronRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
+                  <ChevronRight className="h-4 w-4 text-muted-foreground transition-colors duration-150 ease-out group-hover:text-foreground" />
                 )}
               </>
             )}

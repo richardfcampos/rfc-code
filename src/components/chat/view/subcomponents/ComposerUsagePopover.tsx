@@ -73,7 +73,7 @@ export default function ComposerUsagePopover({ activeProfileId }: { activeProfil
         ref={triggerRef}
         type="button"
         onClick={handleToggle}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border/60 bg-muted/40 text-foreground transition-colors hover:bg-muted"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-ctl border border-border bg-[var(--hover-soft)] text-muted-foreground transition-colors duration-150 ease-out hover:border-border-strong hover:bg-[var(--hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-label={ariaLabel}
@@ -101,7 +101,7 @@ export default function ComposerUsagePopover({ activeProfileId }: { activeProfil
           </div>
 
           {loadError && !hasRows && (
-            <p className="px-2.5 py-2 text-sm text-red-600 dark:text-red-400">
+            <p className="px-2.5 py-2 text-[13px] text-danger">
               {t('composer.usage.loadFailed', { defaultValue: 'Could not load plan usage.' })}
             </p>
           )}
@@ -144,23 +144,24 @@ export default function ComposerUsagePopover({ activeProfileId }: { activeProfil
                   <div
                     key={profileId}
                     className={cn(
-                      'rounded-lg border border-border/60 p-2',
-                      hasPerModelWindows && 'border-purple-400/60 bg-purple-50/60 dark:border-purple-500/40 dark:bg-purple-900/10',
+                      'rounded-ctl border border-border p-2.5',
+                      // Per-model windows are the one highlighted row — accent wash, accent line.
+                      hasPerModelWindows && 'border-[var(--accent-line)] bg-[var(--accent-tint)]',
                     )}
                   >
                     <div className="flex min-w-0 items-center gap-2">
                       <SessionProviderLogo provider={profile.provider} className="h-4 w-4 flex-shrink-0" />
-                      <span className="truncate text-sm font-medium text-foreground">{profile.name}</span>
-                      <Badge variant="outline" className="text-[10px] capitalize">{profile.provider}</Badge>
+                      <span className="truncate text-xs font-medium text-foreground">{profile.name}</span>
+                      <Badge variant="outline" className="font-mono text-[10px] capitalize tracking-wide">{profile.provider}</Badge>
                       {hasPerModelWindows && (
-                        <Badge variant="outline" className="border-purple-400/60 text-[10px] text-purple-700 dark:text-purple-300">
+                        <Badge variant="outline" className="border-[var(--accent-line)] font-mono text-[10px] tracking-wide text-primary">
                           {t('composer.usage.perModel', { defaultValue: 'Per-model' })}
                         </Badge>
                       )}
                     </div>
 
                     {(!envelope || envelope.state === 'pending') && (
-                      <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="mt-2 flex items-center gap-2 font-mono text-[11px] tracking-wide text-muted-foreground">
                         <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         {t('composer.usage.pending', { defaultValue: 'Loading…' })}
                       </div>
@@ -177,7 +178,8 @@ export default function ComposerUsagePopover({ activeProfileId }: { activeProfil
                     )}
 
                     {retryLabel && (
-                      <p className="mt-1.5 text-xs text-amber-600 dark:text-amber-400">
+                      <p className="mt-1.5 flex items-center gap-1.5 font-mono text-[10px] tracking-wide text-warning">
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning" aria-hidden />
                         {t('composer.usage.lockedUntil', { time: retryLabel, defaultValue: 'Locked until {{time}}' })}
                       </p>
                     )}

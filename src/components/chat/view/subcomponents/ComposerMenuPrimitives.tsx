@@ -24,7 +24,7 @@ export function ComposerMenuSurface({
       ref={menuRef}
       role="menu"
       aria-label={ariaLabel}
-      className="fixed z-[100] min-w-48 overflow-y-auto overscroll-contain rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-xl"
+      className="fixed z-[100] min-w-48 overflow-y-auto overscroll-contain rounded-card border border-border bg-popover p-1 text-popover-foreground shadow-[var(--shadow-pop)]"
       style={{
         right: anchor.right,
         bottom: anchor.bottom,
@@ -39,7 +39,7 @@ export function ComposerMenuSurface({
 
 export function ComposerMenuHeading({ children }: { children: ReactNode }) {
   return (
-    <p className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium text-muted-foreground">{children}</p>
+    <p className="px-2.5 pb-1 pt-1.5 font-mono text-[10px] uppercase tracking-[0.08em] text-faint">{children}</p>
   );
 }
 
@@ -73,9 +73,9 @@ export function ComposerMenuItem({
       aria-checked={role === 'menuitemradio' ? isSelected : undefined}
       onClick={onSelect}
       className={cn(
-        'flex w-full items-start gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors',
-        'hover:bg-accent focus-visible:bg-accent focus-visible:outline-none',
-        isSelected ? 'text-foreground' : 'text-foreground/90',
+        'flex w-full items-start gap-2.5 rounded-ctl px-2.5 py-1.5 text-left text-[13px] transition-colors duration-150 ease-out',
+        'hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        isSelected ? 'text-foreground' : 'text-muted-foreground',
         className,
       )}
     >
@@ -83,11 +83,11 @@ export function ComposerMenuItem({
       <span className="min-w-0 flex-1">
         <span className="block truncate leading-5">{label}</span>
         {description && (
-          <span className="mt-0.5 block text-xs leading-4 text-muted-foreground">{description}</span>
+          <span className="mt-0.5 block text-xs leading-4 text-faint">{description}</span>
         )}
       </span>
       <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
-        {trailing ?? (isSelected ? <Check className="h-3.5 w-3.5 text-foreground" /> : null)}
+        {trailing ?? (isSelected ? <Check className="h-3.5 w-3.5 text-primary" /> : null)}
       </span>
     </button>
   );
