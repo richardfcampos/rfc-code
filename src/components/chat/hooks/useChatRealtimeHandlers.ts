@@ -8,6 +8,12 @@ import type { MarkSessionIdle, MarkSessionProcessing } from '../../../hooks/useS
 import type { PendingPermissionRequest } from '../types/types';
 import type { ProjectSession, LLMProvider } from '../../../types/app';
 import type { SessionStore, NormalizedMessage } from '../../../stores/useSessionStore';
+import {
+  addPendingPermission,
+  clearPendingPermissionsForSession,
+  removePendingPermission,
+  setPendingPermissionsForSession,
+} from '../utils/pending-permission-registry';
 
 const isActionablePermissionRequest = (request: { toolName?: unknown } | null | undefined): boolean => {
   return request?.toolName !== 'ExitPlanMode' && request?.toolName !== 'exit_plan_mode';
@@ -125,17 +131,25 @@ export function useChatRealtimeHandlers({
             });
           }
 
-          const isViewedSession = sid === activeViewSessionId;
-          if (isViewedSession && Array.isArray(msg.pendingPermissions)) {
-            const nextPendingPermissionRequests = msg.pendingPermissions as PendingPermissionRequest[];
-            const hadActionablePermissionRequests = hasActionablePermissionRequests(pendingPermissionRequestsRef.current);
-            const hasPendingActionablePermissionRequests = hasActionablePermissionRequests(nextPendingPermissionRequests);
+          if (Array.isArray(msg.pendingPermissions)) {
+            // The ack is authoritative for this session: replace the registry
+            // snapshot so requests that resolved while this client was away
+            // (another device answered, run finished) don't linger.
+            const nextPendingPermissionRequests = setPendingPermissionsForSession(
+              sid,
+              msg.pendingPermissions as PendingPermissionRequest[],
+            );
 
-            pendingPermissionRequestsRef.current = nextPendingPermissionRequests;
-            setPendingPermissionRequests(nextPendingPermissionRequests);
+            if (sid === activeViewSessionId) {
+              const hadActionablePermissionRequests = hasActionablePermissionRequests(pendingPermissionRequestsRef.current);
+              const hasPendingActionablePermissionRequests = hasActionablePermissionRequests(nextPendingPermissionRequests);
 
-            if (hasPendingActionablePermissionRequests && !hadActionablePermissionRequests) {
-              void playNotificationSound();
+              pendingPermissionRequestsRef.current = nextPendingPermissionRequests;
+              setPendingPermissionRequests(nextPendingPermissionRequests);
+
+              if (hasPendingActionablePermissionRequests && !hadActionablePermissionRequests) {
+                void playNotificationSound();
+              }
             }
           }
           return;
@@ -162,6 +176,11 @@ export function useChatRealtimeHandlers({
         // Sidebar/global events — owned by useProjectsState.
         case 'session_upserted':
         case 'loading_progress':
+          return;
+
+        // Composer plan-usage popover owns this — subscribes to the websocket
+        // directly via `useProfileUsage`, independent of the viewed session.
+        case 'profile_usage':
           return;
 
         default:
@@ -237,6 +256,9 @@ export function useChatRealtimeHandlers({
           // indicator derives from the processing map, so deleting the entry
           // hides it immediately and atomically.
           onSessionIdle?.(sid);
+          if (sid) {
+            clearPendingPermissionsForSession(sid);
+          }
           if (sid === activeViewSessionId) {
             pendingPermissionRequestsRef.current = [];
             setPendingPermissionRequests([]);
@@ -269,39 +291,36 @@ export function useChatRealtimeHandlers({
         // always signalled by the unified 'complete' that follows.
 
         case 'permission_request': {
-          if (!msg.requestId) break;
+          if (!msg.requestId || !sid) break;
           if (isActionablePermissionRequest({ toolName: msg.toolName })) {
             void playNotificationSound();
           }
 
-          if (sid === activeViewSessionId) {
-            const previousPendingPermissionRequests = pendingPermissionRequestsRef.current;
-            if (!previousPendingPermissionRequests.some((request) => request.requestId === msg.requestId)) {
-              const nextPendingPermissionRequests = [...previousPendingPermissionRequests, {
-                requestId: msg.requestId as string,
-                toolName: (msg.toolName as string) || 'UnknownTool',
-                input: msg.input,
-                context: msg.context,
-                sessionId: sid || null,
-                receivedAt: new Date(),
-              }];
+          const nextPendingPermissionRequests = addPendingPermission(sid, {
+            requestId: msg.requestId as string,
+            toolName: (msg.toolName as string) || 'UnknownTool',
+            input: msg.input,
+            context: msg.context,
+            sessionId: sid,
+            receivedAt: new Date(),
+          });
 
-              pendingPermissionRequestsRef.current = nextPendingPermissionRequests;
-              setPendingPermissionRequests(nextPendingPermissionRequests);
-            }
+          if (sid === activeViewSessionId) {
+            pendingPermissionRequestsRef.current = nextPendingPermissionRequests;
+            setPendingPermissionRequests(nextPendingPermissionRequests);
+          } else {
+            console.info(`[Permission] Request ${msg.requestId} (${msg.toolName}) queued for background session ${sid}`);
           }
-          if (sid) {
-            onSessionProcessing?.(sid);
-          }
+          onSessionProcessing?.(sid);
           break;
         }
 
         case 'permission_cancelled': {
-          if (msg.requestId && sid === activeViewSessionId) {
-            const nextPendingPermissionRequests = pendingPermissionRequestsRef.current.filter(
-              (request: PendingPermissionRequest) => request.requestId !== msg.requestId,
-            );
+          if (!msg.requestId || !sid) break;
 
+          const nextPendingPermissionRequests = removePendingPermission(sid, msg.requestId as string);
+
+          if (sid === activeViewSessionId) {
             pendingPermissionRequestsRef.current = nextPendingPermissionRequests;
             setPendingPermissionRequests(nextPendingPermissionRequests);
           }

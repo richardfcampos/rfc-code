@@ -47,7 +47,10 @@ const pendingToolApprovals = new Map();
 // emit a second one when its generator winds down.
 const abortedSessionIds = new Set();
 
-const TOOL_APPROVAL_TIMEOUT_MS = parseInt(process.env.CLAUDE_TOOL_APPROVAL_TIMEOUT_MS, 10) || 55000;
+// Human-scale deadline: the operator may be paged by the notify-hub webhook
+// and take minutes to reach a device. The SDK imposes no deadline of its own
+// on canUseTool, so the only cost of waiting is a paused run.
+const TOOL_APPROVAL_TIMEOUT_MS = parseInt(process.env.CLAUDE_TOOL_APPROVAL_TIMEOUT_MS, 10) || 900000;
 
 const TOOLS_REQUIRING_INTERACTION = new Set(['AskUserQuestion', 'ExitPlanMode']);
 
@@ -96,6 +99,7 @@ function waitForToolApproval(requestId, options = {}) {
     // timeoutMs 0 = wait indefinitely (interactive tools)
     if (timeoutMs > 0) {
       timeout = setTimeout(() => {
+        console.warn(`[Permission] Request ${requestId} (${metadata?._toolName || 'unknown tool'}, session ${metadata?._sessionId || 'unknown'}) timed out after ${timeoutMs}ms — denying`);
         onCancel?.('timeout');
         finalize(null);
       }, timeoutMs);
@@ -617,6 +621,7 @@ async function queryClaudeSDK(command, options = {}, ws) {
         }
       });
 
+      console.log(`[Permission] Awaiting approval for ${toolName} (request ${requestId}, session ${capturedSessionId || sessionId || 'unknown'})`);
       ws.send(createNormalizedMessage({ kind: 'permission_request', requestId, toolName, input, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
 
       // A writer that answered inside `send` already cleared its own entry, and
