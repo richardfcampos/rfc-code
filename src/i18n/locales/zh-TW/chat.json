@@ -259,6 +259,16 @@
     "loadingModels": "正在載入模型…",
     "modelMenu": "選擇模型與推理強度",
     "worktree": "工作樹",
-    "worktreeHint": "在獨立的 git 工作樹中執行此工作階段"
+    "worktreeHint": "在獨立的 git 工作樹中執行此工作階段",
+    "usage": {
+      "button": "方案用量",
+      "title": "方案用量",
+      "refresh": "重新整理",
+      "empty": "尚無含用量資料的設定檔。",
+      "pending": "載入中…",
+      "lockedUntil": "鎖定至 {{time}}",
+      "loadFailed": "無法載入方案用量。",
+      "perModel": "依模型"
+    }
   }
 }

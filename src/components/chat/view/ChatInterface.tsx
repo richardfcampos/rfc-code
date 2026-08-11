@@ -12,6 +12,7 @@ import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '../hooks/useChatComposerState';
 import { subscribeToChatSessionSeed } from '../utils/sessionSeed';
+import { getPendingPermissionsForSession } from '../utils/pending-permission-registry';
 import { useSessionStore } from '../../../stores/useSessionStore';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
@@ -202,6 +203,8 @@ function ChatInterface({
     renderInputWithMentions,
     selectFile,
     attachedImages,
+    attachedFiles,
+    setAttachedFiles,
     setAttachedImages,
     uploadingImages,
     imageErrors,
@@ -279,6 +282,19 @@ function ChatInterface({
     setStoredProviderEffort(seed.provider, seed.effort);
     setInput(seed.content);
   }), [selectProviderModel, setInput, setProvider, setStoredProviderEffort]);
+
+  // On session switch, seed the composer's permission banner from the
+  // per-session registry immediately — a request that arrived while another
+  // session was on screen shows up without waiting a network round-trip. The
+  // `chat.subscribe` ack that follows reconciles against the server.
+  const viewedSessionIdForPermissions = selectedSession?.id || currentSessionId || null;
+  useEffect(() => {
+    setPendingPermissionRequests(
+      viewedSessionIdForPermissions
+        ? getPendingPermissionsForSession(viewedSessionIdForPermissions)
+        : [],
+    );
+  }, [viewedSessionIdForPermissions, setPendingPermissionRequests]);
 
   // On WebSocket reconnect, re-fetch the current session's messages from the
   // server so missed streaming events are shown, then re-subscribe — the
@@ -470,6 +486,7 @@ function ChatInterface({
           availableModelOptions={currentProviderModelOptions}
           onSelectModel={handleSelectComposerModel}
           modelsLoading={providerModelsLoading}
+          activeProfileId={selectedProfileId}
           canUseWorktree={Boolean(selectedProject) && !selectedSession && !currentSessionId}
           worktreeEnabled={worktreeEnabled}
           onToggleWorktree={handleToggleWorktree}
@@ -487,6 +504,12 @@ function ChatInterface({
           attachedImages={attachedImages}
           onRemoveImage={(index) =>
             setAttachedImages((previous) =>
+              previous.filter((_, currentIndex) => currentIndex !== index),
+            )
+          }
+          attachedFiles={attachedFiles}
+          onRemoveFile={(index) =>
+            setAttachedFiles((previous) =>
               previous.filter((_, currentIndex) => currentIndex !== index),
             )
           }

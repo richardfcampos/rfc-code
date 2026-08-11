@@ -223,6 +223,16 @@
     "loadingModels": "Caricamento modelli…",
     "modelMenu": "Seleziona modello e livello di ragionamento",
     "worktree": "Worktree",
-    "worktreeHint": "Esegui questa sessione in un worktree git dedicato"
+    "worktreeHint": "Esegui questa sessione in un worktree git dedicato",
+    "usage": {
+      "button": "Utilizzo piano",
+      "title": "Utilizzo piano",
+      "refresh": "Aggiorna",
+      "empty": "Nessun profilo con dati di utilizzo ancora disponibili.",
+      "pending": "Caricamento…",
+      "lockedUntil": "Bloccato fino a {{time}}",
+      "loadFailed": "Impossibile caricare l'utilizzo del piano.",
+      "perModel": "Per modello"
+    }
   }
 }

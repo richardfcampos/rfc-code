@@ -223,6 +223,16 @@
     "loadingModels": "Modeller yükleniyor…",
     "modelMenu": "Model ve akıl yürütme düzeyini seç",
     "worktree": "Worktree",
-    "worktreeHint": "Bu oturumu kendi git worktree'sinde çalıştır"
+    "worktreeHint": "Bu oturumu kendi git worktree'sinde çalıştır",
+    "usage": {
+      "button": "Plan kullanımı",
+      "title": "Plan kullanımı",
+      "refresh": "Yenile",
+      "empty": "Henüz kullanım verisi olan profil yok.",
+      "pending": "Yükleniyor…",
+      "lockedUntil": "{{time}} tarihine kadar kilitli",
+      "loadFailed": "Plan kullanımı yüklenemedi.",
+      "perModel": "Modele göre"
+    }
   }
 }

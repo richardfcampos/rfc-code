@@ -32,10 +32,12 @@ import {
 import CommandMenu from './CommandMenu';
 import ActivityIndicator from './ActivityIndicator';
 import ImageAttachment from './ImageAttachment';
+import FileAttachment from './FileAttachment';
 import VoiceInputButton from './VoiceInputButton';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
 import TokenUsageSummary from './TokenUsageSummary';
 import ComposerModelMenu from './ComposerModelMenu';
+import ComposerUsagePopover from './ComposerUsagePopover';
 import QueuedMessageCard from './QueuedMessageCard';
 
 interface MentionableFile {
@@ -72,6 +74,8 @@ interface ChatComposerProps {
   availableModelOptions: ProviderModelOption[];
   onSelectModel: (model: string) => void;
   modelsLoading: boolean;
+  /** Profile behind the active session/provider — passed through to the plan-usage popover. */
+  activeProfileId: string | null;
   /** False once a session exists — its working directory is already fixed. */
   canUseWorktree: boolean;
   worktreeEnabled: boolean;
@@ -89,6 +93,8 @@ interface ChatComposerProps {
   onDeleteQueuedDraft: () => void;
   attachedImages: File[];
   onRemoveImage: (index: number) => void;
+  attachedFiles: File[];
+  onRemoveFile: (index: number) => void;
   uploadingImages: Map<string, number>;
   imageErrors: Map<string, string>;
   showFileDropdown: boolean;
@@ -138,6 +144,7 @@ export default function ChatComposer({
   availableModelOptions,
   onSelectModel,
   modelsLoading,
+  activeProfileId,
   canUseWorktree,
   worktreeEnabled,
   onToggleWorktree,
@@ -154,6 +161,8 @@ export default function ChatComposer({
   onDeleteQueuedDraft,
   attachedImages,
   onRemoveImage,
+  attachedFiles,
+  onRemoveFile,
   uploadingImages,
   imageErrors,
   showFileDropdown,
@@ -266,7 +275,7 @@ export default function ChatComposer({
       {queuedDraft && (
         <QueuedMessageCard
           content={queuedDraft.content}
-          imageCount={queuedDraft.images.length}
+          attachmentCount={queuedDraft.images.length + queuedDraft.files.length}
           onEdit={onEditQueuedDraft}
           onDelete={onDeleteQueuedDraft}
         />
@@ -330,21 +339,29 @@ export default function ChatComposer({
                     d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                   />
                 </svg>
-                <p className="text-sm font-medium">Drop images here</p>
+                <p className="text-sm font-medium">Drop files here</p>
               </div>
             </div>
           )}
 
-          {attachedImages.length > 0 && (
+          {(attachedImages.length > 0 || attachedFiles.length > 0) && (
             <PromptInputHeader>
               <div className="rounded-xl bg-muted/40 p-2">
                 <div className="flex flex-wrap gap-2">
                   {attachedImages.map((file, index) => (
                     <ImageAttachment
-                      key={index}
+                      key={`image-${index}`}
                       file={file}
                       onRemove={() => onRemoveImage(index)}
                       uploadProgress={uploadingImages.get(file.name)}
+                      error={imageErrors.get(file.name)}
+                    />
+                  ))}
+                  {attachedFiles.map((file, index) => (
+                    <FileAttachment
+                      key={`file-${index}`}
+                      file={file}
+                      onRemove={() => onRemoveFile(index)}
                       error={imageErrors.get(file.name)}
                     />
                   ))}
@@ -381,7 +398,7 @@ export default function ChatComposer({
         <PromptInputFooter>
           <PromptInputTools>
             <PromptInputButton
-              tooltip={{ content: t('input.attachImages') }}
+              tooltip={{ content: t('input.attachFiles') }}
               onClick={openImagePicker}
             >
               <ImageIcon />
@@ -462,6 +479,8 @@ export default function ChatComposer({
               onSelectModel={onSelectModel}
               modelsLoading={modelsLoading}
             />
+
+            <ComposerUsagePopover activeProfileId={activeProfileId} />
 
             <TokenUsageSummary usage={tokenBudget} onClick={onShowTokenUsage} />
 

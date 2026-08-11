@@ -223,6 +223,16 @@
     "loadingModels": "Modelle werden geladen…",
     "modelMenu": "Modell und Denkaufwand auswählen",
     "worktree": "Worktree",
-    "worktreeHint": "Diese Sitzung in einem eigenen Git-Worktree ausführen"
+    "worktreeHint": "Diese Sitzung in einem eigenen Git-Worktree ausführen",
+    "usage": {
+      "button": "Kontingent",
+      "title": "Kontingentnutzung",
+      "refresh": "Aktualisieren",
+      "empty": "Noch keine Profile mit Nutzungsdaten.",
+      "pending": "Wird geladen…",
+      "lockedUntil": "Gesperrt bis {{time}}",
+      "loadFailed": "Kontingentnutzung konnte nicht geladen werden.",
+      "perModel": "Pro Modell"
+    }
   }
 }

@@ -1,0 +1,43 @@
+import { FileTextIcon } from 'lucide-react';
+
+interface FileAttachmentProps {
+  file: File;
+  onRemove: () => void;
+  error?: string;
+}
+
+const formatFileSize = (bytes: number): string => {
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+};
+
+const FileAttachment = ({ file, onRemove, error }: FileAttachmentProps) => {
+  return (
+    <div className="group relative flex h-20 w-40 flex-col justify-between overflow-hidden rounded-xl border border-border/50 bg-card p-2.5 shadow-sm">
+      <div className="flex items-start gap-2">
+        <FileTextIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+        <span className="line-clamp-2 break-all text-xs font-medium leading-snug text-foreground" title={file.name}>
+          {file.name}
+        </span>
+      </div>
+      <span className="text-[10px] text-muted-foreground">
+        {error ?? formatFileSize(file.size)}
+      </span>
+      {error && <div className="absolute inset-0 rounded-xl border border-destructive/60" />}
+      <button
+        type="button"
+        onClick={onRemove}
+        className="absolute -right-1.5 -top-1.5 rounded-full border border-border/40 bg-background/90 p-1 text-foreground shadow-sm backdrop-blur transition-opacity hover:bg-background focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+        aria-label="Remove file"
+      >
+        <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  );
+};
+
+export default FileAttachment;

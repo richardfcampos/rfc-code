@@ -223,6 +223,16 @@
     "loadingModels": "正在加载模型…",
     "modelMenu": "选择模型和推理强度",
     "worktree": "工作树",
-    "worktreeHint": "在独立的 git 工作树中运行此会话"
+    "worktreeHint": "在独立的 git 工作树中运行此会话",
+    "usage": {
+      "button": "套餐用量",
+      "title": "套餐用量",
+      "refresh": "刷新",
+      "empty": "暂无带用量数据的配置文件。",
+      "pending": "加载中…",
+      "lockedUntil": "锁定至 {{time}}",
+      "loadFailed": "无法加载套餐用量。",
+      "perModel": "按模型"
+    }
   }
 }

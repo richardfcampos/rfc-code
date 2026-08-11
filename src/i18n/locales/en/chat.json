@@ -248,6 +248,16 @@
     "loadingModels": "Loading models…",
     "modelMenu": "Select model and reasoning effort",
     "worktree": "Worktree",
-    "worktreeHint": "Run this session in its own git worktree"
+    "worktreeHint": "Run this session in its own git worktree",
+    "usage": {
+      "button": "Plan usage",
+      "title": "Plan usage",
+      "refresh": "Refresh",
+      "empty": "No profiles with usage data yet.",
+      "pending": "Loading…",
+      "lockedUntil": "Locked until {{time}}",
+      "loadFailed": "Could not load plan usage.",
+      "perModel": "Per-model"
+    }
   }
 }

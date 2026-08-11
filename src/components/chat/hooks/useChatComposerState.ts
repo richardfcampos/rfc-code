@@ -14,6 +14,7 @@ import { useDropzone } from 'react-dropzone';
 import { authenticatedFetch } from '../../../utils/api';
 import type { MarkSessionProcessing } from '../../../hooks/useSessionProtection';
 import { grantClaudeToolPermission } from '../utils/chatPermissions';
+import { removePendingPermission } from '../utils/pending-permission-registry';
 import {
   clearQueuedMessage,
   readQueuedMessage,
@@ -170,6 +171,7 @@ const createFakeSubmitEvent = () => {
 export type QueuedDraft = {
   content: string;
   images: File[];
+  files: File[];
   /**
    * Send options snapshotted at queue time. Persisted with the draft so the
    * app-level auto-send can dispatch the message with the right model and
@@ -180,8 +182,8 @@ export type QueuedDraft = {
 
 const restoreQueuedDraft = (sessionKey: string): QueuedDraft | null => {
   const saved = readQueuedMessage(sessionKey);
-  // Image attachments can't survive a reload; only text and options persist.
-  return saved ? { content: saved.content, images: [], options: saved.options } : null;
+  // Attachments can't survive a reload; only text and options persist.
+  return saved ? { content: saved.content, images: [], files: [], options: saved.options } : null;
 };
 
 const getNotificationSessionSummary = (
@@ -242,6 +244,7 @@ export function useChatComposerState({
     return '';
   });
   const [attachedImages, setAttachedImages] = useState<File[]>([]);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const [uploadingImages, setUploadingImages] = useState<Map<string, number>>(new Map());
   const [imageErrors, setImageErrors] = useState<Map<string, string>>(new Map());
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
@@ -572,6 +575,34 @@ export function useChatComposerState({
     }
   }, []);
 
+  // Dropzone/picker entry point: images keep their dedicated pipeline (sent
+  // to the model as image blocks), everything else is stored server-side and
+  // referenced by path in the message text for the agent to read from disk.
+  const handleAttachmentFiles = useCallback((files: File[]) => {
+    const imageFiles = files.filter((file) => file?.type?.startsWith('image/'));
+    const genericFiles = files.filter((file) => file && !file.type?.startsWith('image/'));
+
+    if (imageFiles.length > 0) {
+      handleImageFiles(imageFiles);
+    }
+
+    const validGenericFiles = genericFiles.filter((file) => {
+      if (!file.size || file.size > 20 * 1024 * 1024) {
+        setImageErrors((previous) => {
+          const next = new Map(previous);
+          next.set(file.name || 'Unknown file', 'File too large (max 20MB)');
+          return next;
+        });
+        return false;
+      }
+      return true;
+    });
+
+    if (validGenericFiles.length > 0) {
+      setAttachedFiles((previous) => [...previous, ...validGenericFiles].slice(0, 5));
+    }
+  }, [handleImageFiles]);
+
   const handlePaste = useCallback(
     (event: ClipboardEvent<HTMLTextAreaElement>) => {
       const items = Array.from(event.clipboardData.items);
@@ -587,23 +618,16 @@ export function useChatComposerState({
       });
 
       if (items.length === 0 && event.clipboardData.files.length > 0) {
-        const files = Array.from(event.clipboardData.files);
-        const imageFiles = files.filter((file) => file.type.startsWith('image/'));
-        if (imageFiles.length > 0) {
-          handleImageFiles(imageFiles);
-        }
+        handleAttachmentFiles(Array.from(event.clipboardData.files));
       }
     },
-    [handleImageFiles],
+    [handleImageFiles, handleAttachmentFiles],
   );
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
-    accept: {
-      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'],
-    },
-    maxSize: 5 * 1024 * 1024,
+    maxSize: 20 * 1024 * 1024,
     maxFiles: 5,
-    onDrop: handleImageFiles,
+    onDrop: handleAttachmentFiles,
     noClick: true,
     noKeyboard: true,
   });
@@ -686,11 +710,13 @@ export function useChatComposerState({
         setQueuedDraft({
           content: currentInput,
           images: attachedImages,
+          files: attachedFiles,
           options: buildSendOptions(currentInput),
         });
         setInput('');
         inputValueRef.current = '';
         setAttachedImages([]);
+        setAttachedFiles([]);
         setUploadingImages(new Map());
         setImageErrors(new Map());
         resetCommandMenuState();
@@ -727,6 +753,7 @@ export function useChatComposerState({
           setInput('');
           inputValueRef.current = '';
           setAttachedImages([]);
+          setAttachedFiles([]);
           setUploadingImages(new Map());
           setImageErrors(new Map());
           resetCommandMenuState();
@@ -816,6 +843,46 @@ export function useChatComposerState({
         }
       }
 
+      // Generic attachments: store them server-side, then reference them by
+      // absolute path in the message text — every provider agent reads files
+      // from disk with its own tools, so no per-provider transport is needed.
+      let contentToSend = messageContent;
+      if (attachedFiles.length > 0) {
+        const formData = new FormData();
+        attachedFiles.forEach((file) => {
+          formData.append('files', file);
+        });
+
+        try {
+          const response = await authenticatedFetch('/api/assets/files', {
+            method: 'POST',
+            headers: {},
+            body: formData,
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to upload files');
+          }
+
+          const result = await response.json();
+          const storedFiles = (result.files ?? []) as Array<{ name: string; path: string }>;
+          if (storedFiles.length > 0) {
+            contentToSend += `\n\n[Attached files]\n${storedFiles
+              .map((file) => `- ${file.name}: ${file.path}`)
+              .join('\n')}`;
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          console.error('File upload failed:', error);
+          addMessage({
+            type: 'error',
+            content: `Failed to upload files: ${message}`,
+            timestamp: new Date(),
+          });
+          return;
+        }
+      }
+
       const resolvedProjectPath = selectedProject.fullPath || selectedProject.path || '';
       const sessionSummary = getNotificationSessionSummary(selectedSession, currentInput);
 
@@ -872,7 +939,7 @@ export function useChatComposerState({
 
       const userMessage: ChatMessage = {
         type: 'user',
-        content: currentInput,
+        content: contentToSend,
         images: uploadedImages as any,
         timestamp: new Date(),
       };
@@ -895,7 +962,7 @@ export function useChatComposerState({
       sendMessage({
         type: 'chat.send',
         sessionId: targetSessionId,
-        content: messageContent,
+        content: contentToSend,
         options: {
           ...buildSendOptions(messageContent),
           images: uploadedImages,
@@ -906,6 +973,7 @@ export function useChatComposerState({
       inputValueRef.current = '';
       resetCommandMenuState();
       setAttachedImages([]);
+      setAttachedFiles([]);
       setUploadingImages(new Map());
       setImageErrors(new Map());
       setIsTextareaExpanded(false);
@@ -919,6 +987,7 @@ export function useChatComposerState({
     [
       selectedSession,
       attachedImages,
+      attachedFiles,
       buildSendOptions,
       currentSessionId,
       executeCommand,
@@ -982,6 +1051,7 @@ export function useChatComposerState({
       setInput(queuedDraft.content);
       inputValueRef.current = queuedDraft.content;
       setAttachedImages(queuedDraft.images);
+      setAttachedFiles(queuedDraft.files);
       setTimeout(() => {
         handleSubmitRef.current?.(createFakeSubmitEvent());
       }, 0);
@@ -997,6 +1067,7 @@ export function useChatComposerState({
     setInput(queuedDraft.content);
     inputValueRef.current = queuedDraft.content;
     setAttachedImages(queuedDraft.images);
+    setAttachedFiles(queuedDraft.files);
     textareaRef.current?.focus();
   }, [queuedDraft]);
 
@@ -1230,9 +1301,19 @@ export function useChatComposerState({
         });
       });
 
-      setPendingPermissionRequests((previous) =>
-        previous.filter((request) => !validIds.includes(request.requestId)),
-      );
+      setPendingPermissionRequests((previous) => {
+        // Mirror the removal into the per-session registry so an answered
+        // request doesn't resurface when the user switches away and back
+        // before the server ack reconciles.
+        previous
+          .filter((request) => validIds.includes(request.requestId))
+          .forEach((request) => {
+            if (request.sessionId) {
+              removePendingPermission(request.sessionId, request.requestId);
+            }
+          });
+        return previous.filter((request) => !validIds.includes(request.requestId));
+      });
     },
     [sendMessage, setPendingPermissionRequests],
   );
@@ -1269,6 +1350,8 @@ export function useChatComposerState({
     selectFile,
     attachedImages,
     setAttachedImages,
+    attachedFiles,
+    setAttachedFiles,
     uploadingImages,
     imageErrors,
     getRootProps,

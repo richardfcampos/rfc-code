@@ -43,6 +43,18 @@ const upload = multer({
   },
 });
 
+// Generic attachments are only ever stored and read back from disk by the
+// provider agents (never sent to a model API as inline content), so any mime
+// type is acceptable; the serving route forces download to keep stored HTML
+// or SVG from executing in the app origin.
+const genericUpload = multer({
+  storage,
+  limits: {
+    fileSize: 20 * 1024 * 1024, // 20MB
+    files: 5,
+  },
+});
+
 /**
  * Stores chat image attachments in the global `~/.cloudcli/assets` folder and
  * returns their absolute paths for use in provider prompts and chat history.
@@ -60,6 +72,56 @@ router.post('/images', (req, res) => {
     }
 
     res.json({ images: buildStoredImageRecords(files) });
+  });
+});
+
+/**
+ * Stores generic (non-image) chat attachments in the same global assets
+ * folder and returns their absolute paths. The composer appends these paths
+ * to the message text so the provider agent reads them from disk.
+ */
+router.post('/files', (req, res) => {
+  genericUpload.array('files', 5)(req, res, (err: unknown) => {
+    if (err) {
+      const message = err instanceof Error ? err.message : 'Upload failed';
+      return res.status(400).json({ error: message });
+    }
+
+    const files = Array.isArray(req.files) ? req.files : [];
+    if (files.length === 0) {
+      return res.status(400).json({ error: 'No files provided' });
+    }
+
+    res.json({ files: buildStoredImageRecords(files) });
+  });
+});
+
+/**
+ * Serves one stored generic attachment by filename, always as a download —
+ * a stored HTML/SVG file rendered inline would execute in the app origin.
+ */
+router.get('/files/:filename', async (req, res) => {
+  const resolved = resolveImageAssetFile(req.params.filename);
+  if (!resolved) {
+    return res.status(400).json({ error: 'Invalid asset filename' });
+  }
+
+  try {
+    await fs.access(resolved);
+  } catch {
+    return res.status(404).json({ error: 'Asset not found' });
+  }
+
+  res.setHeader('Content-Type', mime.lookup(resolved) || 'application/octet-stream');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Disposition', 'attachment');
+  const fileStream = fsSync.createReadStream(resolved);
+  fileStream.pipe(res);
+  fileStream.on('error', (error) => {
+    console.error('Error streaming file asset:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Error reading asset' });
+    }
   });
 });
 

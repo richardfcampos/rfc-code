@@ -225,6 +225,16 @@
     "loadingModels": "Chargement des modèles…",
     "modelMenu": "Sélectionner le modèle et l'effort de raisonnement",
     "worktree": "Worktree",
-    "worktreeHint": "Lancer cette session dans son propre worktree git"
+    "worktreeHint": "Lancer cette session dans son propre worktree git",
+    "usage": {
+      "button": "Utilisation du forfait",
+      "title": "Utilisation du forfait",
+      "refresh": "Actualiser",
+      "empty": "Aucun profil avec des données d'utilisation pour l'instant.",
+      "pending": "Chargement…",
+      "lockedUntil": "Verrouillé jusqu'à {{time}}",
+      "loadFailed": "Impossible de charger l'utilisation du forfait.",
+      "perModel": "Par modèle"
+    }
   }
 }
