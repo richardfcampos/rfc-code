@@ -30,6 +30,10 @@ const NEGATIVE_CACHE_DEFAULT_MS = 15_000;
 const MAX_CONCURRENT_FETCHES = 4;
 const RENDER_DEADLINE_MS = 5_000;
 const FORCE_THROTTLE_MS = 5_000;
+// Cooldowns are ultimately derived from an external Retry-After header;
+// clamp again at the point of use as a second line of defense against a
+// value large enough to overflow `Date`.
+const MAX_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 /** Providers with a real plan-usage source; the only ones `getAllUsage` fans out to. */
 const BATCH_PROVIDERS: readonly LLMProvider[] = ['claude', 'codex'];
@@ -132,9 +136,12 @@ function writeCache(profileId: string, snapshot: ProfileUsageSnapshot, nowMs: nu
   if (snapshot.status === 'unavailable') {
     // `!supported` already returned above, so this is a genuine claude/codex
     // failure — back off before hitting the source again.
+    // A zero (or otherwise falsy) retryAfterMs is treated the same as "the
+    // source didn't say" — falling through to the default cooldown instead
+    // of disabling backoff entirely.
     const cooldownMs =
-      snapshot.reason === 'rate_limited' && snapshot.retryAfterMs !== undefined
-        ? snapshot.retryAfterMs
+      snapshot.reason === 'rate_limited' && snapshot.retryAfterMs
+        ? Math.min(snapshot.retryAfterMs, MAX_COOLDOWN_MS)
         : NEGATIVE_CACHE_DEFAULT_MS;
     negativeCache.set(profileId, { snapshot, cooldownUntil: nowMs + cooldownMs });
   }
@@ -171,9 +178,13 @@ function dedupedFetch(
   })();
 
   inflight.set(profileId, promise);
-  void promise.finally(() => {
+  // `.finally` returns a new promise that rejects right along with `promise`
+  // when it rejects; that second promise has no consumer of its own, so it
+  // needs its own catch to avoid an unhandled rejection independent of
+  // whatever the caller of `dedupedFetch` does with the original.
+  promise.finally(() => {
     inflight.delete(profileId);
-  });
+  }).catch(() => {});
   return promise;
 }
 
@@ -313,21 +324,31 @@ export const profileUsageService = {
         ]).then((settledBeforeDeadline) => {
           if (!settledBeforeDeadline) {
             // Deadline won — report the answer out-of-band whenever it lands.
-            void fetchPromise.then((envelope) => {
-              try {
-                lateResultListener?.(envelope);
-              } catch (error) {
-                console.error('[profile-usage] late-result listener threw:', error);
-              }
-            });
+            // `fetchPromise` has no other consumer on this branch, so a
+            // rejection here would otherwise be unhandled and take the
+            // process down with it.
+            void fetchPromise
+              .then((envelope) => {
+                try {
+                  lateResultListener?.(envelope);
+                } catch (error) {
+                  console.error('[profile-usage] late-result listener threw:', error);
+                }
+              })
+              .catch((error) => {
+                console.error('[profile-usage] late fetch failed:', error);
+              });
           }
         }),
       );
     }
 
-    await Promise.all(pending);
-    if (deadlineTimer) {
-      clearTimeout(deadlineTimer);
+    try {
+      await Promise.all(pending);
+    } finally {
+      if (deadlineTimer) {
+        clearTimeout(deadlineTimer);
+      }
     }
 
     return envelopes;

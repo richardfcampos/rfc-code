@@ -385,6 +385,75 @@ test('claude 500 maps to unavailable with reason server', async () => {
   });
 });
 
+test('claude 429 with an absurdly large numeric Retry-After clamps retryAfterMs instead of overflowing', async () => {
+  await withProfilesEnvironment(async (profilesRoot) => {
+    const profile = profilesService.createProfile({ provider: 'claude', name: 'Main' });
+    writeClaudeCredentials(profilesRoot, profile.slug, Date.now() + 3_600_000);
+    const profileDir = path.join(profilesRoot, 'claude', profile.slug);
+
+    const usage = await fetchClaudeUsage(profileDir, {
+      fetchImpl: () => jsonResponseWithHeaders(429, {}, { 'retry-after': '99999999999999' }),
+    });
+
+    assert.equal(usage.status, 'unavailable');
+    assert.equal(usage.reason, 'rate_limited');
+    assert.equal(usage.retryAfterMs, 24 * 60 * 60 * 1000);
+    assert.doesNotThrow(() => new Date(Date.now() + (usage.retryAfterMs ?? 0)).toISOString());
+  });
+});
+
+test('claude 429 with an absurd Retry-After HTTP-date clamps retryAfterMs instead of overflowing', async () => {
+  await withProfilesEnvironment(async (profilesRoot) => {
+    const profile = profilesService.createProfile({ provider: 'claude', name: 'Main' });
+    writeClaudeCredentials(profilesRoot, profile.slug, Date.now() + 3_600_000);
+    const profileDir = path.join(profilesRoot, 'claude', profile.slug);
+
+    const fixedNow = new Date('2026-08-10T00:00:00.000Z');
+
+    const usage = await fetchClaudeUsage(profileDir, {
+      fetchImpl: () => jsonResponseWithHeaders(429, {}, { 'retry-after': 'Fri, 01 Jan 2286 00:00:00 GMT' }),
+      now: () => fixedNow,
+    });
+
+    assert.equal(usage.status, 'unavailable');
+    assert.equal(usage.reason, 'rate_limited');
+    assert.equal(usage.retryAfterMs, 24 * 60 * 60 * 1000);
+  });
+});
+
+test('a profile whose token keeps getting rejected throttles repeat attempts to one upstream round trip per 5s', async () => {
+  await withProfilesEnvironment(async (profilesRoot) => {
+    const profile = profilesService.createProfile({ provider: 'claude', name: 'Main' });
+    writeClaudeCredentials(profilesRoot, profile.slug, Date.now() + 3_600_000);
+    const profileDir = path.join(profilesRoot, 'claude', profile.slug);
+
+    let clock = Date.now();
+    const now = () => new Date(clock);
+    let calls = 0;
+    const rejectingFetch: FetchLike = (url) => {
+      calls += 1;
+      if (url.includes('/oauth/token')) {
+        return jsonResponse(400, { error: 'invalid_grant' });
+      }
+      return jsonResponse(401, {});
+    };
+
+    const first = await fetchClaudeUsage(profileDir, { fetchImpl: rejectingFetch, now });
+    assert.equal(first.status, 'unauthenticated');
+    const callsAfterFirstAttempt = calls;
+    assert.ok(callsAfterFirstAttempt > 0, 'the first attempt must reach the network');
+
+    const second = await fetchClaudeUsage(profileDir, { fetchImpl: rejectingFetch, now });
+    assert.equal(second.status, 'unauthenticated');
+    assert.equal(calls, callsAfterFirstAttempt, 'a second attempt within 5s must not hit the network again');
+
+    clock += 5_000;
+    const third = await fetchClaudeUsage(profileDir, { fetchImpl: rejectingFetch, now });
+    assert.equal(third.status, 'unauthenticated');
+    assert.ok(calls > callsAfterFirstAttempt, 'past the throttle window, a new attempt should hit the network again');
+  });
+});
+
 test('claude fetch rejection maps to unavailable with reason network', async () => {
   await withProfilesEnvironment(async (profilesRoot) => {
     const profile = profilesService.createProfile({ provider: 'claude', name: 'Main' });

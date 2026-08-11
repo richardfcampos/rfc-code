@@ -381,6 +381,152 @@ test('force skips fetching during a rate_limited lockout but returns the retryAt
   });
 });
 
+test('an absurd Retry-After clamps the negative-cache cooldown and getAllUsage resolves without throwing', async () => {
+  await withProfilesEnvironment(async (profilesRoot) => {
+    const profile = profilesService.createProfile({ provider: 'claude', name: 'Main' });
+    writeClaudeCredentials(profilesRoot, profile.slug, Date.now() + 3_600_000);
+
+    const clock = Date.now();
+    const now = () => new Date(clock);
+    const fetchImpl: FetchLike = () =>
+      jsonResponseWithHeaders(429, {}, { 'retry-after': '99999999999999' });
+
+    const [envelope] = await profileUsageService.getAllUsage({ fetchImpl, now });
+
+    assert.equal(envelope?.snapshot?.status, 'unavailable');
+    assert.equal(envelope?.snapshot?.reason, 'rate_limited');
+    assert.equal(envelope?.snapshot?.retryAfterMs, 24 * 60 * 60 * 1000);
+    assert.equal(envelope?.retryAt, new Date(clock + 24 * 60 * 60 * 1000).toISOString());
+  });
+});
+
+test('a huge Retry-After on a fetch that misses the render deadline resolves cleanly with no unhandled rejection', async (t) => {
+  await withProfilesEnvironment(async (profilesRoot) => {
+    const profile = profilesService.createProfile({ provider: 'claude', name: 'Slow' });
+    writeClaudeCredentials(profilesRoot, profile.slug, Date.now() + 3_600_000);
+
+    const unhandledRejections: unknown[] = [];
+    const onUnhandledRejection = (reason: unknown) => {
+      unhandledRejections.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandledRejection);
+
+    const pending: { release: (() => void) | null } = { release: null };
+    const fetchImpl: FetchLike = () =>
+      new Promise((resolve) => {
+        pending.release = () =>
+          resolve({
+            ok: false,
+            status: 429,
+            json: () => Promise.resolve({}),
+            headers: {
+              get: (name: string) => (name.toLowerCase() === 'retry-after' ? '99999999999999' : null),
+            },
+          });
+      });
+
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    try {
+      const resultPromise = profileUsageService.getAllUsage({ fetchImpl });
+      t.mock.timers.tick(5_000);
+
+      const envelopes = await resultPromise;
+      assert.equal(envelopes[0]?.state, 'pending');
+
+      let lateEnvelope: ProfileUsageEnvelope | null = null;
+      profileUsageService.setLateResultListener((envelope) => {
+        lateEnvelope = envelope;
+      });
+
+      assert.ok(pending.release, 'fetch should still be pending in the background');
+      pending.release();
+      await flush();
+      await flush();
+      await flush();
+
+      assert.ok(lateEnvelope, 'the late-result listener should fire once the fetch resolves');
+      const settled = lateEnvelope as unknown as ProfileUsageEnvelope;
+      assert.equal(settled.snapshot?.status, 'unavailable');
+      assert.equal(settled.snapshot?.reason, 'rate_limited');
+      assert.equal(settled.snapshot?.retryAfterMs, 24 * 60 * 60 * 1000);
+      assert.doesNotThrow(() => new Date(settled.retryAt as string).toISOString());
+    } finally {
+      profileUsageService.setLateResultListener(null);
+      t.mock.timers.reset();
+      process.off('unhandledRejection', onUnhandledRejection);
+    }
+
+    assert.deepEqual(
+      unhandledRejections,
+      [],
+      'delivering a late result must never raise an unhandled rejection',
+    );
+  });
+});
+
+test('Retry-After: 0 does not disable backoff and falls back to the default cooldown', async () => {
+  await withProfilesEnvironment(async (profilesRoot) => {
+    const profile = profilesService.createProfile({ provider: 'claude', name: 'Main' });
+    writeClaudeCredentials(profilesRoot, profile.slug, Date.now() + 3_600_000);
+
+    let clock = Date.now();
+    const now = () => new Date(clock);
+    let calls = 0;
+    const rateLimitedFetch: FetchLike = () => {
+      calls += 1;
+      return jsonResponseWithHeaders(429, {}, { 'retry-after': '0' });
+    };
+
+    let [envelope] = await profileUsageService.getAllUsage({ fetchImpl: rateLimitedFetch, now });
+    assert.equal(envelope?.snapshot?.reason, 'rate_limited');
+    assert.equal(envelope?.snapshot?.retryAfterMs, 0);
+    assert.equal(
+      envelope?.retryAt,
+      new Date(clock + 15_000).toISOString(),
+      'a falsy retryAfterMs must fall back to the default cooldown, not skip it',
+    );
+    assert.equal(calls, 1);
+
+    clock += 14_000;
+    [envelope] = await profileUsageService.getAllUsage({ fetchImpl: rateLimitedFetch, now });
+    assert.equal(calls, 1, 'still within the fallback 15s cooldown');
+
+    clock += 2_000; // 16s elapsed
+    const successFetch: FetchLike = () => jsonResponse(200, USAGE_BODY);
+    [envelope] = await profileUsageService.getAllUsage({ fetchImpl: successFetch, now });
+    assert.equal(envelope?.snapshot?.status, 'ok');
+  });
+});
+
+test('a rejected-token profile is throttled to one upstream attempt across two quick getAllUsage calls', async () => {
+  await withProfilesEnvironment(async (profilesRoot) => {
+    const profile = profilesService.createProfile({ provider: 'claude', name: 'Main' });
+    writeClaudeCredentials(profilesRoot, profile.slug, Date.now() + 3_600_000);
+
+    let calls = 0;
+    const rejectingFetch: FetchLike = (url) => {
+      calls += 1;
+      if (url.includes('/oauth/token')) {
+        return jsonResponse(400, { error: 'invalid_grant' });
+      }
+      return jsonResponse(401, {});
+    };
+
+    const first = await profileUsageService.getAllUsage({ fetchImpl: rejectingFetch });
+    assert.equal(first[0]?.snapshot?.status, 'unauthenticated');
+    const callsAfterFirst = calls;
+    assert.ok(callsAfterFirst > 0);
+
+    const second = await profileUsageService.getAllUsage({ fetchImpl: rejectingFetch });
+    assert.equal(second[0]?.snapshot?.status, 'unauthenticated');
+    assert.equal(
+      calls,
+      callsAfterFirst,
+      'the second call landed inside the 5s attempt throttle and must not hit the network again',
+    );
+  });
+});
+
 test('force fetches outside of a rate_limited lockout and throttles to one fetch per 5s', async () => {
   await withProfilesEnvironment(async (profilesRoot) => {
     const profile = profilesService.createProfile({ provider: 'claude', name: 'Main' });

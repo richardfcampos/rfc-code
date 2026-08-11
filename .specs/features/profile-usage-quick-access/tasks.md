@@ -31,7 +31,7 @@
 - **Done when**: critérios de spec PUQ-01..06, 08, 09; typecheck verde
 - **Tests**: unit service (concorrência, teto, deadline, negative cache, force)
 - **Requisitos**: PUQ-01..06, PUQ-08, PUQ-09
-- **Status**: pending
+- **Status**: done (commit da5d3fe; listener tardio = `profileUsageService.setLateResultListener`; testes em profile-usage-batch.test.ts)
 
 ## T4 — Rota batch + broadcast WS
 
@@ -42,7 +42,7 @@
 - **Done when**: rota devolve envelope imediato; fetch tardio emite evento; typecheck verde
 - **Tests**: route test (envelope, ordem de registro), broadcast chamado em conclusão tardia
 - **Requisitos**: PUQ-04, PUQ-10, PUQ-11
-- **Status**: pending
+- **Status**: done — rota `/usage` antes de `/:id/usage`; `profile-usage-broadcast.ts`; wiring `setLateResultListener` em profiles.routes.ts:24; teste de rota estabilizado (fixture sem credenciais corria contra deadline)
 
 ## T5 — Frontend: componente puro + popover + demux
 
@@ -53,7 +53,9 @@
 - **Done when**: popover funcional com cached/pending/tardio; Settings inalterado visualmente; typecheck+lint verdes
 - **Tests**: build + smoke manual (gate T7)
 - **Requisitos**: PUQ-12, PUQ-14..18
-- **Status**: partial — extração (PUQ-15) done: `ProfileUsageMeterBody.tsx` puro (props `snapshot`/`provider` + `isLoading`/`failed`/`onRefresh` passivos); resto pendente de T4
+- **Status**: done — Body puro (da5d3fe) + `ComposerUsagePopover` + `useProfileUsage` (fetch+WS, descarte por `fetchedAt`) + demux em useChatRealtimeHandlers (useProjectsState já no-op correto, não tocado) + i18n 10 locales. Desvio aceito: botão montado em `ChatComposer.tsx` (onde o ComposerModelMenu vive). Limitação PUQ-16: destaque por linha+badge, não por janela (Body não expõe styling por janela)
+
+> Pós-review: fila 1–6 do review Opus aplicada (clamp Retry-After 24h + catch nas cadeias tardias/dedupe, AbortSignal removido do refresh POST, throttle de tentativa p/ unauthenticated no fetcher, pending não sobrescreve snapshot exibido + guarda de sequência, try/finally no timer, piso no cooldown, broadcast por-cliente). Pendências pós-ship aceitas: m2 (getUsage single ignora negative cache — porta lateral de baixo volume no Settings).
 
 ## T6 — Testes server
 
@@ -62,19 +64,19 @@
 - **Depends on**: T3, T4
 - **Done when**: todos os casos da tabela de testes cobertos e verdes
 - **Requisitos**: cobertura PUQ-01..11, 13
-- **Status**: pending
+- **Status**: done — batch/route/broadcast + 8 regressões do review (clamp overflow, rejection tardia, Retry-After 0, throttle de tentativa, cliente que lança)
 
 ## T7 — Gate
 
 - **What**: `npm test`, typecheck, lint, build — tudo verde; smoke manual popover (2 Claude + 1 Codex)
 - **Depends on**: T5, T6
-- **Status**: pending
+- **Status**: done — typecheck 0, testes 466/466, lint 0 issues nos arquivos da feature, build ok. Smoke manual do popover pendente com o usuário
 
 ## T8 — Review
 
 - **What**: code review adversarial do diff completo (segurança do broadcast, corrida de token refresh, regressão Settings)
 - **Depends on**: T7
-- **Status**: pending
+- **Status**: done — veredito inicial NO-SHIP (2 critical, 4 major, 6 minor, PoCs executados); fila 1–6 corrigida + m4/m5/m6; re-gate verde. Restante pós-ship: m2
 
 ## Ordem
 

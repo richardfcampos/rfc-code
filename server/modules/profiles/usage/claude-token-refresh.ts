@@ -21,7 +21,6 @@ const TOKEN_URLS = [
   'https://platform.claude.com/v1/oauth/token',
   'https://console.anthropic.com/v1/oauth/token',
 ];
-const REQUEST_TIMEOUT_MS = 10_000;
 
 export interface RefreshedCredentials {
   accessToken: string;
@@ -61,6 +60,9 @@ export async function refreshClaudeCredentials(
   for (const url of TOKEN_URLS) {
     let response: Awaited<ReturnType<FetchLike>>;
     try {
+      // No abort signal here: the server may already have rotated the token
+      // pair by the time it responds, and aborting mid-flight would lose that
+      // new pair for good — dead credentials for this app and the CLI alike.
       response = await fetchImpl(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -69,7 +71,6 @@ export async function refreshClaudeCredentials(
           refresh_token: refreshToken,
           client_id: CLIENT_ID,
         }),
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
     } catch {
       continue;
@@ -107,8 +108,11 @@ export async function refreshClaudeCredentials(
         mode: 0o600,
       });
       fs.renameSync(tmpPath, credentialPath);
-    } catch {
-      // Persisting failed (read-only fs?) — still usable for this request.
+    } catch (error) {
+      // Persisting failed (read-only fs?) — still usable for this request,
+      // but a rotated refresh token that never hit disk is a silent
+      // credential loss worth surfacing.
+      console.error('[profile-usage] failed to persist refreshed credentials:', error);
     }
     return { accessToken: payload.access_token };
   }

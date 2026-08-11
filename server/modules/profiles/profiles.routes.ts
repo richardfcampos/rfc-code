@@ -14,8 +14,14 @@ import {
   profilesService,
 } from '@/modules/profiles/profiles.service.js';
 import { handoffService } from '@/modules/profiles/handoff.service.js';
+import { broadcastProfileUsage } from '@/modules/profiles/usage/profile-usage-broadcast.js';
 import { profileUsageService } from '@/modules/profiles/usage/profile-usage.service.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
+
+// Single registration point for late (post-deadline) usage results: this
+// module is imported once by the app (module cache), so this runs exactly
+// once regardless of how many times the router is mounted.
+profileUsageService.setLateResultListener(broadcastProfileUsage);
 
 const router = express.Router();
 
@@ -70,6 +76,25 @@ router.get(
     const id = parseProfileId(req.params.id);
     const status = profilesService.getAuthStatus(id);
     res.json(createApiSuccessResponse({ status }));
+  }),
+);
+
+// GET /api/profiles/usage[?force=1][?active=<profileId>]
+// Batch plan-usage snapshot across every supported profile, for the composer
+// popover. Registered before `/:id/usage` below — Express would otherwise
+// match "usage" as `:id`. Never 500s on a single profile's failure: the
+// service degrades per-profile and returns an `unavailable`/`pending` entry
+// instead.
+router.get(
+  '/usage',
+  asyncHandler(async (req: Request, res: Response) => {
+    const force = req.query.force === '1' || req.query.force === 'true';
+    const rawActive = req.query.active;
+    const activeProfileId =
+      typeof rawActive === 'string' && rawActive.trim().length > 0 ? rawActive.trim() : undefined;
+
+    const usage = await profileUsageService.getAllUsage({ force, activeProfileId });
+    res.json(createApiSuccessResponse({ usage }));
   }),
 );
 

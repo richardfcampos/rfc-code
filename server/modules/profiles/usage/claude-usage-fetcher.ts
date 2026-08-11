@@ -24,6 +24,14 @@ const USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 // rate-limited bucket and 429s persistently (anthropics/claude-code#31021).
 const USER_AGENT = 'claude-code/1.0.0';
 const REQUEST_TIMEOUT_MS = 10_000;
+// Retry-After is attacker/server-controlled input; without a ceiling a huge
+// value overflows `Date` (max ~8.64e15ms) and crashes the caller.
+const MAX_RETRY_AFTER_MS = 24 * 60 * 60 * 1000;
+// A rejected token still costs a GET plus up to two refresh POSTs per
+// attempt — throttle repeat attempts for the same profile the same way a
+// cached failure would be, since `unauthenticated` is deliberately never
+// cached as a result.
+const UNAUTHENTICATED_ATTEMPT_THROTTLE_MS = 5_000;
 
 /** Known window keys mapped to short labels; unknown keys keep their id. */
 const WINDOW_LABELS: Record<string, string> = {
@@ -61,14 +69,22 @@ function parseRetryAfterMs(headerValue: string | null | undefined, now: Date): n
   const trimmed = headerValue.trim();
   if (/^\d+$/.test(trimmed)) {
     const seconds = Number(trimmed);
-    return Number.isFinite(seconds) ? Math.max(0, seconds * 1000) : undefined;
+    return Number.isFinite(seconds)
+      ? Math.min(MAX_RETRY_AFTER_MS, Math.max(0, seconds * 1000))
+      : undefined;
   }
   const parsedDate = Date.parse(trimmed);
   if (Number.isNaN(parsedDate)) {
     return undefined;
   }
-  return Math.max(0, parsedDate - now.getTime());
+  return Math.min(MAX_RETRY_AFTER_MS, Math.max(0, parsedDate - now.getTime()));
 }
+
+/** Per-profile-dir memory of the last rejected attempt; see `UNAUTHENTICATED_ATTEMPT_THROTTLE_MS`. */
+const lastUnauthenticatedAttempt = new Map<
+  string,
+  { attemptAt: number; snapshot: ProfileUsageSnapshot }
+>();
 
 function readCredentials(profileDir: string): ClaudeCredentials | null {
   try {
@@ -140,8 +156,22 @@ export async function fetchClaudeUsage(
 
   const credentials = readCredentials(profileDir);
   if (!credentials) {
+    // No credentials file at all costs nothing to re-check — never throttled.
     return { ...base, status: 'unauthenticated' };
   }
+
+  // Credentials exist, so any further "unauthenticated" outcome below costs a
+  // real upstream round trip. A recently-rejected profile is held here
+  // instead of repeating those calls on every render.
+  const throttled = lastUnauthenticatedAttempt.get(profileDir);
+  if (throttled && now().getTime() - throttled.attemptAt < UNAUTHENTICATED_ATTEMPT_THROTTLE_MS) {
+    return throttled.snapshot;
+  }
+  const rejectAttempt = (): ProfileUsageSnapshot => {
+    const snapshot: ProfileUsageSnapshot = { ...base, status: 'unauthenticated' };
+    lastUnauthenticatedAttempt.set(profileDir, { attemptAt: now().getTime(), snapshot });
+    return snapshot;
+  };
 
   // An expired access token is normal for a profile that has not run a session
   // recently — refresh it like the CLI would instead of demanding a re-login.
@@ -150,7 +180,7 @@ export async function fetchClaudeUsage(
   if (credentials.expiresAt !== null && credentials.expiresAt <= now().getTime()) {
     const renewed = await refreshClaudeCredentials(profileDir, options);
     if (!renewed) {
-      return { ...base, status: 'unauthenticated' };
+      return rejectAttempt();
     }
     accessToken = renewed.accessToken;
     refreshed = true;
@@ -174,13 +204,13 @@ export async function fetchClaudeUsage(
     if ((response.status === 401 || response.status === 403) && !refreshed) {
       const renewed = await refreshClaudeCredentials(profileDir, options);
       if (!renewed) {
-        return { ...base, status: 'unauthenticated' };
+        return rejectAttempt();
       }
       response = await requestUsage(renewed.accessToken);
     }
 
     if (response.status === 401 || response.status === 403) {
-      return { ...base, status: 'unauthenticated' };
+      return rejectAttempt();
     }
     if (!response.ok) {
       const reason = classifyUnavailableReason(response.status);
@@ -191,6 +221,8 @@ export async function fetchClaudeUsage(
       return { ...base, status: 'unavailable', reason, retryAfterMs };
     }
 
+    // A successful attempt clears any earlier throttle entry for this profile.
+    lastUnauthenticatedAttempt.delete(profileDir);
     const payload = (await response.json()) as Record<string, unknown>;
     if (!payload || typeof payload !== 'object') {
       return { ...base, status: 'unavailable' };
