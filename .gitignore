@@ -170,3 +170,6 @@ skills/*/bin/gstack-global-discover
 skills/**/node_modules/
 skills/**/__pycache__/
 skills/**/*.pyc
+
+# Generated claude.ai/design upload bundle
+.design-sync/
