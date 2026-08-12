@@ -4,6 +4,8 @@ import type { TFunction } from 'i18next';
 import { cn } from '../../../../lib/utils';
 import type { SidebarProfileChip } from '../../hooks/useSidebarProfileChip';
 
+import BrandGlyph from './BrandGlyph';
+
 /** One rail entry: a session that is working or waiting on the user. */
 export type SidebarRailSession = {
   id: string;
@@ -29,23 +31,6 @@ type SidebarCollapsedProps = {
 
 const RAIL_BUTTON_CLASS =
   'group relative flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-ctl transition-colors duration-150 ease-out hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
-
-function TerminalGlyph({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2.2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
 
 /**
  * Narrow icon rail: the sidebar's shape on tablet widths and whenever the user
@@ -80,7 +65,7 @@ export default function SidebarCollapsed({
         aria-label={expandLabel}
         title={expandLabel}
       >
-        <TerminalGlyph className="h-3.5 w-3.5 text-primary-foreground" />
+        <BrandGlyph className="h-3.5 w-3.5 text-primary-foreground" />
       </button>
 
       <div className="rail-sep nav-divider my-1 w-6" />
@@ -103,7 +88,7 @@ export default function SidebarCollapsed({
             aria-label={session.title}
             title={session.title}
           >
-            <TerminalGlyph
+            <BrandGlyph
               className={cn(
                 'h-3.5 w-3.5 transition-colors duration-150 ease-out',
                 session.isSelected ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
