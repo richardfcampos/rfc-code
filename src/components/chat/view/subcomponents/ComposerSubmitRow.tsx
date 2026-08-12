@@ -31,11 +31,15 @@ export default function ComposerSubmitRow({
   onStopRecordingAndSend,
 }: ComposerSubmitRowProps) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex min-w-0 shrink-0 items-center gap-2">
+      {/* The hint is the first thing to give up room: it truncates, and its
+          max width keeps a long localized string from squeezing the chip row
+          into an overlap. */}
       <div
-        className={`hidden whitespace-nowrap text-[11px] text-faint transition-opacity duration-150 ease-out lg:block ${
+        className={`hidden max-w-[22rem] truncate text-[11px] text-faint transition-opacity duration-150 ease-out lg:block ${
           hasText && !canQueueDraft ? 'opacity-0' : 'opacity-100'
         }`}
+        title={submitHint}
       >
         {submitHint}
       </div>

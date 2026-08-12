@@ -4,6 +4,7 @@ import * as React from 'react';
 import { SendHorizonalIcon, SquareIcon } from 'lucide-react';
 
 import { cn } from '../../../lib/utils';
+
 import { Button } from './Button';
 import Tooltip from './Tooltip';
 
@@ -130,7 +131,12 @@ export const PromptInputTools = React.forwardRef<
   <div
     ref={ref}
     data-slot="prompt-input-tools"
-    className={cn('flex min-w-0 items-center gap-1', className)}
+    // The chip row is the flexible half of the footer. Chips keep their size
+    // and the row scrolls when the composer is too narrow for all of them —
+    // without this the row overflows and rides over the send controls, and
+    // clipping instead of scrolling would put the mode and model pickers out
+    // of reach.
+    className={cn('flex min-w-0 flex-1 items-center gap-1 overflow-x-auto', className)}
     {...props}
   />
 ));
