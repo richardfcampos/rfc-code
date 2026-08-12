@@ -4,7 +4,6 @@ import type { TFunction } from 'i18next';
 import { CLOUDCLI_WORDMARK_FONT_FAMILY } from '../../../../constants/branding';
 import { IS_PLATFORM } from '../../../../constants/config';
 
-import GitHubStarBadge from './GitHubStarBadge';
 import BrandGlyph from './BrandGlyph';
 
 type SidebarHeaderProps = {
@@ -56,10 +55,6 @@ export default function SidebarHeader({ isPWA, isMobile, onCollapseSidebar, t }:
         >
           <PanelLeftClose className="h-3.5 w-3.5" />
         </button>
-      </div>
-
-      <div className="hidden px-3 pb-2 empty:hidden md:block">
-        <GitHubStarBadge />
       </div>
 
       <div className="nav-divider" />
