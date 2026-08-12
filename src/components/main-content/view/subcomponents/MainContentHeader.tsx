@@ -1,8 +1,12 @@
-import { useCallback, useRef, useState, useEffect } from 'react';
 import type { MainContentHeaderProps } from '../../types/types';
+
 import MobileMenuButton from './MobileMenuButton';
-import MainContentTabSwitcher from './MainContentTabSwitcher';
+import MainContentTabBar from './MainContentTabBar';
 import MainContentTitle from './MainContentTitle';
+import HeaderSessionIdentity from './HeaderSessionIdentity';
+import HeaderWorktreeChip from './HeaderWorktreeChip';
+import HeaderThemeToggle from './HeaderThemeToggle';
+import HeaderOverflowMenu from './HeaderOverflowMenu';
 
 export default function MainContentHeader({
   activeTab,
@@ -14,60 +18,64 @@ export default function MainContentHeader({
   isMobile,
   onMenuClick,
 }: MainContentHeaderProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-
-  const updateScrollState = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    setCanScrollLeft(el.scrollLeft > 2);
-    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 2);
-  }, []);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    updateScrollState();
-    const observer = new ResizeObserver(updateScrollState);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [updateScrollState]);
-
   return (
     <div className="pwa-header-safe flex-shrink-0 border-b border-border/60 bg-background px-3 py-1.5 sm:px-4 sm:py-2">
       <div className="flex items-center justify-between gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           {isMobile && <MobileMenuButton onMenuClick={onMenuClick} />}
-          <MainContentTitle
+
+          {/* Below 640px there's no room for the tab labels next to a title,
+              so the session/tab title takes the row and the tabs move to
+              their own icon-only row underneath. */}
+          <div className="min-w-0 flex-1 sm:hidden">
+            <MainContentTitle
+              activeTab={activeTab}
+              selectedProject={selectedProject}
+              selectedSession={selectedSession}
+              shouldShowTasksTab={shouldShowTasksTab}
+            />
+          </div>
+
+          {/* 640px and up: no title — tabs sit at the header's left edge. The
+              hamburger still shows in the 640–767px band (`isMobile` is a JS
+              <768 check while `sm:` is CSS ≥640), so that band reads as
+              hamburger + tabs + the right cluster, with the session's account
+              controls moved there rather than lost with the title. */}
+          <MainContentTabBar
             activeTab={activeTab}
-            selectedProject={selectedProject}
-            selectedSession={selectedSession}
+            setActiveTab={setActiveTab}
             shouldShowTasksTab={shouldShowTasksTab}
+            shouldShowBrowserTab={shouldShowBrowserTab}
+            className="hidden sm:block sm:flex-shrink-0"
           />
         </div>
 
-        <div className="relative min-w-0 flex-shrink overflow-hidden sm:flex-shrink-0">
-          {canScrollLeft && (
-            <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-background to-transparent" />
-          )}
-          <div
-            ref={scrollRef}
-            onScroll={updateScrollState}
-            className="scrollbar-hide overflow-x-auto"
-          >
-            <MainContentTabSwitcher
-              activeTab={activeTab}
-              setActiveTab={setActiveTab}
-              shouldShowTasksTab={shouldShowTasksTab}
-              shouldShowBrowserTab={shouldShowBrowserTab}
-            />
-          </div>
-          {canScrollRight && (
-            <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-background to-transparent" />
-          )}
+        <div className="flex flex-shrink-0 items-center gap-1.5">
+          {/* Session provider/profile/account-switch controls. Below 640px they
+              render inside MainContentTitle instead — the `sm:` split keeps
+              exactly one mount per breakpoint. */}
+          <HeaderSessionIdentity
+            activeTab={activeTab}
+            selectedSession={selectedSession}
+            className="hidden sm:flex"
+          />
+
+          {/* Worktree chip and theme toggle need room next to the tab bar;
+              below `lg` they drop and the toggle is still reachable from the
+              overflow menu. */}
+          <HeaderWorktreeChip selectedSession={selectedSession} className="hidden lg:inline-flex" />
+          <HeaderThemeToggle className="hidden lg:inline-flex" />
+          <HeaderOverflowMenu />
         </div>
       </div>
+
+      <MainContentTabBar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        shouldShowTasksTab={shouldShowTasksTab}
+        shouldShowBrowserTab={shouldShowBrowserTab}
+        className="mt-1.5 sm:hidden"
+      />
     </div>
   );
 }

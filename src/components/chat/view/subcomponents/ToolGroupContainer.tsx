@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react';
-import { ChevronRight } from 'lucide-react';
+import { useMemo } from 'react';
+import { Code2 } from 'lucide-react';
 
 import type { ChatMessage, ClaudePermissionSuggestion, PermissionGrantResult, Provider } from '../../types/types';
 import type { Project } from '../../../../types/app';
 import type { ToolGroupItem } from '../../utils/toolGrouping';
-import { getToolConfig } from '../../tools';
-
-import MessageComponent from './MessageComponent';
+// Row/detail live outside the tools barrel on purpose — the barrel is what
+// ToolRenderer consumes, and importing them through it would cycle.
+import { ToolCallRow } from '../../tools/components/ToolCallRow';
+import { formatToolDuration, getToolRunElapsedMs } from '../../tools/utils/tool-duration';
 
 type DiffLine = {
   type: string;
@@ -28,119 +29,54 @@ interface ToolGroupContainerProps {
   provider: Provider | string;
 }
 
-function parseToolInput(toolInput: unknown): unknown {
-  if (typeof toolInput !== 'string') {
-    return toolInput;
-  }
-
-  try {
-    return JSON.parse(toolInput);
-  } catch {
-    return toolInput;
-  }
-}
-
-function getToolInputPreview(message: ChatMessage): string {
-  const config = getToolConfig(message.toolName || 'UnknownTool').input;
-  const parsedInput = parseToolInput(message.toolInput);
-  const title = typeof config.title === 'function' ? config.title(parsedInput) : config.title;
-  const value = config.getValue?.(parsedInput);
-
-  return String(value || title || message.displayText || message.content || '').trim();
-}
-
-function getToolGroupIcon(icon: string | undefined, toolName: string): string {
-  if (icon === 'terminal') {
-    return '$';
-  }
-
-  return icon || toolName.slice(0, 1).toUpperCase();
-}
-
+/**
+ * A consecutive run of tool calls rendered as one bordered card: a header
+ * stating how many calls it holds plus the run's elapsed wall time, then one
+ * row per call. The total is the span from the first call's start to the last
+ * result — never a sum of per-call latencies, which would multiply a batch of
+ * parallel calls — and it is omitted entirely unless every call in the run
+ * carries both timestamps.
+ */
 export default function ToolGroupContainer({
   group,
-  prevMessage,
   createDiff,
   getMessageKey,
   onFileOpen,
-  onShowSettings,
-  onGrantToolPermission,
   showRawParameters,
-  showThinking,
   selectedProject,
-  provider,
 }: ToolGroupContainerProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const config = getToolConfig(group.toolName).input;
-  const label = config.label || group.toolName;
-  const borderClass = config.colorScheme?.border || 'border-border';
-  const iconClass = config.colorScheme?.icon || 'text-muted-foreground';
-  const icon = getToolGroupIcon(config.icon, group.toolName);
+  const elapsedMs = useMemo(() => getToolRunElapsedMs(group.messages), [group.messages]);
 
-  const preview = useMemo(() => {
-    const visiblePreviews = group.messages
-      .slice(0, 2)
-      .map(getToolInputPreview)
-      .filter(Boolean);
-
-    const extraCount = group.messages.length - visiblePreviews.length;
-    const previewText = visiblePreviews.join(', ');
-
-    if (!previewText) {
-      return extraCount > 0 ? `+${extraCount} more` : '';
-    }
-
-    return extraCount > 0 ? `${previewText}, +${extraCount} more` : previewText;
-  }, [group.messages]);
+  const callCount = group.messages.length;
 
   return (
     <div className="chat-message tool px-3 sm:px-0" data-message-timestamp={group.timestamp || undefined}>
-      {/* Collapsed state is one mono summary line: chevron, tool mark, name,
-          run count, then the truncated argument — the card only opens on demand. */}
-      <button
-        type="button"
-        className={`group flex w-full items-center gap-2 border-l-2 ${borderClass} rounded-r-card bg-card px-3 py-2 text-left transition-colors duration-150 ease-out hover:bg-[var(--hover-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring`}
-        onClick={() => setIsExpanded((current) => !current)}
-        aria-expanded={isExpanded}
-      >
-        <ChevronRight
-          className={`h-3.5 w-3.5 flex-shrink-0 text-faint transition-transform duration-150 ease-out ${isExpanded ? 'rotate-90' : ''}`}
-          aria-hidden
-        />
-        <span className={`${iconClass} flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-ctl bg-[var(--hover)] font-mono text-[10px] font-medium`}>
-          {icon}
-        </span>
-        <span className="min-w-0 flex-shrink-0 font-mono text-[11px] font-medium tracking-wide text-foreground">{label}</span>
-        <span className="flex-shrink-0 rounded-ctl bg-[var(--hover)] px-1.5 py-0.5 font-mono text-[10px] tracking-wide text-muted-foreground">
-          x{group.messages.length}
-        </span>
-        {preview && (
-          <>
-            <span className="font-mono text-[10px] text-faint">/</span>
-            <span className="min-w-0 truncate font-mono text-[11px] tracking-wide text-muted-foreground">{preview}</span>
-          </>
-        )}
-      </button>
+      <div className="overflow-hidden rounded-card border border-border bg-card">
+        <div className="flex items-center gap-2 border-b border-border px-3 py-1.5">
+          <Code2 className="h-3.5 w-3.5 flex-shrink-0 text-faint" aria-hidden />
+          <span className="font-mono text-[11px] tracking-wide text-muted-foreground">
+            {callCount} {callCount === 1 ? 'tool call' : 'tool calls'}
+          </span>
+          {elapsedMs !== null && (
+            <span className="ml-auto font-mono text-[10px] tabular-nums tracking-wide text-faint">
+              {formatToolDuration(elapsedMs)}
+            </span>
+          )}
+        </div>
 
-      {isExpanded && (
-        <div className="mt-2 space-y-3 sm:space-y-4">
-          {group.messages.map((message, index) => (
-            <MessageComponent
+        <div className="divide-y divide-border">
+          {group.messages.map((message) => (
+            <ToolCallRow
               key={getMessageKey(message)}
               message={message}
-              prevMessage={index > 0 ? group.messages[index - 1] : prevMessage}
               createDiff={createDiff}
               onFileOpen={onFileOpen}
-              onShowSettings={onShowSettings}
-              onGrantToolPermission={onGrantToolPermission}
-              showRawParameters={showRawParameters}
-              showThinking={showThinking}
               selectedProject={selectedProject}
-              provider={provider}
+              showRawParameters={showRawParameters}
             />
           ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -4,7 +4,6 @@ export const TOOL_GROUP_THRESHOLD = 2;
 
 export interface ToolGroupItem {
   _isGroup: true;
-  toolName: string;
   messages: ChatMessage[];
   timestamp: ChatMessage['timestamp'];
 }
@@ -54,7 +53,12 @@ export function groupConsecutiveTools(
         continue;
       }
 
-      if (isGroupableToolMessage(candidate) && candidate.toolName === message.toolName) {
+      // Any consecutive tool calls share one card, regardless of tool name — a
+      // turn's work reads as a single unit ("4 tool calls"), and each row names
+      // its own tool. The group carries no tool name of its own: a mixed run
+      // has no single one, and anything derived from the first call would
+      // mislabel the rest.
+      if (isGroupableToolMessage(candidate)) {
         run.push(candidate);
         nextIndex += 1;
         continue;
@@ -66,7 +70,6 @@ export function groupConsecutiveTools(
     if (run.length >= TOOL_GROUP_THRESHOLD) {
       items.push({
         _isGroup: true,
-        toolName: message.toolName,
         messages: run,
         timestamp: message.timestamp,
       });

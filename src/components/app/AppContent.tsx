@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { X } from 'lucide-react';
 
 import { subscribeToChatSessionSeed } from '../chat/utils/sessionSeed';
 import Sidebar from '../sidebar/view/Sidebar';
@@ -252,6 +253,18 @@ function AppContentInner() {
             onClick={(event) => event.stopPropagation()}
             onTouchStart={(event) => event.stopPropagation()}
           >
+            {/* The in-sidebar collapse toggle is a pointer affordance (md and
+                up); the drawer gets its own 44px close target instead. */}
+            <button
+              type="button"
+              className="absolute right-1 z-10 flex h-11 w-11 items-center justify-center rounded-ctl text-muted-foreground transition-colors duration-150 ease-out hover:bg-[var(--hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              style={{ top: 'calc(env(safe-area-inset-top, 0px) + 0.125rem)' }}
+              onClick={() => setSidebarOpen(false)}
+              aria-label={t('versionUpdate.ariaLabels.closeSidebar')}
+            >
+              <X className="h-4 w-4" />
+            </button>
+
             <Sidebar {...sidebarSharedProps} />
           </div>
         </div>

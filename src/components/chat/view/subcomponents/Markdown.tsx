@@ -157,6 +157,63 @@ const CodeBlock = ({ node, inline, className, children, ...props }: CodeBlockPro
   );
 };
 
+type OrderedListProps = {
+  children?: React.ReactNode;
+  start?: number;
+  node?: any;
+};
+
+// Zero-padded mono markers (`01`, `02`, ...) in a left gutter, replacing the
+// browser's native `1.` counter. Numbering is computed here — once, per list
+// — by walking the already-built `<li>` elements and cloning each with the
+// marker it should render; react-markdown doesn't hand the `li` renderer its
+// own index. Unordered lists never get this prop, so the shared `li`
+// component below falls back to a plain bulleted row for them.
+const OrderedList = ({ children, start, node: _node, ...rest }: OrderedListProps) => {
+  let index = typeof start === 'number' ? start : 1;
+  const items = React.Children.map(children, (child) => {
+    if (!React.isValidElement(child)) {
+      return child;
+    }
+    const marker = String(index).padStart(2, '0');
+    index += 1;
+    return React.cloneElement(child as React.ReactElement<{ 'data-ordered-marker'?: string }>, {
+      'data-ordered-marker': marker,
+    });
+  });
+
+  return (
+    <ol {...rest} className="my-2 list-none space-y-1 pl-0">
+      {items}
+    </ol>
+  );
+};
+
+type ListItemProps = {
+  children?: React.ReactNode;
+  node?: any;
+  'data-ordered-marker'?: string;
+};
+
+const ListItem = ({ children, node: _node, 'data-ordered-marker': marker, ...rest }: ListItemProps) => {
+  if (marker) {
+    return (
+      <li {...rest} className="flex gap-3">
+        <span className="w-6 flex-shrink-0 text-right font-mono text-[11px] tabular-nums leading-[1.65] text-muted-foreground">
+          {marker}
+        </span>
+        <div className="min-w-0 flex-1">{children}</div>
+      </li>
+    );
+  }
+
+  return (
+    <li {...rest} className="ml-5 list-disc pl-1 marker:text-muted-foreground">
+      {children}
+    </li>
+  );
+};
+
 const markdownComponents = {
   code: CodeBlock,
   // CodeBlock renders its own syntax-highlighted <pre>; this passthrough stops
@@ -169,6 +226,8 @@ const markdownComponents = {
     </blockquote>
   ),
   p: ({ children }: { children?: React.ReactNode }) => <div className="mb-2 last:mb-0">{children}</div>,
+  ol: OrderedList,
+  li: ListItem,
   table: ({ children }: { children?: React.ReactNode }) => (
     <div className="my-2 overflow-x-auto">
       <table className="min-w-full border-collapse border border-border">{children}</table>

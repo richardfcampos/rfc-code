@@ -15,9 +15,11 @@ import { Reasoning, ReasoningTrigger, ReasoningContent } from '../../../../share
 
 import ChatMessageImages from './ChatMessageImages';
 import CollapsibleUserContent from './CollapsibleUserContent';
+import { formatClockTime } from './formatClockTime';
 import { Markdown } from './Markdown';
 import MessageCopyControl from './MessageCopyControl';
 import MessageSpeakControl from './MessageSpeakControl';
+import SpeakerLine from './SpeakerLine';
 
 type DiffLine = {
   type: string;
@@ -73,6 +75,9 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
 
 
   const formattedTime = useMemo(() => new Date(message.timestamp).toLocaleTimeString(), [message.timestamp]);
+  // Speaker-line time uses the mono 24h clock format (e.g. `14:29`) rather
+  // than the locale-formatted `formattedTime` used in the footer below.
+  const speakerTime = useMemo(() => formatClockTime(message.timestamp), [message.timestamp]);
   const shouldHideThinkingMessage = Boolean(message.isThinking && !showThinking);
 
   if (shouldHideThinkingMessage) {
@@ -146,20 +151,26 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
                   <SessionProviderLogo provider={provider} className="h-full w-full" />
                 </div>
               )}
-              {/* Speaker line is metadata, not prose — mono, 11px, like the export's turn head. */}
-              <div className="font-mono text-[11px] font-medium tracking-wide text-foreground">
-                {message.type === 'error'
-                  ? t('messageTypes.error')
-                  : message.type === 'tool'
-                    ? t('messageTypes.tool')
-                    : (provider === 'cursor'
-                        ? t('messageTypes.cursor')
-                        : provider === 'codex'
-                          ? t('messageTypes.codex')
-                          : provider === 'opencode'
-                              ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
-                              : t('messageTypes.claude'))}
-              </div>
+              {/* Speaker line is metadata, not prose — mono, like the export's turn head.
+                  Model and permission-mode segments aren't shown here: no per-turn
+                  model/mode data reaches this component today, and faking it would
+                  misrepresent turns run under a different model or mode. */}
+              <SpeakerLine
+                label={
+                  message.type === 'error'
+                    ? t('messageTypes.error')
+                    : message.type === 'tool'
+                      ? t('messageTypes.tool')
+                      : (provider === 'cursor'
+                          ? t('messageTypes.cursor')
+                          : provider === 'codex'
+                            ? t('messageTypes.codex')
+                            : provider === 'opencode'
+                                ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
+                                : t('messageTypes.claude'))
+                }
+                time={speakerTime}
+              />
             </div>
           )}
 

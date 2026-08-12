@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { memo, useCallback, useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import type { Dispatch, RefObject, SetStateAction } from 'react';
 
 import type { ChatMessage } from '../../types/types';
@@ -10,13 +10,12 @@ import type {
   LLMProvider,
   ProviderModelsDefinition,
 } from '../../../../types/app';
-import { getIntrinsicMessageKey } from '../../utils/messageKeys';
-import { groupConsecutiveTools, isToolGroupItem } from '../../utils/toolGrouping';
 
-import MessageComponent from './MessageComponent';
+import MessageTurnList from './MessageTurnList';
 import ProviderSelectionEmptyState from './ProviderSelectionEmptyState';
-import ToolGroupContainer from './ToolGroupContainer';
 import LoadAllMessagesOverlay from './LoadAllMessagesOverlay';
+import SessionDivider from './SessionDivider';
+import { formatClockTime } from './formatClockTime';
 
 interface ChatMessagesPaneProps {
   scrollContainerRef: RefObject<HTMLDivElement>;
@@ -122,45 +121,18 @@ function ChatMessagesPane({
   selectedProject,
 }: ChatMessagesPaneProps) {
   const { t } = useTranslation('chat');
-  const groupedVisibleMessages = useMemo(
-    () => groupConsecutiveTools(visibleMessages, Boolean(showThinking)),
-    [visibleMessages, showThinking],
-  );
 
-  // Stable, deterministic keys for the messages rendered this pass.
-  //
-  // `normalizedToChatMessages` rebuilds fresh ChatMessage objects on every store
-  // update, so caching keys by object identity (or via a cross-render allocation
-  // Set) minted a brand-new key for the *same* logical message on each prepend —
-  // remounting the whole list, which disconnects the scroll-restore anchor and
-  // reflows heights, jumping the viewport to the bottom. Deriving keys purely
-  // from this render's ordered messages (intrinsic key, disambiguated by
-  // occurrence index on collision) yields the same key for the same message
-  // order, so React preserves existing DOM nodes and component state on prepend.
-  const messageKeyMap = useMemo(() => {
-    const keys = new WeakMap<ChatMessage, string>();
-    const occurrences = new Map<string, number>();
-    const assign = (message: ChatMessage) => {
-      const intrinsicKey = getIntrinsicMessageKey(message) ?? 'message-generated';
-      const seen = occurrences.get(intrinsicKey) ?? 0;
-      occurrences.set(intrinsicKey, seen + 1);
-      keys.set(message, seen === 0 ? intrinsicKey : `${intrinsicKey}__${seen}`);
-    };
-    for (const item of groupedVisibleMessages) {
-      if (isToolGroupItem(item)) {
-        item.messages.forEach(assign);
-      } else {
-        assign(item);
-      }
-    }
-    return keys;
-  }, [groupedVisibleMessages]);
-
-  const getMessageKey = useCallback(
-    (message: ChatMessage) =>
-      messageKeyMap.get(message) ?? getIntrinsicMessageKey(message) ?? 'message-generated',
-    [messageKeyMap],
+  // Divider at the top of the loaded thread: time of the earliest loaded
+  // message, plus the session's total message count when known. Omitted
+  // entirely (both here and by the caller) when there's nothing loaded yet.
+  const sessionDividerTime = useMemo(
+    () => formatClockTime(chatMessages[0]?.timestamp),
+    [chatMessages],
   );
+  // The sessions endpoint always sends `messageCount: 0`, so a zero here means
+  // "unknown" — not "empty" — and must fall through to the count the thread
+  // itself reports. Same reading as the sidebar row.
+  const sessionMessageCount = selectedSession?.messageCount || totalMessages || undefined;
 
   return (
     <div
@@ -206,6 +178,10 @@ function ChatMessagesPane({
         />
       ) : (
         <>
+          {sessionDividerTime && (
+            <SessionDivider time={sessionDividerTime} messageCount={sessionMessageCount} />
+          )}
+
           {/* Loading indicator for older messages (hide when load-all is active) */}
           {isLoadingMoreMessages && !isLoadingAllMessages && !allMessagesLoaded && (
             <div className="py-3 text-center text-muted-foreground">
@@ -255,52 +231,17 @@ function ChatMessagesPane({
             </div>
           )}
 
-          {(() => {
-            let prevMessage: ChatMessage | null = null;
-
-            return groupedVisibleMessages.map((item) => {
-              if (isToolGroupItem(item)) {
-                const groupPrevMessage = prevMessage;
-                prevMessage = item.messages[item.messages.length - 1] || prevMessage;
-
-                return (
-                  <ToolGroupContainer
-                    key={`tool-group-${getMessageKey(item.messages[0])}`}
-                    group={item}
-                    prevMessage={groupPrevMessage}
-                    createDiff={createDiff}
-                    getMessageKey={getMessageKey}
-                    onFileOpen={onFileOpen}
-                    onShowSettings={onShowSettings}
-                    onGrantToolPermission={onGrantToolPermission}
-                    showRawParameters={showRawParameters}
-                    showThinking={showThinking}
-                    selectedProject={selectedProject}
-                    provider={provider}
-                  />
-                );
-              }
-
-              const messagePrevMessage = prevMessage;
-              prevMessage = item;
-
-              return (
-                <MessageComponent
-                  key={getMessageKey(item)}
-                  message={item}
-                  prevMessage={messagePrevMessage}
-                  createDiff={createDiff}
-                  onFileOpen={onFileOpen}
-                  onShowSettings={onShowSettings}
-                  onGrantToolPermission={onGrantToolPermission}
-                  showRawParameters={showRawParameters}
-                  showThinking={showThinking}
-                  selectedProject={selectedProject}
-                  provider={provider}
-                />
-              );
-            });
-          })()}
+          <MessageTurnList
+            visibleMessages={visibleMessages}
+            showThinking={showThinking}
+            createDiff={createDiff}
+            onFileOpen={onFileOpen}
+            onShowSettings={onShowSettings}
+            onGrantToolPermission={onGrantToolPermission}
+            showRawParameters={showRawParameters}
+            selectedProject={selectedProject}
+            provider={provider}
+          />
         </>
       )}
       </div>

@@ -1,9 +1,11 @@
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 import { SessionAccountSwitcher, SessionProfileBadge } from '../../../profiles';
 import type { AppTab, Project, ProjectSession } from '../../../../types/app';
 import { usePlugins } from '../../../../contexts/PluginsContext';
+import { getSessionWorktreeLabel } from '../../../sidebar/utils/utils';
 
 type MainContentTitleProps = {
   activeTab: AppTab;
@@ -48,6 +50,32 @@ function getSessionTitle(session: ProjectSession): string {
   return (session.summary as string) || 'New Session';
 }
 
+/**
+ * This title only renders below the 640px breakpoint (the header drops it
+ * entirely at wider widths — see MainContentHeader), so its second line
+ * doubles as the mobile worktree/message-count readout the desktop header
+ * carries as a separate chip. Falls back to the project name when neither
+ * value is available; never fabricates a count or branch.
+ */
+function getMobileSubtitle(session: ProjectSession, project: Project, t: TFunction): string {
+  const worktreeLabel = getSessionWorktreeLabel(session);
+  // The sessions endpoint does not count messages (it always sends 0), so a
+  // zero here means "unknown", not "empty" — printing it would be a fabricated
+  // number dressed up as data.
+  const messageCount =
+    typeof session.messageCount === 'number' && session.messageCount > 0 ? session.messageCount : null;
+
+  const parts: string[] = [];
+  if (worktreeLabel) {
+    parts.push(`wt/${worktreeLabel}`);
+  }
+  if (messageCount !== null) {
+    parts.push(`${messageCount} ${t('mainContent.msgsUnit', 'msgs')}`);
+  }
+
+  return parts.length > 0 ? parts.join(' · ') : project.displayName;
+}
+
 export default function MainContentTitle({
   activeTab,
   selectedProject,
@@ -65,6 +93,9 @@ export default function MainContentTitle({
   const showChatNewSession = activeTab === 'chat' && !selectedSession;
 
   return (
+    // The provider logo, profile badge and account switcher below are the
+    // sub-640px mount of HeaderSessionIdentity; the desktop header mounts that
+    // component in its right cluster instead. Keep the two in sync.
     <div className="scrollbar-hide flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
       {showSessionIcon && (
         <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center">
@@ -86,7 +117,9 @@ export default function MainContentTitle({
                 currentProfileId={selectedSession.profileId}
               />
             </div>
-            <div className="truncate text-[11px] leading-tight text-muted-foreground">{selectedProject.displayName}</div>
+            <div className="truncate font-mono text-[11px] leading-tight tracking-wide text-muted-foreground">
+              {getMobileSubtitle(selectedSession, selectedProject, t)}
+            </div>
           </div>
         ) : showChatNewSession ? (
           <div className="min-w-0">

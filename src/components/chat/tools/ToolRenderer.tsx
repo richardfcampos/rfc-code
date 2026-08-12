@@ -7,7 +7,7 @@ import { getToolConfig } from './configs/toolConfigs';
 import { OneLineDisplay, BashCommandDisplay, CollapsibleDisplay, ToolDiffViewer, MarkdownContent, FileListContent, TodoListContent, TaskListContent, TextContent, QuestionAnswerContent, SubagentContainer } from './components';
 import { PlanDisplay } from './components/PlanDisplay';
 import { ToolStatusBadge } from './components/ToolStatusBadge';
-import type { ToolStatus } from './components/ToolStatusBadge';
+import { deriveToolStatus } from './utils/tool-status';
 
 type DiffLine = {
   type: string;
@@ -44,26 +44,6 @@ function getToolCategory(toolName: string): string {
   if (toolName === 'exit_plan_mode' || toolName === 'ExitPlanMode') return 'plan';
   if (toolName === 'AskUserQuestion') return 'question';
   return 'default';
-}
-
-// Exact denial messages from server/claude-sdk.js — other providers can't reliably signal denial
-const CLAUDE_DENIAL_MESSAGES = [
-  'user denied tool use',
-  'tool disallowed by settings',
-  'permission request timed out',
-  'permission request cancelled',
-];
-
-function deriveToolStatus(toolResult: any): ToolStatus {
-  if (!toolResult) return 'running';
-  if (toolResult.isError) {
-    const content = String(toolResult.content || '').toLowerCase().trim();
-    if (CLAUDE_DENIAL_MESSAGES.some((msg) => content.includes(msg))) {
-      return 'denied';
-    }
-    return 'error';
-  }
-  return 'completed';
 }
 
 /**

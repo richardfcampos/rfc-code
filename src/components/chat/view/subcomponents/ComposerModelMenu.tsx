@@ -84,7 +84,7 @@ export default function ComposerModelMenu({
           updateAnchor();
           setIsOpen((current) => !current);
         }}
-        className="flex h-8 max-w-20 shrink-0 items-center gap-1 rounded-ctl border border-border bg-[var(--hover-soft)] px-2 font-mono text-[11px] font-medium tracking-wide text-foreground transition-colors duration-150 ease-out hover:border-border-strong hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:max-w-56"
+        className="flex h-11 max-w-20 shrink-0 items-center gap-1 rounded-ctl border border-border bg-[var(--hover-soft)] px-2 font-mono text-[11px] font-medium tracking-wide text-foreground transition-colors duration-150 ease-out hover:border-border-strong hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-8 sm:max-w-56"
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-label={ariaLabel}

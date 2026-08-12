@@ -164,6 +164,14 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
               content: formatToolResultContent(tr.content),
               isError: Boolean(tr.isError),
               toolUseResult: (tr as any).toolUseResult,
+              // Carried through so the tool card can show how long a call took:
+              // the elapsed time is this timestamp minus the tool_use timestamp,
+              // and most tools never report a duration of their own.
+              // Loaded history arrives with the result already attached to the
+              // tool_use (and that shape carries no timestamp), so fall back to
+              // the standalone tool_result message, which does.
+              timestamp: (tr as { timestamp?: string | number | Date }).timestamp
+                ?? (msg.toolId ? toolResultMap.get(msg.toolId)?.timestamp : undefined),
             }
           : null;
 

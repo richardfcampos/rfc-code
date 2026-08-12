@@ -127,8 +127,9 @@ MyTool: {
     getValue: (input) => input.some_field,
     action: 'open-file',
     colorScheme: {
-      primary: 'text-purple-600 dark:text-purple-400',
-      border: 'border-purple-400 dark:border-purple-500'
+      primary: 'text-foreground',
+      secondary: 'text-muted-foreground',
+      border: 'border-border'
     }
   },
   result: {

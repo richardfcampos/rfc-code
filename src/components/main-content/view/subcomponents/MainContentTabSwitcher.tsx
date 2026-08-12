@@ -103,7 +103,10 @@ export default function MainContentTabSwitcher({
             <Pill
               isActive={isActive}
               onClick={() => setActiveTab(tab.id)}
-              className={`rounded-ctl px-2.5 py-[5px] transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${isActive ? activeTabClasses : inactiveTabClasses}`}
+              // Below 640px the tabs are icon-only, so they get a taller,
+              // wider box to stay a comfortable touch target; `sm` and up
+              // restore the compact label pill.
+              className={`min-h-10 justify-center rounded-ctl px-3 py-[5px] transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:min-h-0 sm:px-2.5 ${isActive ? activeTabClasses : inactiveTabClasses}`}
             >
               {tab.kind === 'builtin' ? (
                 <tab.icon className="h-3.5 w-3.5" strokeWidth={isActive ? 2.2 : 1.8} />

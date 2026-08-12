@@ -67,11 +67,15 @@ export default function ActivityIndicator({ activity, onAbort, isInputFocused = 
   const label = (renderedActivity.statusText || actionWords[Math.floor(elapsedSeconds / 4) % actionWords.length])
     .replace(/\.+$/, '');
 
-  const minutes = Math.floor(elapsedSeconds / 60);
+  const hours = Math.floor(elapsedSeconds / 3600);
+  const minutes = Math.floor(elapsedSeconds / 60) % 60;
   const seconds = elapsedSeconds % 60;
-  const elapsedLabel = minutes < 1
-    ? t('claudeStatus.elapsed.seconds', { count: seconds, defaultValue: '{{count}}s' })
-    : t('claudeStatus.elapsed.minutesSeconds', { minutes, seconds, defaultValue: '{{minutes}}m {{seconds}}s' });
+  // Mono clock format (`00:42`) per the mock's active-run bar, replacing the
+  // natural-language "42s" / "1m 5s" this indicator used for the thinking state.
+  // Long runs roll over into an hours field (`1:15:12`) rather than printing a
+  // minute count past 59, which reads as a clock time that never happened.
+  const clock = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  const elapsedLabel = hours > 0 ? `${hours}:${clock}` : clock;
   // One continuous bar docked on top of the composer: it borrows the composer's
   // 14px top radius, drops its own bottom corners and bottom border, and the
   // `chat-activity-tab` clip keeps the float shadow from bleeding across the seam.

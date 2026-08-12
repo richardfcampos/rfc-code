@@ -1,200 +1,67 @@
 import { useTranslation } from 'react-i18next';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type {
-  ChangeEvent,
-  ClipboardEvent,
-  FormEvent,
-  KeyboardEvent,
-  MouseEvent,
-  ReactNode,
-  RefObject,
-  TouchEvent,
-} from 'react';
-import { ImageIcon, MessageSquareIcon, XIcon, Loader2, ArrowUpIcon, GitFork } from 'lucide-react';
+import type { FormEvent } from 'react';
 
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import { useVoiceAvailable } from '../../hooks/useVoiceAvailable';
-import type { QueuedDraft } from '../../hooks/useChatComposerState';
-import type { SessionActivity } from '../../../../hooks/useSessionProtection';
-import type { PendingPermissionRequest, PermissionMode } from '../../types/types';
-import type { ProviderModelOption } from '../../../../types/app';
 import {
   PromptInput,
-  PromptInputHeader,
   PromptInputBody,
   PromptInputTextarea,
   PromptInputFooter,
-  PromptInputTools,
-  PromptInputButton,
-  PromptInputSubmit,
 } from '../../../../shared/view/ui';
 
 import CommandMenu from './CommandMenu';
 import ActivityIndicator from './ActivityIndicator';
-import ImageAttachment from './ImageAttachment';
-import FileAttachment from './FileAttachment';
-import VoiceInputButton from './VoiceInputButton';
 import PermissionRequestsBanner from './PermissionRequestsBanner';
-import TokenUsageSummary from './TokenUsageSummary';
-import ComposerModelMenu from './ComposerModelMenu';
-import ComposerUsagePopover from './ComposerUsagePopover';
 import QueuedMessageCard from './QueuedMessageCard';
+import ComposerAttachmentTray from './ComposerAttachmentTray';
+import ComposerToolbar from './ComposerToolbar';
+import ComposerSubmitRow from './ComposerSubmitRow';
+import { ComposerDropOverlay, ComposerFileMentions } from './ComposerOverlays';
+import type { ChatComposerProps } from './composerTypes';
 
-interface MentionableFile {
-  name: string;
-  path: string;
-}
+export type { ChatComposerProps } from './composerTypes';
 
-interface SlashCommand {
-  name: string;
-  description?: string;
-  namespace?: string;
-  path?: string;
-  type?: string;
-  metadata?: Record<string, unknown>;
-  [key: string]: unknown;
-}
+export default function ChatComposer(props: ChatComposerProps) {
+  const {
+    pendingPermissionRequests,
+    handlePermissionDecision,
+    handleGrantToolPermission,
+    activity,
+    isLoading,
+    onAbortSession,
+    tokenBudget,
+    onSubmit,
+    queuedDraft,
+    onEditQueuedDraft,
+    onDeleteQueuedDraft,
+    filteredCommands,
+    selectedCommandIndex,
+    onCommandSelect,
+    onCloseCommandMenu,
+    isCommandMenuOpen,
+    frequentCommands,
+    getRootProps,
+    getInputProps,
+    inputHighlightRef,
+    renderInputWithMentions,
+    textareaRef,
+    input,
+    onVoiceTranscript,
+    onInputChange,
+    onTextareaClick,
+    onTextareaKeyDown,
+    onTextareaPaste,
+    onTextareaScrollSync,
+    onTextareaInput,
+    isInputFocused = false,
+    onInputFocusChange,
+    placeholder,
+    isTextareaExpanded,
+    sendByCtrlEnter,
+  } = props;
 
-interface ChatComposerProps {
-  pendingPermissionRequests: PendingPermissionRequest[];
-  handlePermissionDecision: (
-    requestIds: string | string[],
-    decision: { allow?: boolean; message?: string; rememberEntry?: string | null; updatedInput?: unknown },
-  ) => void;
-  handleGrantToolPermission: (suggestion: { entry: string; toolName: string }) => { success: boolean };
-  activity: SessionActivity | null;
-  isLoading: boolean;
-  onAbortSession: () => void;
-  permissionMode: PermissionMode | string;
-  onModeSwitch: () => void;
-  effort: string;
-  availableEffortOptions: NonNullable<ProviderModelOption['effort']>['values'];
-  onSelectEffort: (effort: string) => void;
-  model: string;
-  availableModelOptions: ProviderModelOption[];
-  onSelectModel: (model: string) => void;
-  modelsLoading: boolean;
-  /** Profile behind the active session/provider — passed through to the plan-usage popover. */
-  activeProfileId: string | null;
-  /** False once a session exists — its working directory is already fixed. */
-  canUseWorktree: boolean;
-  worktreeEnabled: boolean;
-  onToggleWorktree: () => void;
-  tokenBudget: Record<string, unknown> | null;
-  onShowTokenUsage: () => void;
-  slashCommandsCount: number;
-  onToggleCommandMenu: () => void;
-  hasInput: boolean;
-  onClearInput: () => void;
-  onSubmit: (event: FormEvent<HTMLFormElement> | MouseEvent<HTMLButtonElement> | TouchEvent<HTMLButtonElement>) => void;
-  isDragActive: boolean;
-  queuedDraft: QueuedDraft | null;
-  onEditQueuedDraft: () => void;
-  onDeleteQueuedDraft: () => void;
-  attachedImages: File[];
-  onRemoveImage: (index: number) => void;
-  attachedFiles: File[];
-  onRemoveFile: (index: number) => void;
-  uploadingImages: Map<string, number>;
-  imageErrors: Map<string, string>;
-  showFileDropdown: boolean;
-  filteredFiles: MentionableFile[];
-  selectedFileIndex: number;
-  onSelectFile: (file: MentionableFile) => void;
-  filteredCommands: SlashCommand[];
-  selectedCommandIndex: number;
-  onCommandSelect: (command: SlashCommand, index: number, isHover: boolean) => void;
-  onCloseCommandMenu: () => void;
-  isCommandMenuOpen: boolean;
-  frequentCommands: SlashCommand[];
-  getRootProps: (...args: unknown[]) => Record<string, unknown>;
-  getInputProps: (...args: unknown[]) => Record<string, unknown>;
-  openImagePicker: () => void;
-  inputHighlightRef: RefObject<HTMLDivElement>;
-  renderInputWithMentions: (text: string) => ReactNode;
-  textareaRef: RefObject<HTMLTextAreaElement>;
-  input: string;
-  onVoiceTranscript?: (text: string, send?: boolean) => void;
-  onInputChange: (event: ChangeEvent<HTMLTextAreaElement>) => void;
-  onTextareaClick: (event: MouseEvent<HTMLTextAreaElement>) => void;
-  onTextareaKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
-  onTextareaPaste: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
-  onTextareaScrollSync: (target: HTMLTextAreaElement) => void;
-  onTextareaInput: (event: FormEvent<HTMLTextAreaElement>) => void;
-  isInputFocused?: boolean;
-  onInputFocusChange?: (focused: boolean) => void;
-  placeholder: string;
-  isTextareaExpanded: boolean;
-  sendByCtrlEnter?: boolean;
-}
-
-export default function ChatComposer({
-  pendingPermissionRequests,
-  handlePermissionDecision,
-  handleGrantToolPermission,
-  activity,
-  isLoading,
-  onAbortSession,
-  permissionMode,
-  onModeSwitch,
-  effort,
-  availableEffortOptions,
-  onSelectEffort,
-  model,
-  availableModelOptions,
-  onSelectModel,
-  modelsLoading,
-  activeProfileId,
-  canUseWorktree,
-  worktreeEnabled,
-  onToggleWorktree,
-  tokenBudget,
-  onShowTokenUsage,
-  slashCommandsCount,
-  onToggleCommandMenu,
-  hasInput,
-  onClearInput,
-  onSubmit,
-  isDragActive,
-  queuedDraft,
-  onEditQueuedDraft,
-  onDeleteQueuedDraft,
-  attachedImages,
-  onRemoveImage,
-  attachedFiles,
-  onRemoveFile,
-  uploadingImages,
-  imageErrors,
-  showFileDropdown,
-  filteredFiles,
-  selectedFileIndex,
-  onSelectFile,
-  filteredCommands,
-  selectedCommandIndex,
-  onCommandSelect,
-  onCloseCommandMenu,
-  isCommandMenuOpen,
-  frequentCommands,
-  getRootProps,
-  getInputProps,
-  openImagePicker,
-  inputHighlightRef,
-  renderInputWithMentions,
-  textareaRef,
-  input,
-  onVoiceTranscript,
-  onInputChange,
-  onTextareaClick,
-  onTextareaKeyDown,
-  onTextareaPaste,
-  onTextareaScrollSync,
-  onTextareaInput,
-  isInputFocused = false,
-  onInputFocusChange,
-  placeholder,
-  isTextareaExpanded,
-  sendByCtrlEnter,
-}: ChatComposerProps) {
   const { t } = useTranslation('chat');
   const commandMenuPosition = useMemo(() => {
     if (!isCommandMenuOpen) {
@@ -237,8 +104,28 @@ export default function ChatComposer({
   const hasPendingPermissions = pendingPermissionRequests.length > 0;
   const hasActivityIndicator = Boolean(activity && !hasPendingPermissions);
 
+  // Same data source as before (tokenBudget), just presented as the mock's `ctx 12.4k` chip
+  // instead of an icon + count. Click handler is unchanged (onShowTokenUsage).
+  const usedContextTokens = useMemo(() => {
+    const breakdown = tokenBudget?.breakdown && typeof tokenBudget.breakdown === 'object'
+      ? (tokenBudget.breakdown as Record<string, unknown>)
+      : null;
+    const readNumber = (value: unknown) => {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const inputTokens = readNumber(tokenBudget?.inputTokens ?? breakdown?.input);
+    const outputTokens = readNumber(tokenBudget?.outputTokens ?? breakdown?.output);
+    return readNumber(tokenBudget?.used) || inputTokens + outputTokens;
+  }, [tokenBudget]);
+
   const hasQueuedDraft = Boolean(queuedDraft);
   const canQueueDraft = isLoading && Boolean(input.trim());
+  // A run in flight frees the textarea for the next message — the mock swaps the idle
+  // placeholder for a queueing one for as long as `isLoading` holds.
+  const composerPlaceholder = isLoading
+    ? t('input.placeholderQueued', { defaultValue: 'Queue your next message…' })
+    : placeholder;
   const submitHint = canQueueDraft
     ? hasQueuedDraft
       ? t('input.hintText.updateQueued', { defaultValue: 'Enter to update queued message' })
@@ -255,7 +142,9 @@ export default function ChatComposer({
       : t('input.send');
 
   return (
-    <div className="chat-composer-shell relative flex-shrink-0 px-2 pb-2 pt-0 sm:px-4 sm:pb-4 md:px-4 md:pb-6">
+    // Mobile keeps the composer clear of the home indicator; the app shell above
+    // already lifts the whole container by the virtual keyboard's height.
+    <div className="chat-composer-shell relative flex-shrink-0 px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] pt-0 sm:px-4 sm:pb-4 md:px-4 md:pb-6">
       {!hasPendingPermissions && (
         <div className="pointer-events-none absolute bottom-full left-1/2 z-10 w-[calc(100%-1rem)] max-w-[54.25rem] -translate-x-1/2 translate-y-px bg-transparent sm:w-[calc(100%-2rem)]">
           <ActivityIndicator activity={activity} onAbort={onAbortSession} isInputFocused={isInputFocused} />
@@ -282,32 +171,7 @@ export default function ChatComposer({
       )}
 
       {!hasQuestionPanel && <div className="relative mx-auto max-w-[54.25rem]">
-        {showFileDropdown && filteredFiles.length > 0 && (
-          <div className="absolute bottom-full left-0 right-0 z-50 mb-2 max-h-48 overflow-y-auto rounded-card border border-border bg-popover shadow-[var(--shadow-pop)]">
-            {filteredFiles.map((file, index) => (
-              <div
-                key={file.path}
-                className={`cursor-pointer touch-manipulation border-b border-border px-4 py-3 transition-colors duration-150 ease-out last:border-b-0 ${
-                  index === selectedFileIndex
-                    ? 'bg-[var(--accent-tint)] text-primary'
-                    : 'text-foreground hover:bg-[var(--hover)]'
-                }`}
-                onMouseDown={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                }}
-                onClick={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  onSelectFile(file);
-                }}
-              >
-                <div className="text-[13px] font-medium">{file.name}</div>
-                <div className="font-mono text-[10px] tracking-wide text-muted-foreground">{file.path}</div>
-              </div>
-            ))}
-          </div>
-        )}
+        <ComposerFileMentions {...props} />
 
         <CommandMenu
           commands={filteredCommands}
@@ -328,47 +192,9 @@ export default function ChatComposer({
           ].filter(Boolean).join(' ')}
           {...getRootProps()}
         >
-          {isDragActive && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center rounded-composer border border-dashed border-[var(--accent-line)] bg-[var(--accent-tint)]">
-              <div className="rounded-card border border-border bg-card p-4 shadow-[var(--shadow-pop)]">
-                <svg className="mx-auto mb-2 h-8 w-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                  />
-                </svg>
-                <p className="text-[13px] font-medium text-foreground">Drop files here</p>
-              </div>
-            </div>
-          )}
+          <ComposerDropOverlay {...props} />
 
-          {(attachedImages.length > 0 || attachedFiles.length > 0) && (
-            <PromptInputHeader>
-              <div className="rounded-card bg-[var(--hover-soft)] p-2">
-                <div className="flex flex-wrap gap-2">
-                  {attachedImages.map((file, index) => (
-                    <ImageAttachment
-                      key={`image-${index}`}
-                      file={file}
-                      onRemove={() => onRemoveImage(index)}
-                      uploadProgress={uploadingImages.get(file.name)}
-                      error={imageErrors.get(file.name)}
-                    />
-                  ))}
-                  {attachedFiles.map((file, index) => (
-                    <FileAttachment
-                      key={`file-${index}`}
-                      file={file}
-                      onRemove={() => onRemoveFile(index)}
-                      error={imageErrors.get(file.name)}
-                    />
-                  ))}
-                </div>
-              </div>
-            </PromptInputHeader>
-          )}
+          <ComposerAttachmentTray {...props} />
 
           <input {...getInputProps()} />
 
@@ -392,165 +218,32 @@ export default function ChatComposer({
               onFocus={() => onInputFocusChange?.(true)}
               onBlur={() => onInputFocusChange?.(false)}
               onInput={onTextareaInput}
-              placeholder={placeholder}
+              placeholder={composerPlaceholder}
             />
         </PromptInputBody>
 
         <PromptInputFooter>
-          <PromptInputTools>
-            <PromptInputButton
-              tooltip={{ content: t('input.attachFiles') }}
-              onClick={openImagePicker}
-            >
-              <ImageIcon />
-            </PromptInputButton>
+          <ComposerToolbar
+            {...props}
+            voiceAvailable={voiceAvailable}
+            voiceState={voiceState}
+            onVoiceToggle={voiceToggle}
+            voiceError={voiceError}
+            usedContextTokens={usedContextTokens}
+          />
 
-            {onVoiceTranscript && voiceAvailable && (
-              <VoiceInputButton state={voiceState} onToggle={voiceToggle} errorMsg={voiceError} />
-            )}
-
-            {/* Mode is a semantic signal, not decoration: neutral when nothing is
-                relaxed, success once edits flow on their own, primary for plan mode,
-                warning when permission checks are bypassed. One wash + one line each. */}
-            <button
-              type="button"
-              onClick={onModeSwitch}
-              className={`inline-flex h-8 shrink-0 items-center rounded-ctl border px-2 font-mono text-[11px] font-medium tracking-wide transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-2.5 ${
-                permissionMode === 'default'
-                  ? 'border-border bg-[var(--hover-soft)] text-muted-foreground hover:bg-[var(--hover)]'
-                  : permissionMode === 'acceptEdits'
-                    ? 'border-[var(--success-line)] bg-[var(--success-tint)] text-success hover:bg-success/15'
-                    : permissionMode === 'auto'
-                      ? 'border-[var(--success-line)] bg-[var(--success-tint)] text-success hover:bg-success/15'
-                      : permissionMode === 'bypassPermissions'
-                        ? 'border-[var(--warning-line)] bg-[var(--warning-tint)] text-warning hover:bg-warning/15'
-                        : 'border-[var(--accent-line)] bg-[var(--accent-tint)] text-primary hover:bg-primary/15'
-              }`}
-              title={t('input.clickToChangeMode')}
-            >
-              <div className="flex items-center gap-1.5">
-                <div
-                  className={`h-2.5 w-2.5 rounded-full sm:h-1.5 sm:w-1.5 ${
-                    permissionMode === 'default'
-                      ? 'bg-idle'
-                      : permissionMode === 'acceptEdits'
-                        ? 'bg-success'
-                        : permissionMode === 'auto'
-                          ? 'bg-success'
-                          : permissionMode === 'bypassPermissions'
-                            ? 'bg-warning'
-                            : 'bg-primary'
-                  }`}
-                />
-                <span className="hidden whitespace-nowrap sm:inline">
-                  {permissionMode === 'default' && t('codex.modes.default')}
-                  {permissionMode === 'acceptEdits' && t('codex.modes.acceptEdits')}
-                  {permissionMode === 'auto' && t('codex.modes.auto')}
-                  {permissionMode === 'bypassPermissions' && t('codex.modes.bypassPermissions')}
-                  {permissionMode === 'plan' && t('codex.modes.plan')}
-                </span>
-              </div>
-            </button>
-
-            {canUseWorktree && (
-              <button
-                type="button"
-                onClick={onToggleWorktree}
-                role="switch"
-                aria-checked={worktreeEnabled}
-                className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-ctl border px-2 font-mono text-[11px] font-medium tracking-wide transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-2.5 ${
-                  worktreeEnabled
-                    ? 'border-[var(--accent-line-strong)] bg-[var(--accent-tint)] text-primary'
-                    : 'border-border bg-[var(--hover-soft)] text-muted-foreground hover:bg-[var(--hover)]'
-                }`}
-                title={t('composer.worktreeHint', {
-                  defaultValue: 'Run this session in its own git worktree',
-                })}
-              >
-                <GitFork className="h-3.5 w-3.5" />
-                <span className="hidden whitespace-nowrap sm:inline">
-                  {t('composer.worktree', { defaultValue: 'Worktree' })}
-                </span>
-              </button>
-            )}
-
-            <ComposerModelMenu
-              effort={effort}
-              effortOptions={availableEffortOptions}
-              onSelectEffort={onSelectEffort}
-              model={model}
-              modelOptions={availableModelOptions}
-              onSelectModel={onSelectModel}
-              modelsLoading={modelsLoading}
-            />
-
-            <ComposerUsagePopover activeProfileId={activeProfileId} />
-
-            <TokenUsageSummary usage={tokenBudget} onClick={onShowTokenUsage} />
-
-            <PromptInputButton
-              tooltip={{ content: t('input.showAllCommands') }}
-              onClick={onToggleCommandMenu}
-              className="relative"
-            >
-              <MessageSquareIcon />
-              {slashCommandsCount > 0 && (
-                <span
-                  className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 font-mono text-[10px] font-medium tracking-wide text-primary-foreground"
-                >
-                  {slashCommandsCount}
-                </span>
-              )}
-            </PromptInputButton>
-
-            {hasInput && (
-              <PromptInputButton
-                tooltip={{ content: t('input.clearInput', { defaultValue: 'Clear input' }) }}
-                onClick={onClearInput}
-                className="hidden sm:flex"
-              >
-                <XIcon />
-              </PromptInputButton>
-            )}
-
-          </PromptInputTools>
-
-          <div className="flex items-center gap-2">
-            <div
-              className={`hidden whitespace-nowrap text-[11px] text-faint transition-opacity duration-150 ease-out lg:block ${
-                input.trim() && !canQueueDraft ? 'opacity-0' : 'opacity-100'
-              }`}
-            >
-              {submitHint}
-            </div>
-            <PromptInputSubmit
-              onClick={
-                canQueueDraft
-                  ? (e: MouseEvent<HTMLButtonElement>) => {
-                      e.preventDefault();
-                      onSubmit(e);
-                    }
-                  : isLoading
-                    ? onAbortSession
-                    : isRecording
-                      ? (e: MouseEvent<HTMLButtonElement>) => {
-                          e.preventDefault();
-                          voiceStop({ send: true });
-                        }
-                      : undefined
-              }
-              disabled={isLoading ? false : isRecording ? false : isTranscribing ? true : !input.trim()}
-              aria-label={submitAriaLabel}
-              title={submitAriaLabel}
-              className="h-11 w-11 sm:h-8 sm:w-8"
-            >
-              {isTranscribing ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : canQueueDraft ? (
-                <ArrowUpIcon className="h-4 w-4" />
-              ) : undefined}
-            </PromptInputSubmit>
-          </div>
+          <ComposerSubmitRow
+            submitHint={submitHint}
+            submitAriaLabel={submitAriaLabel}
+            hasText={Boolean(input.trim())}
+            canQueueDraft={canQueueDraft}
+            isLoading={isLoading}
+            isRecording={isRecording}
+            isTranscribing={isTranscribing}
+            onSubmit={onSubmit}
+            onAbortSession={onAbortSession}
+            onStopRecordingAndSend={() => voiceStop({ send: true })}
+          />
         </PromptInputFooter>
       </PromptInput>
       </div>}

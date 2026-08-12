@@ -1,20 +1,24 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
 import { useVersionCheck } from '../../../hooks/useVersionCheck';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
+import { useNewSessionShortcut } from '../hooks/useNewSessionShortcut';
 import { useSidebarController } from '../hooks/useSidebarController';
+import { useSidebarProfileChip } from '../hooks/useSidebarProfileChip';
+import { useSidebarRailViewport } from '../hooks/useSidebarRailViewport';
 import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import type { Project, LLMProvider } from '../../../types/app';
 import type { MCPServerStatus, SidebarProps } from '../types/types';
+import { collectSessionEntries, sessionNeedsUser } from '../utils/session-groups';
+import { getSessionName } from '../utils/utils';
 
-import SidebarCollapsed from './subcomponents/SidebarCollapsed';
+import SidebarCollapsed, { type SidebarRailSession } from './subcomponents/SidebarCollapsed';
 import SidebarContent from './subcomponents/SidebarContent';
 import SidebarModals from './subcomponents/SidebarModals';
-import type { SidebarProjectListProps } from './subcomponents/SidebarProjectList';
 
 type TaskMasterSidebarContext = {
   setCurrentProject: (project: Project) => void;
@@ -53,10 +57,10 @@ function Sidebar({
   const { setCurrentProject, mcpServerStatus } = useTaskMaster() as TaskMasterSidebarContext;
   const { tasksEnabled } = useTasksSettings();
   const paletteOps = usePaletteOps();
+  const profile = useSidebarProfileChip(selectedSession?.profileId ?? null);
 
   const {
     isSidebarCollapsed,
-    expandedProjects,
     editingProject,
     showNewProject,
     editingName,
@@ -77,12 +81,11 @@ function Sidebar({
     deleteConfirmation,
     sessionDeleteConfirmation,
     showVersionModal,
-    filteredProjects,
+    sortedProjects,
     archivedProjects,
     archivedSessions,
     archivedSessionsCount,
     isArchivedSessionsLoading,
-    toggleProject,
     handleSessionClick,
     toggleStarProject,
     isProjectStarred,
@@ -140,66 +143,88 @@ function Sidebar({
     document.body.classList.toggle('pwa-mode', isPWA);
   }, [isPWA]);
 
+  // Tablet widths default to the icon rail; the user can still open the full
+  // sidebar from the rail for as long as the viewport stays in that band. Wider
+  // viewports keep obeying the persisted collapse preference.
+  const isRailViewport = useSidebarRailViewport();
+  const [isRailOpenedOnTablet, setIsRailOpenedOnTablet] = useState(false);
+
+  useEffect(() => {
+    if (!isRailViewport) {
+      setIsRailOpenedOnTablet(false);
+    }
+  }, [isRailViewport]);
+
+  const showRail = isRailViewport ? !isRailOpenedOnTablet : isSidebarCollapsed;
+
+  const expandFromRail = useCallback(() => {
+    if (isRailViewport) {
+      setIsRailOpenedOnTablet(true);
+      return;
+    }
+    handleExpandSidebar();
+  }, [handleExpandSidebar, isRailViewport]);
+
+  const collapseToRail = useCallback(() => {
+    if (isRailViewport) {
+      setIsRailOpenedOnTablet(false);
+      return;
+    }
+    handleCollapseSidebar();
+  }, [handleCollapseSidebar, isRailViewport]);
+
   const handleProjectCreated = () => {
     void paletteOps.refreshProjects();
   };
 
-  const projectListProps: SidebarProjectListProps = {
-    projects,
-    filteredProjects,
-    selectedProject,
-    selectedSession,
-    isLoading,
-    loadingProgress,
-    expandedProjects,
-    editingProject,
-    editingName,
-    initialSessionsLoaded,
-    currentTime,
-    editingSession,
-    editingSessionName,
-    deletingProjects,
-    tasksEnabled,
-    mcpServerStatus,
-    getProjectSessions,
-    loadingMoreProjects,
+  const handleNewSession = useCallback(() => {
+    if (selectedProject) {
+      onNewSession(selectedProject);
+    }
+  }, [onNewSession, selectedProject]);
+
+  useNewSessionShortcut(Boolean(selectedProject), handleNewSession);
+
+  // Rail entries: every session that is working or waiting on the user, across
+  // projects — the same population the RUNNING and NEEDS YOU groups render.
+  const railSessions = useMemo<SidebarRailSession[]>(() => {
+    const activeSessionIds = new Set(activeSessions.keys());
+
+    return collectSessionEntries(projects, null)
+      .filter(({ session }) => {
+        const sessionId = String(session.id);
+        return activeSessionIds.has(sessionId) || sessionNeedsUser(sessionId, attentionSessionIds);
+      })
+      .map(({ project, session }) => {
+        const sessionId = String(session.id);
+        return {
+          id: `${project.projectId}:${sessionId}`,
+          title: getSessionName(session, t),
+          status: sessionNeedsUser(sessionId, attentionSessionIds) ? 'attn' : 'run',
+          isSelected: selectedSession?.id === session.id,
+          onSelect: () => {
+            if (project.projectId !== selectedProject?.projectId) {
+              handleProjectSelect(project);
+            }
+            handleSessionClick(session, project.projectId);
+          },
+        } satisfies SidebarRailSession;
+      });
+  }, [
     activeSessions,
     attentionSessionIds,
-    forceExpanded: searchMode === 'running',
-    isProjectStarred,
-    onEditingNameChange: setEditingName,
-    onToggleProject: toggleProject,
-    onProjectSelect: handleProjectSelect,
-    onToggleStarProject: toggleStarProject,
-    onStartEditingProject: startEditing,
-    onCancelEditingProject: cancelEditing,
-    onSaveProjectName: (projectName) => {
-      void saveProjectName(projectName);
-    },
-    onDeleteProject: requestProjectDelete,
-    onSessionSelect: handleSessionClick,
-    onDeleteSession: showDeleteSessionConfirmation,
-    onLoadMoreSessions: loadMoreSessionsForProject,
-    onNewSession,
-    onEditingSessionNameChange: setEditingSessionName,
-    onStartEditingSession: (sessionId, initialName) => {
-      setEditingSession(sessionId);
-      setEditingSessionName(initialName);
-    },
-    onCancelEditingSession: () => {
-      setEditingSession(null);
-      setEditingSessionName('');
-    },
-    onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => {
-      void updateSessionSummary(projectName, sessionId, summary, provider);
-    },
+    handleProjectSelect,
+    handleSessionClick,
+    projects,
+    selectedProject,
+    selectedSession,
     t,
-  };
+  ]);
 
   return (
     <>
-        <SidebarModals
-          projects={projects}
+      <SidebarModals
+        projects={projects}
         showSettings={showSettings}
         settingsInitialTab={settingsInitialTab}
         onCloseSettings={onCloseSettings}
@@ -221,9 +246,13 @@ function Sidebar({
         t={t}
       />
 
-      {isSidebarCollapsed ? (
+      {showRail ? (
         <SidebarCollapsed
-          onExpand={handleExpandSidebar}
+          onExpand={expandFromRail}
+          onNewSession={handleNewSession}
+          canCreateSession={Boolean(selectedProject)}
+          railSessions={railSessions}
+          profile={profile}
           onShowSettings={onShowSettings}
           updateAvailable={updateAvailable}
           restartRequired={restartRequired}
@@ -231,32 +260,55 @@ function Sidebar({
           t={t}
         />
       ) : (
-        <>
         <SidebarContent
-            isPWA={isPWA}
-            isMobile={isMobile}
-            isLoading={isLoading}
-            projects={projects}
-            runningSessionsCount={runningSessionsCount}
-            archivedProjects={archivedProjects}
-            archivedSessions={archivedSessions}
-            archivedSessionsCount={archivedSessionsCount}
-            isArchivedSessionsLoading={isArchivedSessionsLoading}
-            searchFilter={searchFilter}
-            onSearchFilterChange={setSearchFilter}
-            onClearSearchFilter={() => setSearchFilter('')}
-            searchMode={searchMode}
-            onSearchModeChange={(mode) => {
-              setSearchMode(mode);
-              if (mode === 'projects') clearConversationResults();
-            }}
-            conversationResults={conversationResults}
-            isSearching={isSearching}
-            searchProgress={searchProgress}
-            onRestoreArchivedProject={restoreArchivedProject}
-            onArchivedSessionClick={openArchivedSession}
-            onRestoreArchivedSession={restoreArchivedSession}
-            onDeleteArchivedSession={(session) => {
+          isPWA={isPWA}
+          isMobile={isMobile}
+          searchFilter={searchFilter}
+          onSearchFilterChange={setSearchFilter}
+          onClearSearchFilter={() => setSearchFilter('')}
+          searchMode={searchMode}
+          onSearchModeChange={(mode) => {
+            setSearchMode(mode);
+            if (mode !== 'conversations') clearConversationResults();
+          }}
+          runningSessionsCount={runningSessionsCount}
+          conversationResults={conversationResults}
+          isSearching={isSearching}
+          searchProgress={searchProgress}
+          onConversationResultClick={(projectId, sessionId, provider, messageTimestamp, messageSnippet) => {
+            // `projectId` (DB key) is the canonical identifier post-migration.
+            // The server emits null when it can't resolve a project row for
+            // the search hit; treat that as "no project" and still navigate
+            // to the session so the user can open it from the URL.
+            const resolvedProvider = (provider || 'claude') as LLMProvider;
+            const project = projectId ? projects.find((candidate) => candidate.projectId === projectId) : null;
+            const searchTarget = {
+              __searchTargetTimestamp: messageTimestamp || null,
+              __searchTargetSnippet: messageSnippet || null,
+            };
+            const sessionObj = {
+              id: sessionId,
+              __provider: resolvedProvider,
+              __projectId: projectId ?? undefined,
+              ...searchTarget,
+            };
+            if (project) {
+              handleProjectSelect(project);
+              const existing = getProjectSessions(project).find((session) => session.id === sessionId);
+              handleSessionClick(existing ? { ...existing, ...searchTarget } : sessionObj, project.projectId);
+            } else {
+              handleSessionClick(sessionObj, projectId ?? '');
+            }
+          }}
+          archivedPanelProps={{
+            archivedProjects,
+            archivedSessions,
+            archivedSessionsCount,
+            isArchivedSessionsLoading,
+            onRestoreArchivedProject: restoreArchivedProject,
+            onArchivedSessionClick: openArchivedSession,
+            onRestoreArchivedSession: restoreArchivedSession,
+            onDeleteArchivedSession: (session) => {
               showDeleteSessionConfirmation(
                 session.projectId,
                 session.sessionId,
@@ -264,49 +316,72 @@ function Sidebar({
                 session.provider,
                 { isArchived: true },
               );
-            }}
-            onConversationResultClick={(projectId: string | null, sessionId: string, provider: string, messageTimestamp?: string | null, messageSnippet?: string | null) => {
-              // `projectId` (DB key) is the canonical identifier post-migration.
-              // The server emits null when it can't resolve a project row for
-              // the search hit; treat that as "no project" and still navigate
-              // to the session so the user can open it from the URL.
-              const resolvedProvider = (provider || 'claude') as LLMProvider;
-              const project = projectId ? projects.find(p => p.projectId === projectId) : null;
-              const searchTarget = { __searchTargetTimestamp: messageTimestamp || null, __searchTargetSnippet: messageSnippet || null };
-              const sessionObj = {
-                id: sessionId,
-                __provider: resolvedProvider,
-                __projectId: projectId ?? undefined,
-                ...searchTarget,
-              };
-              if (project) {
-                handleProjectSelect(project);
-                const sessions = getProjectSessions(project);
-                const existing = sessions.find(s => s.id === sessionId);
-                if (existing) {
-                  handleSessionClick({ ...existing, ...searchTarget }, project.projectId);
-                } else {
-                  handleSessionClick(sessionObj, project.projectId);
-                }
-              } else {
-                handleSessionClick(sessionObj, projectId ?? '');
-              }
-            }}
-            onRefresh={() => {
+            },
+          }}
+          onCollapseSidebar={collapseToRail}
+          onNewSession={handleNewSession}
+          canCreateSession={Boolean(selectedProject)}
+          restartRequired={restartRequired}
+          currentVersion={currentVersion}
+          profile={profile}
+          onShowSettings={onShowSettings}
+          projectSelectorProps={{
+            projects: sortedProjects,
+            selectedProject,
+            deletingProjects,
+            editingProject,
+            editingName,
+            tasksEnabled,
+            mcpServerStatus,
+            isRefreshing,
+            isProjectStarred,
+            onEditingNameChange: setEditingName,
+            onProjectSelect: handleProjectSelect,
+            onToggleStarProject: toggleStarProject,
+            onStartEditingProject: startEditing,
+            onCancelEditingProject: cancelEditing,
+            onSaveProjectName: (projectId) => {
+              void saveProjectName(projectId);
+            },
+            onDeleteProject: requestProjectDelete,
+            onCreateProject: () => setShowNewProject(true),
+            onRefresh: () => {
               void refreshProjects();
-            }}
-            isRefreshing={isRefreshing}
-            onCreateProject={() => setShowNewProject(true)}
-            onCollapseSidebar={handleCollapseSidebar}
-            restartRequired={restartRequired}
-            currentVersion={currentVersion}
-            onShowSettings={onShowSettings}
-            projectListProps={projectListProps}
-            t={t}
-          />
-        </>
+            },
+          }}
+          sessionListProps={{
+            projects,
+            selectedProject,
+            selectedSession,
+            activeSessions,
+            attentionSessionIds,
+            isLoading,
+            loadingProgress,
+            initialSessionsLoaded,
+            isLoadingMoreSessions: selectedProject ? loadingMoreProjects.has(selectedProject.projectId) : false,
+            currentTime,
+            editingSession,
+            editingSessionName,
+            onEditingSessionNameChange: setEditingSessionName,
+            onStartEditingSession: (sessionId, initialName) => {
+              setEditingSession(sessionId);
+              setEditingSessionName(initialName);
+            },
+            onCancelEditingSession: () => {
+              setEditingSession(null);
+              setEditingSessionName('');
+            },
+            onSaveEditingSession: (projectId, sessionId, summary, provider) => {
+              void updateSessionSummary(projectId, sessionId, summary, provider);
+            },
+            onProjectSelect: handleProjectSelect,
+            onSessionSelect: handleSessionClick,
+            onDeleteSession: showDeleteSessionConfirmation,
+            onLoadMoreSessions: loadMoreSessionsForProject,
+          }}
+          t={t}
+        />
       )}
-
     </>
   );
 }

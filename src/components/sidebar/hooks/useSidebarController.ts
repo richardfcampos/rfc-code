@@ -945,6 +945,9 @@ export function useSidebarController({
     sessionDeleteConfirmation,
     showVersionModal,
     filteredProjects,
+    // Star-first ordering without the session filter applied — the project
+    // dropdown lists every project while the filter targets sessions.
+    sortedProjects,
     runningSessionsCount,
     archivedProjects: filteredArchivedProjects,
     archivedSessions: filteredArchivedSessions,

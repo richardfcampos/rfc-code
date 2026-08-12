@@ -129,6 +129,7 @@
     "showAllCommands": "Show all commands",
     "clearInput": "Clear input",
     "scrollToBottom": "Scroll to bottom",
+    "placeholderQueued": "Queue your next message…",
     "queue": {
       "sendNext": "Queue next message",
       "update": "Update queued message",
@@ -249,6 +250,13 @@
     "modelMenu": "Select model and reasoning effort",
     "worktree": "Worktree",
     "worktreeHint": "Run this session in its own git worktree",
+    "modeShort": {
+      "default": "Default",
+      "auto": "Auto",
+      "acceptEdits": "Edits",
+      "bypassPermissions": "Bypass",
+      "plan": "Plan"
+    },
     "usage": {
       "button": "Plan usage",
       "title": "Plan usage",

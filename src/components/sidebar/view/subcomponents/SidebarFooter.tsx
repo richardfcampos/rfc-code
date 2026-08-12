@@ -1,11 +1,13 @@
-import { Settings, Bug, AlertTriangle } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, Bug, Github, SlidersHorizontal } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
+import { cn } from '../../../../lib/utils';
 import { IS_PLATFORM } from '../../../../constants/config';
+import type { SidebarProfileChip } from '../../hooks/useSidebarProfileChip';
 
 const GITHUB_ISSUES_URL = 'https://github.com/siteboon/claudecodeui/issues/new';
 const GITHUB_REPO_URL = 'https://github.com/siteboon/claudecodeui';
-
 const DISCORD_INVITE_URL = 'https://discord.gg/buxwujPNRE';
 
 function DiscordIcon({ className }: { className?: string }) {
@@ -19,129 +21,132 @@ function DiscordIcon({ className }: { className?: string }) {
 type SidebarFooterProps = {
   restartRequired: boolean;
   currentVersion: string;
+  profile: SidebarProfileChip | null;
   onShowSettings: () => void;
   t: TFunction;
 };
 
+const LINK_CLASS =
+  'flex items-center gap-2 rounded-ctl px-2 py-1.5 text-xs text-muted-foreground transition-colors duration-150 ease-out hover:bg-[var(--hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
 export default function SidebarFooter({
   restartRequired,
   currentVersion,
+  profile,
   onShowSettings,
   t,
 }: SidebarFooterProps) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!isMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsMenuOpen(false);
+        // Escape leaves focus stranded on a removed node otherwise, dropping
+        // keyboard users back to the top of the document.
+        triggerRef.current?.focus();
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isMenuOpen]);
+
   return (
     <div className="flex-shrink-0" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}>
       {/* Restart-required banner: the running server version differs from the
           installed/frontend version (updated but not restarted). */}
       {restartRequired && (
-        <>
-          <div className="nav-divider" />
-          <div className="px-2 py-1.5 md:px-2 md:py-1.5">
-            <div className="flex items-center gap-2.5 rounded-card border border-[var(--warning-line)] bg-[var(--warning-tint)] px-2.5 py-2">
-              <AlertTriangle className="h-4 w-4 flex-shrink-0 text-warning" />
-              <span className="min-w-0 flex-1 text-xs font-medium text-warning">
-                {t('version.restartRequired')}
-              </span>
-            </div>
+        <div className="px-2 pb-1.5">
+          <div className="flex items-center gap-2 rounded-card border border-[var(--warning-line)] bg-[var(--warning-tint)] px-2.5 py-1.5">
+            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0 text-warning" />
+            <span className="min-w-0 flex-1 text-[11px] text-warning">{t('version.restartRequired')}</span>
           </div>
-        </>
-      )}
-
-      {/* Community + Settings */}
-      <div className="nav-divider" />
-
-      {/* Desktop Report Issue */}
-      <div className="hidden px-2 pt-1.5 md:block">
-        <a
-          href={GITHUB_ISSUES_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex w-full items-center gap-2 rounded-ctl px-2.5 py-1.5 text-muted-foreground transition-colors duration-150 ease-out hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Bug className="h-3.5 w-3.5" />
-          <span className="text-sm">{t('actions.reportIssue')}</span>
-        </a>
-      </div>
-
-      {/* Desktop Discord */}
-      <div className="hidden px-2 md:block">
-        <a
-          href={DISCORD_INVITE_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex w-full items-center gap-2 rounded-ctl px-2.5 py-1.5 text-muted-foreground transition-colors duration-150 ease-out hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <DiscordIcon className="h-3.5 w-3.5" />
-          <span className="text-sm">{t('actions.joinCommunity')}</span>
-        </a>
-      </div>
-
-      {/* Desktop settings */}
-      <div className="hidden px-2 py-1.5 md:block">
-        <button
-          className="flex w-full items-center gap-2 rounded-ctl px-2.5 py-1.5 text-muted-foreground transition-colors duration-150 ease-out hover:bg-accent/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          onClick={onShowSettings}
-        >
-          <Settings className="h-3.5 w-3.5" />
-          <span className="text-sm">{t('actions.settings')}</span>
-        </button>
-      </div>
-
-      {/* Desktop version brand line (OSS mode only) */}
-      {!IS_PLATFORM && (
-        <div className="hidden px-3 py-2 text-center md:block">
-          <a
-            href={GITHUB_REPO_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-mono text-[10px] tracking-wide text-muted-foreground/40 transition-colors duration-150 ease-out hover:text-muted-foreground"
-          >
-            CloudCLI v{currentVersion} – {t('branding.openSource')}
-          </a>
         </div>
       )}
 
-      {/* Mobile Report Issue */}
-      <div className="px-3 pt-3 md:hidden">
-        <a
-          href={GITHUB_ISSUES_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex h-10 w-full items-center gap-3 rounded-card bg-muted/40 px-3.5 transition-colors duration-150 ease-out hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
-        >
-          <div className="flex h-7 w-7 items-center justify-center rounded-ctl bg-background/80">
-            <Bug className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <span className="text-sm font-normal text-foreground">{t('actions.reportIssue')}</span>
-        </a>
-      </div>
+      <div className="nav-divider" />
 
-      {/* Mobile Discord */}
-      <div className="px-3 pt-2 md:hidden">
-        <a
-          href={DISCORD_INVITE_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex h-10 w-full items-center gap-3 rounded-card bg-muted/40 px-3.5 transition-colors duration-150 ease-out hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
-        >
-          <div className="flex h-7 w-7 items-center justify-center rounded-ctl bg-background/80">
-            <DiscordIcon className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <span className="text-sm font-normal text-foreground">{t('actions.joinCommunity')}</span>
-        </a>
-      </div>
-
-      {/* Mobile settings */}
-      <div className="px-3 pb-3 pt-2 md:hidden">
+      <div ref={containerRef} className="relative flex items-center gap-2 px-2 py-2">
         <button
-          className="flex h-10 w-full items-center gap-3 rounded-card bg-muted/40 px-3.5 transition-colors duration-150 ease-out hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:scale-[0.98]"
-          onClick={onShowSettings}
+          ref={triggerRef}
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-ctl px-1 py-1 text-left transition-colors duration-150 ease-out hover:bg-[var(--hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={() => setIsMenuOpen((previous) => !previous)}
+          aria-haspopup="menu"
+          aria-expanded={isMenuOpen}
+          aria-label={t('actions.moreLinks', 'About and community links')}
         >
-          <div className="flex h-7 w-7 items-center justify-center rounded-ctl bg-background/80">
-            <Settings className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <span className="text-sm font-normal text-foreground">{t('actions.settings')}</span>
+          <span
+            className={cn(
+              'flex h-[22px] w-[22px] flex-shrink-0 items-center justify-center rounded-ctl border border-border font-mono text-[10px] lowercase',
+              profile ? 'text-primary' : 'text-faint',
+            )}
+            aria-hidden="true"
+          >
+            {/* Without a profile the chip falls back to the version, which
+                already carries its own "v" — repeating it in the avatar reads
+                as a typo. */}
+            {profile ? profile.initial : '#'}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-xs leading-5 text-foreground">
+            {profile ? profile.name : `v${currentVersion}`}
+          </span>
+          {profile?.usagePercent !== null && profile?.usagePercent !== undefined && (
+            <span className="flex-shrink-0 font-mono text-[11px] tracking-wide text-muted-foreground">
+              {profile.usagePercent}%
+            </span>
+          )}
         </button>
+
+        <button
+          type="button"
+          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-ctl text-muted-foreground transition-colors duration-150 ease-out hover:bg-[var(--hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={onShowSettings}
+          title={t('actions.settings')}
+          aria-label={t('actions.settings')}
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+        </button>
+
+        {isMenuOpen && (
+          <div
+            role="menu"
+            className="absolute bottom-[calc(100%+4px)] left-2 right-2 z-50 rounded-card border border-border bg-card p-1 shadow-[var(--shadow-pop)]"
+          >
+            <a href={GITHUB_ISSUES_URL} target="_blank" rel="noopener noreferrer" className={LINK_CLASS} role="menuitem">
+              <Bug className="h-3.5 w-3.5" />
+              {t('actions.reportIssue')}
+            </a>
+            <a href={DISCORD_INVITE_URL} target="_blank" rel="noopener noreferrer" className={LINK_CLASS} role="menuitem">
+              <DiscordIcon className="h-3.5 w-3.5" />
+              {t('actions.joinCommunity')}
+            </a>
+            {!IS_PLATFORM && (
+              <a href={GITHUB_REPO_URL} target="_blank" rel="noopener noreferrer" className={LINK_CLASS} role="menuitem">
+                <Github className="h-3.5 w-3.5" />
+                <span className="font-mono text-[10px] tracking-wide">
+                  CloudCLI v{currentVersion} – {t('branding.openSource')}
+                </span>
+              </a>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

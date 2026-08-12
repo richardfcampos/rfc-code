@@ -89,10 +89,10 @@
     "loading": "Loading RFC Code",
     "settingUpWorkspace": "Setting up your workspace...",
     "chooseProject": "Choose Your Project",
-    "selectProjectDescription": "Select a project from the sidebar to start coding with Claude. Each project contains your chat sessions and file history.",
+    "selectProjectDescription": "Pick a project from the sidebar to start coding. Each project keeps its own sessions and file history.",
     "tip": "Tip",
-    "createProjectMobile": "Tap the menu button above to access projects",
-    "createProjectDesktop": "Create a new project by clicking the folder icon in the sidebar",
+    "createProjectMobile": "Tap the menu button above to reach your projects",
+    "createProjectDesktop": "Open the project menu at the top of the sidebar to add one",
     "newSession": "New Session",
     "untitledSession": "Untitled Session",
     "projectFiles": "Project Files"
