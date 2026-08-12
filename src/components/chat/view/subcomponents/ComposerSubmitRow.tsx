@@ -32,9 +32,11 @@ export default function ComposerSubmitRow({
 }: ComposerSubmitRowProps) {
   return (
     <div className="flex min-w-0 shrink-0 items-center gap-2">
-      {/* The hint is the first thing to give up room: it truncates, and its
-          max width keeps a long localized string from squeezing the chip row
-          into an overlap. */}
+      {/* The hint is the first thing to give up room: it truncates rather than
+          pushing into the chip row, which scrolls on its own side. The
+          breakpoint is the viewport, not the composer, so a narrowed chat
+          column still shows it — acceptable because the chip row scrolls
+          instead of colliding. */}
       <div
         className={`hidden max-w-[22rem] truncate text-[11px] text-faint transition-opacity duration-150 ease-out lg:block ${
           hasText && !canQueueDraft ? 'opacity-0' : 'opacity-100'
