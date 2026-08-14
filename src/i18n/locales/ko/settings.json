@@ -104,21 +104,24 @@
       "loadError": "계정을 불러오지 못했습니다",
       "empty": "아직 다른 계정이 없습니다.",
       "current": "현재 계정",
-      "newSession": "새 세션",
+      "newSession": "동일한 세션",
       "needsAuth": "먼저 이 계정에 로그인하세요",
       "switch": "전환",
       "switching": "전환 중…",
       "cancel": "취소",
       "done": "완료",
       "confirmTitle": "{{provider}}(으)로 전환할까요?",
-      "confirmBody": "이 작업은 \"{{profileName}}\" 계정으로 {{provider}}에서 새 세션을 시작하며, 이 대화가 컨텍스트로 이어집니다. 이 세션은 그대로 남아 계속 사용할 수 있습니다.",
-      "confirmAction": "새 세션 시작",
+      "confirmBody": "이 세션은 \"{{profileName}}\"(으)로 {{provider}}에 이동합니다. 전체 대화가 이어지며(맞지 않으면 요약됩니다), 이전 프로바이더의 응답 캐시는 사라집니다.",
+      "confirmAction": "전환",
       "anotherProvider": "다른 프로바이더",
       "outcome": {
         "transplanted": "계정이 전환되었습니다. 다음 응답부터 새 계정으로 진행됩니다.",
         "queued": "응답이 진행 중입니다 — 완료되면 전환이 적용됩니다.",
         "seededPrimed": "대화가 {{provider}}의 새 세션에서 계속됩니다.",
-        "seededUnprimed": "{{provider}}에서 새 세션이 시작되었지만, 이전 대화를 가져올 수 없어 해당 컨텍스트 없이 시작됩니다."
+        "seededUnprimed": "{{provider}}에서 새 세션이 시작되었지만, 이전 대화를 가져올 수 없어 해당 컨텍스트 없이 시작됩니다.",
+        "legOpenedPrimed": "이제 {{provider}}에서 실행 중입니다. 대화가 이어졌습니다.",
+        "legOpenedUnprimed": "이제 {{provider}}에서 실행 중입니다. 이전 대화를 가져올 수 없어 해당 내용 없이 계속됩니다.",
+        "legResumed": "{{provider}}로 돌아왔습니다 — 이어서 계속합니다."
       }
     }
   },

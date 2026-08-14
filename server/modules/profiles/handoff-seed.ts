@@ -84,14 +84,16 @@ function resolveSourceProfileName(session: SessionRow): string | null {
  */
 async function renderPrimer(
   session: SessionRow,
+  target: ProfileView,
   loadHistory: LoadHandoffHistory,
 ): Promise<string | null> {
   try {
     const messages = await loadHistory(session.session_id);
-    return buildHandoffPrimer({
+    return await buildHandoffPrimer({
       messages,
       sourceProvider: session.provider,
       sourceProfileName: resolveSourceProfileName(session),
+      destinationProvider: target.provider,
     });
   } catch (error) {
     console.error('[handoff] could not read the source history, seeding without a primer:', error);
@@ -126,7 +128,7 @@ export async function seedCrossProviderSession(
   assertTargetAuthenticated(target);
 
   const seededSessionId = randomUUID();
-  const primer = await renderPrimer(session, loadHistory);
+  const primer = await renderPrimer(session, target, loadHistory);
 
   let primerPath: string | null = null;
   if (primer !== null) {

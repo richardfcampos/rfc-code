@@ -100,7 +100,7 @@ export default function SessionAccountSwitcherGroups({
                       </span>
                       {isCrossProvider && !isCurrent && (
                         <Badge variant="outline" className="flex-shrink-0 text-[10px]">
-                          {t('profiles.accountSwitcher.newSession', { defaultValue: 'New session' })}
+                          {t('profiles.accountSwitcher.newSession', { defaultValue: 'Same session' })}
                         </Badge>
                       )}
                     </div>

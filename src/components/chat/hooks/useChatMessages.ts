@@ -3,8 +3,8 @@
  * Converts NormalizedMessage[] from the session store into ChatMessage[] for the UI.
  */
 
-import type { NormalizedMessage } from '../../../stores/useSessionStore';
-import type { ChatMessage, SubagentChildTool } from '../types/types';
+import type { MessageKind, NormalizedMessage } from '../../../stores/useSessionStore';
+import type { ChatMessage, Provider, SubagentChildTool } from '../types/types';
 import { decodeHtmlEntities, unescapeWithMathProtection, formatUsageLimitText } from '../utils/chatFormatting';
 
 function formatToolResultContent(content: unknown): string {
@@ -217,6 +217,18 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
           ...sharedMetadata,
         });
         break;
+
+      case 'provider_switch': {
+        converted.push({
+          type: 'provider_switch',
+          content: '',
+          timestamp: msg.timestamp,
+          switchProvider: msg.switchProvider,
+          switchProfileName: msg.switchProfileName,
+          ...sharedMetadata,
+        });
+        break;
+      }
 
       case 'interactive_prompt':
         converted.push({

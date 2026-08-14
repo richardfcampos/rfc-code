@@ -210,6 +210,25 @@ CREATE TABLE IF NOT EXISTS collaboration_turns (
 );
 `;
 
+export const SESSION_LEGS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS session_legs (
+    leg_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    provider TEXT NOT NULL,
+    profile_id TEXT,
+    -- NULL until the provider CLI announces its native session id on the
+    -- leg's first turn.
+    provider_session_id TEXT,
+    jsonl_path TEXT,
+    -- Account name at the moment of the switch. The profile can be removed
+    -- later and the boundary marker still needs to say who answered.
+    profile_name_at_switch TEXT,
+    started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ended_at TEXT
+);
+`;
+
 export const LAST_SCANNED_AT_SQL = `
 CREATE TABLE IF NOT EXISTS scan_state (
   id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -267,6 +286,11 @@ ${SESSIONS_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_session_ids_lookup ON sessions(session_id);
 -- NOTE: This index is created in migrations after sessions is rebuilt to include project_path.
 -- Creating it here can fail on upgraded installs where the legacy sessions table has no project_path.
+
+${SESSION_LEGS_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_session_legs_session ON session_legs(session_id, seq);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_session_legs_provider_session
+  ON session_legs(provider_session_id) WHERE provider_session_id IS NOT NULL;
 
 ${COLLABORATIONS_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_collaborations_project ON collaborations(project_path);

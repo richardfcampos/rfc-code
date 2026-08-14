@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 
 import { authenticatedFetch } from '../../../utils/api';
 
-export type HandoffStatus = 'queued' | 'transplanted' | 'seeded';
+export type HandoffStatus = 'queued' | 'transplanted' | 'seeded' | 'leg-opened' | 'leg-resumed';
 
 export interface HandoffResult {
   status: HandoffStatus;

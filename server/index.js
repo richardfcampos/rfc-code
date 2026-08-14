@@ -62,6 +62,7 @@ import {
     failOrphanedCollaborations,
 } from './modules/collab/index.js';
 import { configureBtwRuntime } from './modules/commands/index.js';
+import { configureHandoffSummaryRuntime } from './modules/profiles/index.js';
 import { runWorktreeSessionBackfill } from './modules/repo-context/index.js';
 import notificationRoutes from './modules/notifications/notifications.routes.js';
 import userRoutes from './routes/user.js';
@@ -1616,6 +1617,11 @@ async function startServer() {
         // `/btw` runs one detached Claude turn per question, with no session
         // and no socket behind it, so it takes the SDK through the same seam.
         configureBtwRuntime(queryClaudeSDKOnce);
+
+        // A cross-provider handoff whose history overflows the destination's
+        // budget compresses its oldest turns the same detached way, so the
+        // summary borrows the same one-shot entry point.
+        configureHandoffSummaryRuntime(queryClaudeSDKOnce);
 
         // A collaboration's round loop lives in memory and died with the last
         // process, so rows still marked running will never advance. Close them

@@ -9,10 +9,10 @@
  *    transplanted into the target profile's config dir and `profile_id` is
  *    repointed, so the next turn resumes natively (see handoff-transplant.ts).
  *
- *  - Different provider — the session cannot move, because its history only
- *    exists in the source provider's store. A new session is created on the
- *    target provider, seeded with the earlier conversation as text, and the
- *    source session is left untouched (see handoff-seed.ts).
+ *  - Different provider — the transcript cannot move, because it only exists in
+ *    the source provider's store. The session keeps its id and opens (or resumes)
+ *    a leg on the target provider, primed with the earlier conversation as text,
+ *    so one conversation stays one entry across providers (see handoff-leg.ts).
  *
  * Edge case: a switch requested while a turn is executing is queued and applied
  * once the turn ends — the running turn is never killed.
@@ -22,12 +22,20 @@ import { sessionsDb, type SessionRow } from '@/modules/database/index.js';
 import { AppError } from '@/shared/utils.js';
 import { profilesService, type ProfileView } from '@/modules/profiles/profiles.service.js';
 import { applySameProviderSwitch } from '@/modules/profiles/handoff-transplant.js';
-import {
-  seedCrossProviderSession,
-  type LoadHandoffHistory,
-} from '@/modules/profiles/handoff-seed.js';
+import { applyCrossProviderSwitch } from '@/modules/profiles/handoff-leg.js';
+import type { LoadHandoffHistory } from '@/modules/profiles/handoff-seed.js';
 
-export type HandoffStatus = 'queued' | 'transplanted' | 'seeded';
+/**
+ * `seeded` is not a leftover of the cross-provider path it used to name: the
+ * same-provider transplant still degrades to a fresh seeded session when it
+ * cannot copy the native transcript, and that is the only producer left.
+ */
+export type HandoffStatus =
+  | 'queued'
+  | 'transplanted'
+  | 'seeded'
+  | 'leg-opened'
+  | 'leg-resumed';
 
 export interface HandoffResult {
   status: HandoffStatus;
@@ -35,15 +43,15 @@ export interface HandoffResult {
   sessionId: string;
   /** Target profile now owning the session. */
   profileId: string;
-  /** Present only when the handoff degraded to a fresh seeded session. */
+  /** Present only when a same-provider handoff degraded to a seeded session. */
   seededSessionId?: string;
   /**
-   * Whether the new session carries the earlier conversation as context.
+   * Whether the target leg carries the earlier conversation as context.
    *
    * Set only on the cross-provider path, where the prior history is best-effort:
-   * `false` means the session was created but starts clean (history empty,
-   * unreadable, or made entirely of tool traffic). Callers must surface that
-   * instead of assuming context always crossed over.
+   * `false` means the leg is live but starts clean (history empty, unreadable,
+   * or made entirely of tool traffic). Callers must surface that instead of
+   * assuming context always crossed over.
    */
   primed?: boolean;
 }
@@ -51,7 +59,7 @@ export interface HandoffResult {
 export interface HandoffDeps {
   /** Whether a turn is currently executing for this session. */
   isSessionRunning?: (session: SessionRow) => boolean;
-  /** Source of the prior conversation for a cross-provider seed. */
+  /** Source of the prior conversation for a cross-provider primer. */
   loadHistory?: LoadHandoffHistory;
 }
 
@@ -100,7 +108,13 @@ async function applySwitch(
   loadHistory?: LoadHandoffHistory,
 ): Promise<HandoffResult> {
   if (target.provider !== session.provider) {
-    return seedCrossProviderSession(session, target, loadHistory);
+    const leg = await applyCrossProviderSwitch(session, target, loadHistory);
+    return {
+      status: leg.status,
+      sessionId: leg.sessionId,
+      profileId: leg.profileId,
+      primed: leg.primed,
+    };
   }
   return applySameProviderSwitch(session, target);
 }

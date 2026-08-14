@@ -226,7 +226,7 @@
     "worktreeHint": "Diese Sitzung in einem eigenen Git-Worktree ausführen",
     "account": {
       "confirmTitle": "Zu {{account}} auf {{provider}} wechseln?",
-      "confirmBody": "Dadurch wird auf {{provider}} eine neue Sitzung gestartet, die diese Unterhaltung als Kontext erhält. Diese Sitzung bleibt weiterhin verfügbar und unverändert.",
+      "confirmBody": "Diese Sitzung wechselt zu {{provider}}. Die gesamte Unterhaltung wird übernommen – bei Bedarf zusammengefasst – und der Antwort-Cache des bisherigen Anbieters geht verloren.",
       "cancel": "Abbrechen",
       "confirm": "Wechseln",
       "switching": "Wird gewechselt…",

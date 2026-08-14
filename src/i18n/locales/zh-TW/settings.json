@@ -105,21 +105,24 @@
       "loadError": "載入帳戶失敗",
       "empty": "尚無其他帳戶。",
       "current": "目前帳戶",
-      "newSession": "新工作階段",
+      "newSession": "同一工作階段",
       "needsAuth": "請先登入此帳戶",
       "switch": "切換",
       "switching": "正在切換…",
       "cancel": "取消",
       "done": "完成",
       "confirmTitle": "要切換到 {{provider}} 嗎？",
-      "confirmBody": "此操作會在 {{provider}} 上使用「{{profileName}}」啟動一個以目前對話為上下文的新工作階段。此工作階段會保留在這裡，並繼續可用。",
-      "confirmAction": "啟動新工作階段",
+      "confirmBody": "此工作階段將使用「{{profileName}}」轉移到 {{provider}}。整段對話都會帶過去——若放不下會進行摘要——先前供應商的回應快取將會遺失。",
+      "confirmAction": "切換",
       "anotherProvider": "其他提供者",
       "outcome": {
         "transplanted": "帳戶已切換。下一則回覆將在新帳戶上繼續。",
         "queued": "目前有一則回覆正在進行 — 完成後將套用切換。",
         "seededPrimed": "對話將在 {{provider}} 上的新工作階段中繼續。",
-        "seededUnprimed": "已在 {{provider}} 上啟動新工作階段 — 由於無法帶入先前的對話，此工作階段不包含先前的上下文。"
+        "seededUnprimed": "已在 {{provider}} 上啟動新工作階段 — 由於無法帶入先前的對話，此工作階段不包含先前的上下文。",
+        "legOpenedPrimed": "現在於 {{provider}} 上執行。對話已帶過來。",
+        "legOpenedUnprimed": "現在於 {{provider}} 上執行。先前的對話無法帶過來——將不帶該內容繼續。",
+        "legResumed": "已回到 {{provider}} —— 從你上次離開的地方繼續。"
       }
     }
   },

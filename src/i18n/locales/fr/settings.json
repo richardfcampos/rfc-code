@@ -104,21 +104,24 @@
       "loadError": "Échec du chargement des comptes",
       "empty": "Aucun autre compte pour l'instant.",
       "current": "Compte actuel",
-      "newSession": "Nouvelle session",
+      "newSession": "Même session",
       "needsAuth": "Connectez-vous d'abord à ce compte",
       "switch": "Changer",
       "switching": "Changement en cours…",
       "cancel": "Annuler",
       "done": "Terminé",
       "confirmTitle": "Passer à {{provider}} ?",
-      "confirmBody": "Cela démarre une nouvelle session sur {{provider}} avec « {{profileName}} », amorcée avec cette conversation comme contexte. Cette session reste ici et demeure disponible.",
-      "confirmAction": "Démarrer une nouvelle session",
+      "confirmBody": "Cette session bascule vers {{provider}} avec « {{profileName}} ». Toute la conversation est transférée — résumée si nécessaire — et le cache de réponses du fournisseur précédent est perdu.",
+      "confirmAction": "Changer",
       "anotherProvider": "un autre fournisseur",
       "outcome": {
         "transplanted": "Compte changé. Le prochain message se poursuit sur le nouveau compte.",
         "queued": "Un message est en cours de traitement — le changement s'appliquera une fois celui-ci terminé.",
         "seededPrimed": "La conversation se poursuit dans une nouvelle session sur {{provider}}.",
-        "seededUnprimed": "Une nouvelle session a été démarrée sur {{provider}} — la conversation précédente n'a pas pu être transférée, elle commence donc sans ce contexte."
+        "seededUnprimed": "Une nouvelle session a été démarrée sur {{provider}} — la conversation précédente n'a pas pu être transférée, elle commence donc sans ce contexte.",
+        "legOpenedPrimed": "Fonctionne maintenant sur {{provider}}. La conversation a été transférée.",
+        "legOpenedUnprimed": "Fonctionne maintenant sur {{provider}}. La conversation précédente n'a pas pu être transférée — la session continue sans elle.",
+        "legResumed": "De retour sur {{provider}} — reprise là où vous vous étiez arrêté."
       }
     }
   },

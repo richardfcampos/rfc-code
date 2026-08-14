@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 
-import { projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { projectsDb, sessionLegsDb, sessionsDb } from '@/modules/database/index.js';
 import { chatRunRegistry } from '@/modules/websocket/index.js';
 import { profilesService } from '@/modules/profiles/index.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
+import { fetchUnifiedHistory } from '@/modules/providers/services/session-history-merge.js';
 import { resolveWorktreeContext } from '@/modules/repo-context/index.js';
 import type {
   FetchHistoryOptions,
@@ -209,13 +210,24 @@ export const sessionsService = {
       };
     }
 
-    const provider = session.provider as LLMProvider;
-    const result = await providerRegistry.resolveProvider(provider).sessions.fetchHistory(sessionId, {
-      limit: options.limit ?? null,
-      offset: options.offset ?? 0,
-      projectPath: session.project_path ?? '',
-      providerSessionId: session.provider_session_id,
-    });
+    const legs = sessionLegsDb.listLegs(session.session_id);
+
+    let result: FetchHistoryResult;
+    if (legs.length >= 2) {
+      result = await fetchUnifiedHistory(
+        { session_id: session.session_id, project_path: session.project_path },
+        legs,
+        { limit: options.limit ?? null, offset: options.offset ?? 0 },
+      );
+    } else {
+      const provider = session.provider as LLMProvider;
+      result = await providerRegistry.resolveProvider(provider).sessions.fetchHistory(sessionId, {
+        limit: options.limit ?? null,
+        offset: options.offset ?? 0,
+        projectPath: session.project_path ?? '',
+        providerSessionId: session.provider_session_id,
+      });
+    }
 
     return {
       ...result,

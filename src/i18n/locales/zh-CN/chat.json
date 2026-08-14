@@ -226,7 +226,7 @@
     "worktreeHint": "在独立的 git 工作树中运行此会话",
     "account": {
       "confirmTitle": "切换到 {{provider}} 上的 {{account}}？",
-      "confirmBody": "此操作会在 {{provider}} 上启动一个以当前对话为上下文的新会话。此会话将保持不变并继续可用。",
+      "confirmBody": "此会话将转移到 {{provider}}。整个对话都会带过去——如果放不下会进行摘要——之前供应商的响应缓存将丢失。",
       "cancel": "取消",
       "confirm": "切换",
       "switching": "正在切换…",

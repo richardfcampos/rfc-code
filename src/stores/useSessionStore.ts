@@ -27,6 +27,7 @@ export type MessageKind =
   | 'permission_request'
   | 'permission_cancelled'
   | 'session_created'
+  | 'provider_switch'
   | 'interactive_prompt'
   | 'task_notification';
 
@@ -74,6 +75,8 @@ export interface NormalizedMessage {
   input?: unknown;
   context?: unknown;
   newSessionId?: string;
+  switchProvider?: LLMProvider;
+  switchProfileName?: string;
   status?: string;
   summary?: string;
   exitCode?: number;

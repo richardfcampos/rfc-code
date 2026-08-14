@@ -252,7 +252,7 @@
     "worktreeHint": "Run this session in its own git worktree",
     "account": {
       "confirmTitle": "Switch to {{account}} on {{provider}}?",
-      "confirmBody": "This starts a new session on {{provider}} seeded with the current conversation as context. This session stays available and unchanged.",
+      "confirmBody": "This session moves to {{provider}}. The whole conversation carries over — summarized if it doesn't fit — and the previous provider's response cache is lost.",
       "cancel": "Cancel",
       "confirm": "Switch",
       "switching": "Switching…",

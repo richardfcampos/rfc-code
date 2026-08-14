@@ -22,6 +22,11 @@ export {
   type PrimerMessage,
 } from '@/modules/profiles/handoff-primer.js';
 export {
+  configureHandoffSummaryRuntime,
+  summarizeOverflow,
+  type OverflowSummary,
+} from '@/modules/profiles/handoff-primer-summarize.js';
+export {
   handoffService,
   switchSessionProfile,
   drainPendingSwitch,

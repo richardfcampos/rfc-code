@@ -6,6 +6,7 @@ import test from 'node:test';
 
 import { closeConnection } from '@/modules/database/connection.js';
 import { initializeDatabase } from '@/modules/database/init-db.js';
+import { sessionLegsDb } from '@/modules/database/repositories/session-legs.db.js';
 import { sessionsDb } from '@/modules/database/repositories/sessions.db.js';
 
 async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promise<void> {
@@ -104,5 +105,77 @@ test('legacy provider-keyed rows stay resolvable through both lookups', async ()
 
     assert.equal(sessionsDb.getSessionById('legacy-1')?.provider, 'opencode');
     assert.equal(sessionsDb.getSessionByProviderSessionId('legacy-1')?.session_id, 'legacy-1');
+  });
+});
+
+test('getSessionByProviderSessionId resolves a previous, now-inactive leg back to its owning session', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('session-multi-leg', 'claude', '/workspace/demo');
+
+    const firstLeg = sessionLegsDb.openLeg({
+      sessionId: 'session-multi-leg',
+      provider: 'claude',
+      profileId: null,
+      profileNameAtSwitch: null,
+    });
+    sessionLegsDb.attachProviderSessionId(firstLeg.leg_id, 'native-old', '/fake/native-old.jsonl');
+
+    // Switching provider closes the first leg and opens a second one, so
+    // `sessions.provider_session_id` now points at the new leg, not the old one.
+    sessionLegsDb.openLeg({
+      sessionId: 'session-multi-leg',
+      provider: 'codex',
+      profileId: null,
+      profileNameAtSwitch: null,
+    });
+    sessionsDb.assignProviderSessionId('session-multi-leg', 'native-new');
+
+    const resolved = sessionsDb.getSessionByProviderSessionId('native-old');
+    assert.equal(resolved?.session_id, 'session-multi-leg');
+  });
+});
+
+test('getSessionByProviderSessionId returns null for an id unknown to both sessions and session_legs', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('session-no-match', 'claude', '/workspace/demo');
+
+    assert.equal(sessionsDb.getSessionByProviderSessionId('never-seen-id'), null);
+  });
+});
+
+test('assignProviderSessionId writes the provider id and jsonl_path onto the active leg', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('session-active-leg', 'claude', '/workspace/demo');
+    sessionsDb.updateSessionJsonlPath('session-active-leg', '/fake/session-active-leg.jsonl');
+
+    const leg = sessionLegsDb.openLeg({
+      sessionId: 'session-active-leg',
+      provider: 'claude',
+      profileId: null,
+      profileNameAtSwitch: null,
+    });
+
+    sessionsDb.assignProviderSessionId('session-active-leg', 'native-active');
+
+    const sessionRow = sessionsDb.getSessionById('session-active-leg');
+    assert.equal(sessionRow?.provider_session_id, 'native-active');
+
+    const legs = sessionLegsDb.listLegs('session-active-leg');
+    const activeLeg = legs.find((l) => l.leg_id === leg.leg_id);
+    assert.equal(activeLeg?.provider_session_id, 'native-active');
+    assert.equal(activeLeg?.jsonl_path, '/fake/session-active-leg.jsonl');
+  });
+});
+
+test('assignProviderSessionId does not throw when the session has no active leg', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('session-no-active-leg', 'claude', '/workspace/demo');
+
+    assert.doesNotThrow(() => {
+      sessionsDb.assignProviderSessionId('session-no-active-leg', 'native-orphan');
+    });
+
+    const sessionRow = sessionsDb.getSessionById('session-no-active-leg');
+    assert.equal(sessionRow?.provider_session_id, 'native-orphan');
   });
 });

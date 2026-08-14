@@ -84,6 +84,28 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
     return null;
   }
 
+  if (message.type === 'provider_switch') {
+    const providerLabel =
+      message.switchProvider === 'cursor'
+        ? t('messageTypes.cursor')
+        : message.switchProvider === 'codex'
+          ? t('messageTypes.codex')
+          : message.switchProvider === 'opencode'
+            ? t('messageTypes.opencode', { defaultValue: 'OpenCode' })
+            : t('messageTypes.claude');
+    const accountLabel = message.switchProfileName || 'unknown account';
+
+    return (
+      <div className="flex items-center gap-3 px-3 py-1 sm:px-0">
+        <div className="h-px flex-1 bg-border" />
+        <span className="whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.14em] text-faint">
+          {`SWITCHED TO ${providerLabel} · ${accountLabel} · ${speakerTime ?? formattedTime}`}
+        </span>
+        <div className="h-px flex-1 bg-border" />
+      </div>
+    );
+  }
+
   return (
     <div
       ref={messageRef}

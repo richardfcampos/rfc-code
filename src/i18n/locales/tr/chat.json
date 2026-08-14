@@ -226,7 +226,7 @@
     "worktreeHint": "Bu oturumu kendi git worktree'sinde çalıştır",
     "account": {
       "confirmTitle": "{{provider}} üzerinde {{account}}'a geçilsin mi?",
-      "confirmBody": "Bu işlem, geçerli konuşmayı bağlam olarak taşıyan {{provider}} üzerinde yeni bir oturum başlatır. Bu oturum değişmeden kullanılabilir kalır.",
+      "confirmBody": "Bu oturum {{provider}}'a taşınır. Konuşmanın tamamı aktarılır — sığmazsa özetlenir — ve önceki sağlayıcının yanıt önbelleği kaybolur.",
       "cancel": "İptal",
       "confirm": "Değiştir",
       "switching": "Değiştiriliyor…",

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { Database } from 'better-sqlite3';
 
 import {
@@ -9,6 +11,7 @@ import {
   PROFILES_TABLE_SCHEMA_SQL,
   PROJECTS_TABLE_SCHEMA_SQL,
   PUSH_SUBSCRIPTIONS_TABLE_SCHEMA_SQL,
+  SESSION_LEGS_TABLE_SCHEMA_SQL,
   SESSIONS_TABLE_SCHEMA_SQL,
   USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL,
   VAPID_KEYS_TABLE_SCHEMA_SQL,
@@ -506,6 +509,206 @@ const ensureProjectsForSessionPaths = (db: Database): void => {
   `);
 };
 
+/**
+ * Gives every pre-existing session with a resolved provider_session_id its
+ * seq = 0 leg, mirroring the columns sessions already denormalizes as the
+ * "active leg" projection. After this, "session with zero legs" only happens
+ * for sessions that never got a provider_session_id (app-created, never run).
+ *
+ * started_at is backdated to the session's own created_at rather than left at
+ * its CURRENT_TIMESTAMP default, since the leg genuinely started then.
+ *
+ * The NOT EXISTS guard makes this idempotent: a session that already has a
+ * leg (backfilled on a prior run, or opened by the app since) is skipped.
+ */
+const backfillSessionLegs = (db: Database): void => {
+  if (!tableExists(db, 'sessions') || !tableExists(db, 'session_legs')) {
+    return;
+  }
+
+  db.exec(`
+    INSERT INTO session_legs (
+      leg_id, session_id, seq, provider, profile_id,
+      provider_session_id, jsonl_path, started_at
+    )
+    SELECT
+      ${SQLITE_UUID_SQL},
+      sessions.session_id,
+      0,
+      sessions.provider,
+      sessions.profile_id,
+      sessions.provider_session_id,
+      sessions.jsonl_path,
+      sessions.created_at
+    FROM sessions
+    WHERE sessions.provider_session_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM session_legs WHERE session_legs.session_id = sessions.session_id
+      )
+  `);
+};
+
+/**
+ * How far apart a source session's last activity may sit from the target's
+ * creation and still be accepted as the same handoff. Generous because the old
+ * handoff could be triggered long after the source's last turn, bounded because
+ * beyond a few days "the most recent session on that provider" stops being
+ * evidence of anything.
+ */
+const FORKED_HANDOFF_MATCH_WINDOW_HOURS = 72;
+
+/** Mirrors the header `buildHandoffPrimer` writes at the top of every primer. */
+const FORKED_HANDOFF_ORIGIN_PATTERN =
+  /^This conversation started in another session, on provider `([^`]+)`(?: \(account "([^"]+)"\))?\.$/m;
+
+type ForkedHandoffTargetRow = {
+  session_id: string;
+  created_at: string | null;
+  seed_primer_path: string;
+};
+
+type ForkedHandoffCandidateRow = {
+  session_id: string;
+  gap_hours: number;
+};
+
+const parseForkedHandoffOrigin = (
+  primerText: string,
+): { provider: string; accountName: string | null } | null => {
+  const match = FORKED_HANDOFF_ORIGIN_PATTERN.exec(primerText);
+  if (!match) {
+    return null;
+  }
+
+  return { provider: match[1], accountName: match[2] ?? null };
+};
+
+/**
+ * Merges the target sessions of pre-legs cross-provider handoffs back under
+ * the source session they were forked from.
+ *
+ * The old handoff created a brand-new session row pointing at a primer file and
+ * never mutated (or referenced) the source, so no column links the pair: the
+ * only surviving evidence is the provider and account name the primer's header
+ * names. Merging the wrong pair would file a conversation under an unrelated
+ * session and is unrecoverable, while leaving a legacy pair as two sessions is
+ * merely the status quo — so anything short of a single unambiguous match is
+ * skipped and logged instead of guessed.
+ *
+ * Migrating removes the target row, so a second run finds nothing left to do.
+ */
+const mergeForkedHandoffPairsIntoLegs = (db: Database): void => {
+  if (!tableExists(db, 'sessions') || !tableExists(db, 'session_legs') || !tableExists(db, 'profiles')) {
+    return;
+  }
+  if (!getTableInfo(db, 'sessions').some((column) => column.name === 'seed_primer_path')) {
+    return;
+  }
+
+  const targets = db
+    .prepare(
+      `SELECT session_id, created_at, seed_primer_path
+       FROM sessions
+       WHERE seed_primer_path IS NOT NULL`
+    )
+    .all() as ForkedHandoffTargetRow[];
+
+  for (const target of targets) {
+    const skip = (reason: string): void => {
+      console.warn(`Skipping forked handoff pair for session ${target.session_id}: ${reason}`);
+    };
+
+    try {
+      let primerText: string;
+      try {
+        primerText = readFileSync(target.seed_primer_path, 'utf8');
+      } catch (readError) {
+        const message = readError instanceof Error ? readError.message : String(readError);
+        skip(`primer file unreadable (${message})`);
+        continue;
+      }
+
+      const origin = parseForkedHandoffOrigin(primerText);
+      if (!origin) {
+        skip('primer header does not name an origin provider');
+        continue;
+      }
+
+      const candidates = db
+        .prepare(
+          `SELECT
+             sessions.session_id AS session_id,
+             (julianday(?) - julianday(COALESCE(sessions.updated_at, sessions.created_at))) * 24 AS gap_hours
+           FROM sessions
+           LEFT JOIN profiles ON profiles.id = sessions.profile_id
+           WHERE sessions.session_id <> ?
+             AND sessions.provider = ?
+             AND (? IS NULL OR profiles.name = ?)
+             AND julianday(COALESCE(sessions.updated_at, sessions.created_at))
+                 <= julianday(?)
+           ORDER BY gap_hours ASC`
+        )
+        .all(
+          target.created_at,
+          target.session_id,
+          origin.provider,
+          origin.accountName,
+          origin.accountName,
+          target.created_at,
+        ) as ForkedHandoffCandidateRow[];
+
+      if (candidates.length === 0) {
+        skip('no candidate source session matched the primer origin');
+        continue;
+      }
+      if (candidates.length > 1) {
+        skip(`ambiguous origin: ${candidates.length} candidate source sessions matched`);
+        continue;
+      }
+
+      const candidate = candidates[0];
+      if (candidate.gap_hours > FORKED_HANDOFF_MATCH_WINDOW_HOURS) {
+        skip(
+          `only candidate ${candidate.session_id} is outside the ${FORKED_HANDOFF_MATCH_WINDOW_HOURS}h window`,
+        );
+        continue;
+      }
+
+      const targetLegCount = (
+        db
+          .prepare('SELECT COUNT(*) AS total FROM session_legs WHERE session_id = ?')
+          .get(target.session_id) as { total: number }
+      ).total;
+      if (targetLegCount !== 1) {
+        skip(`target has ${targetLegCount} legs, expected exactly the backfilled one`);
+        continue;
+      }
+
+      const merge = db.transaction(() => {
+        const nextSeqRow = db
+          .prepare('SELECT MAX(seq) AS maxSeq FROM session_legs WHERE session_id = ?')
+          .get(candidate.session_id) as { maxSeq: number | null };
+        const nextSeq = (nextSeqRow.maxSeq ?? -1) + 1;
+
+        db.prepare('UPDATE session_legs SET session_id = ?, seq = ? WHERE session_id = ?').run(
+          candidate.session_id,
+          nextSeq,
+          target.session_id,
+        );
+        db.prepare('DELETE FROM sessions WHERE session_id = ?').run(target.session_id);
+      });
+      merge();
+
+      console.log(
+        `Running migration: merged forked handoff session ${target.session_id} into ${candidate.session_id} as a leg`,
+      );
+    } catch (mergeError) {
+      const message = mergeError instanceof Error ? mergeError.message : String(mergeError);
+      skip(`unexpected failure (${message})`);
+    }
+  }
+};
+
 export const runMigrations = (db: Database) => {
   try {
     const usersTableInfo = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
@@ -552,6 +755,15 @@ export const runMigrations = (db: Database) => {
     db.exec('CREATE INDEX IF NOT EXISTS idx_collaboration_turns_collab ON collaboration_turns(collaboration_id)');
 
     addWorktreeColumnsToSessions(db);
+
+    db.exec(SESSION_LEGS_TABLE_SCHEMA_SQL);
+    db.exec('CREATE INDEX IF NOT EXISTS idx_session_legs_session ON session_legs(session_id, seq)');
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_session_legs_provider_session
+      ON session_legs(provider_session_id) WHERE provider_session_id IS NOT NULL
+    `);
+    backfillSessionLegs(db);
+    mergeForkedHandoffPairsIntoLegs(db);
 
     db.exec('CREATE INDEX IF NOT EXISTS idx_session_ids_lookup ON sessions(session_id)');
     db.exec('CREATE INDEX IF NOT EXISTS idx_sessions_provider_session_id ON sessions(provider_session_id)');

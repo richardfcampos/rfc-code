@@ -11,10 +11,13 @@ import type { ProfileWithStatus } from '../types';
 
 import { PROVIDER_LABELS } from './providerLabels';
 
-// Only these three outcome kinds are ever handed to this component — `local`
+// Only these outcome kinds are ever handed to this component — `local`
 // and `confirmation-required` are handled elsewhere in the parent, and
 // `error` is surfaced separately via the hook's `error` state.
-type SuccessOutcome = Extract<ProviderSwitchOutcome, { kind: 'transplanted' | 'queued' | 'seeded' }>;
+type SuccessOutcome = Extract<
+  ProviderSwitchOutcome,
+  { kind: 'transplanted' | 'queued' | 'seeded' | 'leg-opened' | 'leg-resumed' }
+>;
 
 type SessionAccountSwitcherStatusProps = {
   pendingConfirmation: PendingProviderSwitch | null;
@@ -55,6 +58,39 @@ function describeSeeded(
     });
 }
 
+/**
+ * Same resolution pattern as `describeSeeded`: the leg outcomes only carry a
+ * profile id, so the provider name is looked up from the loaded profile list.
+ */
+function describeLeg(
+  outcome: Extract<SuccessOutcome, { kind: 'leg-opened' | 'leg-resumed' }>,
+  profiles: ProfileWithStatus[],
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
+  const targetProfile = profiles.find((profile) => profile.id === outcome.profileId);
+  const provider = targetProfile
+    ? PROVIDER_LABELS[targetProfile.provider]
+    : t('profiles.accountSwitcher.anotherProvider', { defaultValue: 'another provider' });
+
+  if (outcome.kind === 'leg-resumed') {
+    return t('profiles.accountSwitcher.outcome.legResumed', {
+      provider,
+      defaultValue: 'Back on {{provider}} — picking up where you left off there.',
+    });
+  }
+
+  return outcome.primed
+    ? t('profiles.accountSwitcher.outcome.legOpenedPrimed', {
+      provider,
+      defaultValue: 'Now running on {{provider}}. The conversation carried over.',
+    })
+    : t('profiles.accountSwitcher.outcome.legOpenedUnprimed', {
+      provider,
+      defaultValue:
+        'Now running on {{provider}}. The earlier conversation could not be carried over — this continues without it.',
+    });
+}
+
 export default function SessionAccountSwitcherStatus({
   pendingConfirmation,
   successOutcome,
@@ -77,7 +113,7 @@ export default function SessionAccountSwitcherStatus({
             provider,
             profileName: pendingConfirmation.profileName,
             defaultValue:
-              'This starts a new session on {{provider}} using "{{profileName}}", seeded with this conversation as context. This session stays here and remains available.',
+              'This session moves to {{provider}} using "{{profileName}}". The whole conversation carries over — summarized if it doesn\'t fit — and the previous provider\'s response cache is lost.',
           })}
         </p>
         <div className="flex justify-end gap-2">
@@ -87,7 +123,7 @@ export default function SessionAccountSwitcherStatus({
           <Button size="sm" disabled={isSwitching} onClick={onConfirm}>
             {isSwitching
               ? t('profiles.accountSwitcher.switching', { defaultValue: 'Switching…' })
-              : t('profiles.accountSwitcher.confirmAction', { defaultValue: 'Start new session' })}
+              : t('profiles.accountSwitcher.confirmAction', { defaultValue: 'Switch' })}
           </Button>
         </div>
       </div>
@@ -103,7 +139,9 @@ export default function SessionAccountSwitcherStatus({
         ? t('profiles.accountSwitcher.outcome.transplanted', {
           defaultValue: 'Account switched. The next turn continues on the new account.',
         })
-        : describeSeeded(successOutcome, profiles, t);
+        : successOutcome.kind === 'leg-opened' || successOutcome.kind === 'leg-resumed'
+          ? describeLeg(successOutcome, profiles, t)
+          : describeSeeded(successOutcome, profiles, t);
 
     return (
       <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-foreground">

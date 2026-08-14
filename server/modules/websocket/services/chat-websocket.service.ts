@@ -164,9 +164,8 @@ function broadcastSessionHandoff(sourceSessionId: string, result: HandoffResult)
     type: 'session.handoff',
     sessionId: sourceSessionId,
     status: result.status,
-    // Same session id as `sessionId` on a same-provider transplant; a new id
-    // on a cross-provider seed, which is the session the conversation now
-    // continues in.
+    // Same as `sessionId` except on `'seeded'`, the same-provider transplant's
+    // own filesystem-level degradation to a brand-new session id.
     targetSessionId: result.sessionId,
     provider,
     profileId: result.profileId,

@@ -104,21 +104,24 @@
       "loadError": "Konten konnten nicht geladen werden",
       "empty": "Noch keine weiteren Konten.",
       "current": "Aktuelles Konto",
-      "newSession": "Neue Sitzung",
+      "newSession": "Gleiche Sitzung",
       "needsAuth": "Zuerst bei diesem Konto anmelden",
       "switch": "Wechseln",
       "switching": "Wird gewechselt…",
       "cancel": "Abbrechen",
       "done": "Fertig",
       "confirmTitle": "Zu {{provider}} wechseln?",
-      "confirmBody": "Dadurch wird auf {{provider}} eine neue Sitzung mit \"{{profileName}}\" gestartet, die diese Unterhaltung als Kontext erhält. Diese Sitzung bleibt hier erhalten und weiterhin verfügbar.",
-      "confirmAction": "Neue Sitzung starten",
+      "confirmBody": "Diese Sitzung wechselt zu {{provider}} mit \"{{profileName}}\". Die gesamte Unterhaltung wird übernommen – bei Bedarf zusammengefasst – und der Antwort-Cache des bisherigen Anbieters geht verloren.",
+      "confirmAction": "Wechseln",
       "anotherProvider": "einen anderen Anbieter",
       "outcome": {
         "transplanted": "Konto gewechselt. Die nächste Antwort erfolgt über das neue Konto.",
         "queued": "Gerade läuft eine Antwort – der Wechsel wird übernommen, sobald sie abgeschlossen ist.",
         "seededPrimed": "Die Unterhaltung wird in einer neuen Sitzung auf {{provider}} fortgesetzt.",
-        "seededUnprimed": "Auf {{provider}} wurde eine neue Sitzung gestartet – die bisherige Unterhaltung konnte nicht übernommen werden, daher beginnt sie ohne diesen Kontext."
+        "seededUnprimed": "Auf {{provider}} wurde eine neue Sitzung gestartet – die bisherige Unterhaltung konnte nicht übernommen werden, daher beginnt sie ohne diesen Kontext.",
+        "legOpenedPrimed": "Läuft jetzt auf {{provider}}. Die Unterhaltung wurde übernommen.",
+        "legOpenedUnprimed": "Läuft jetzt auf {{provider}}. Die bisherige Unterhaltung konnte nicht übernommen werden – es geht ohne sie weiter.",
+        "legResumed": "Zurück auf {{provider}} – es geht dort weiter, wo du aufgehört hast."
       }
     }
   },

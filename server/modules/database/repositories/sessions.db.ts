@@ -1,5 +1,8 @@
+import type { Database } from 'better-sqlite3';
+
 import { getConnection } from '@/modules/database/connection.js';
 import { projectsDb } from '@/modules/database/repositories/projects.db.js';
+import { sessionLegsDb } from '@/modules/database/repositories/session-legs.db.js';
 import { normalizeProjectPath } from '@/shared/utils.js';
 
 export type SessionRow = {
@@ -61,6 +64,20 @@ function normalizeSessionRows(rows: SessionRow[]): SessionRow[] {
 function normalizeProjectPathForProvider(provider: string, projectPath: string): string {
   void provider;
   return normalizeProjectPath(projectPath);
+}
+
+function selectSessionById(db: Database, sessionId: string): SessionRow | null {
+  const row = db
+    .prepare(
+      `SELECT ${SESSION_ROW_COLUMNS}
+       FROM sessions
+       WHERE session_id = ?
+       ORDER BY updated_at DESC
+       LIMIT 1`
+    )
+    .get(sessionId) as SessionRow | undefined;
+
+  return normalizeSessionRow(row) ?? null;
 }
 
 export const sessionsDb = {
@@ -227,6 +244,11 @@ export const sessionsDb = {
    * the duplicate is merged into the app row: its transcript path and name
    * are adopted and the duplicate row is removed. Runs in a transaction so
    * the sidebar can never observe both rows at once.
+   *
+   * The same provider id and transcript path are also stamped onto the
+   * session's currently-active leg, in the same transaction, so `sessions`
+   * and `session_legs` never disagree about the active provider_session_id
+   * even if the process crashes mid-write.
    */
   assignProviderSessionId(sessionId: string, providerSessionId: string): void {
     const db = getConnection();
@@ -251,15 +273,26 @@ export const sessionsDb = {
              updated_at = CURRENT_TIMESTAMP
            WHERE session_id = ?`
         ).run(providerSessionId, duplicate.jsonl_path, duplicate.custom_name, sessionId);
+      } else {
+        db.prepare(
+          `UPDATE sessions SET
+             provider_session_id = ?,
+             updated_at = CURRENT_TIMESTAMP
+           WHERE session_id = ?`
+        ).run(providerSessionId, sessionId);
+      }
+
+      const activeLeg = sessionLegsDb.listLegs(sessionId).find((leg) => leg.ended_at === null);
+      if (!activeLeg) {
         return;
       }
 
-      db.prepare(
-        `UPDATE sessions SET
-           provider_session_id = ?,
-           updated_at = CURRENT_TIMESTAMP
-         WHERE session_id = ?`
-      ).run(providerSessionId, sessionId);
+      const resolvedSession = selectSessionById(db, sessionId);
+      sessionLegsDb.attachProviderSessionId(
+        activeLeg.leg_id,
+        providerSessionId,
+        resolvedSession?.jsonl_path ?? null
+      );
     });
 
     merge();
@@ -316,6 +349,43 @@ export const sessionsDb = {
   },
 
   /**
+   * Projects the currently-active leg onto the session row.
+   *
+   * A session spans several provider legs, but the row must always describe the
+   * one that is live: the dispatcher reads `provider`/`profile_id` to pick the
+   * adapter and account, and `provider_session_id`/`jsonl_path` to resume the
+   * native transcript. The four move together — a row carrying one leg's
+   * provider next to another leg's transcript id would resume the wrong
+   * conversation — so they are written in a single statement.
+   */
+  repointActiveLeg(
+    sessionId: string,
+    fields: {
+      provider: string;
+      profileId: string | null;
+      providerSessionId: string | null;
+      jsonlPath: string | null;
+    }
+  ): void {
+    const db = getConnection();
+    db.prepare(
+      `UPDATE sessions
+       SET provider = ?,
+           profile_id = ?,
+           provider_session_id = ?,
+           jsonl_path = ?,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE session_id = ?`
+    ).run(
+      fields.provider,
+      fields.profileId,
+      fields.providerSessionId,
+      fields.jsonlPath,
+      sessionId
+    );
+  },
+
+  /**
    * Points a session at its pending cross-provider context primer, or clears
    * it. A handoff writes the primer file and stores its path here; the next
    * turn reads the path, prefixes the primer to the outgoing prompt, then
@@ -332,17 +402,7 @@ export const sessionsDb = {
 
   getSessionById(sessionId: string): SessionRow | null {
     const db = getConnection();
-    const row = db
-      .prepare(
-        `SELECT ${SESSION_ROW_COLUMNS}
-         FROM sessions
-         WHERE session_id = ?
-         ORDER BY updated_at DESC
-         LIMIT 1`
-      )
-      .get(sessionId) as SessionRow | undefined;
-
-    return normalizeSessionRow(row) ?? null;
+    return selectSessionById(db, sessionId);
   },
 
   /**
@@ -351,6 +411,12 @@ export const sessionsDb = {
    * The filesystem watcher only knows provider ids (they come from transcript
    * file names), so it uses this lookup to translate disk artifacts back to
    * the app-facing session row before broadcasting sidebar updates.
+   *
+   * A provider id that belonged to a previous, now-inactive leg of a session
+   * no longer lives on `sessions.provider_session_id` (only the active leg's
+   * id does), so a miss here falls back to `session_legs` before giving up —
+   * otherwise the watcher would mistake that leg's transcript for an unmapped
+   * session and create a phantom duplicate row.
    */
   getSessionByProviderSessionId(providerSessionId: string): SessionRow | null {
     const db = getConnection();
@@ -364,7 +430,17 @@ export const sessionsDb = {
       )
       .get(providerSessionId) as SessionRow | undefined;
 
-    return normalizeSessionRow(row) ?? null;
+    const direct = normalizeSessionRow(row) ?? null;
+    if (direct) {
+      return direct;
+    }
+
+    const legSessionId = sessionLegsDb.findSessionIdByProviderSessionId(providerSessionId);
+    if (!legSessionId) {
+      return null;
+    }
+
+    return selectSessionById(db, legSessionId);
   },
 
   /**
@@ -503,7 +579,21 @@ export const sessionsDb = {
   deleteSessionsByProjectPath(projectPath: string): void {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPath(projectPath);
-    db.prepare(`DELETE FROM sessions WHERE project_path = ?`).run(normalizedProjectPath);
+
+    const deleteAll = db.transaction(() => {
+      // Must run before the sessions DELETE below: the subquery resolves
+      // which sessions belong to this project by joining against the
+      // sessions table, which would no longer have those rows to match
+      // against if it ran second.
+      db.prepare(
+        `DELETE FROM session_legs
+         WHERE session_id IN (SELECT session_id FROM sessions WHERE project_path = ?)`
+      ).run(normalizedProjectPath);
+
+      db.prepare(`DELETE FROM sessions WHERE project_path = ?`).run(normalizedProjectPath);
+    });
+
+    deleteAll();
   },
 
   getSessionName(sessionId: string, provider: string): string | null {
@@ -534,6 +624,12 @@ export const sessionsDb = {
 
   deleteSessionById(sessionId: string): boolean {
     const db = getConnection();
-    return db.prepare('DELETE FROM sessions WHERE session_id = ?').run(sessionId).changes > 0;
+
+    const deleteOne = db.transaction(() => {
+      db.prepare('DELETE FROM session_legs WHERE session_id = ?').run(sessionId);
+      return db.prepare('DELETE FROM sessions WHERE session_id = ?').run(sessionId).changes > 0;
+    });
+
+    return deleteOne();
   },
 };

@@ -228,7 +228,7 @@
     "worktreeHint": "Lancer cette session dans son propre worktree git",
     "account": {
       "confirmTitle": "Passer à {{account}} sur {{provider}} ?",
-      "confirmBody": "Cela démarre une nouvelle session sur {{provider}}, amorcée avec la conversation actuelle comme contexte. Cette session reste disponible et inchangée.",
+      "confirmBody": "Cette session bascule vers {{provider}}. Toute la conversation est transférée — résumée si nécessaire — et le cache de réponses du fournisseur précédent est perdu.",
       "cancel": "Annuler",
       "confirm": "Changer",
       "switching": "Changement en cours…",

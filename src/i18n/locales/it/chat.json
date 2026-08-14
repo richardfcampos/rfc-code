@@ -226,7 +226,7 @@
     "worktreeHint": "Esegui questa sessione in un worktree git dedicato",
     "account": {
       "confirmTitle": "Passare a {{account}} su {{provider}}?",
-      "confirmBody": "Questo avvia una nuova sessione su {{provider}}, avviata con la conversazione attuale come contesto. Questa sessione resta disponibile e invariata.",
+      "confirmBody": "Questa sessione passa a {{provider}}. L'intera conversazione viene trasferita — riassunta se necessario — e la cache delle risposte del provider precedente viene persa.",
       "cancel": "Annulla",
       "confirm": "Cambia",
       "switching": "Cambio in corso…",

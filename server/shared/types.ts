@@ -180,7 +180,8 @@ export type MessageKind =
   | 'permission_cancelled'
   | 'session_created'
   | 'interactive_prompt'
-  | 'task_notification';
+  | 'task_notification'
+  | 'provider_switch';
 
 /**
  * Event kinds added by the chat gateway layer on top of provider message kinds.
@@ -227,6 +228,12 @@ export type NormalizedMessage = {
   seq?: number;
   role?: 'user' | 'assistant';
   content?: string;
+  /**
+   * Provider switch marker fields (synthetic, never persisted to provider transcripts).
+   * Used to mark boundaries when merging chat history across multiple provider legs.
+   */
+  switchProvider?: LLMProvider;
+  switchProfileName?: string;
   /**
    * Optional display-oriented metadata used by providers that need to expose
    * richer transcript artifacts without introducing a brand-new message kind.

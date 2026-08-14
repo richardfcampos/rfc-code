@@ -6,6 +6,7 @@ import test from 'node:test';
 
 import { closeConnection } from '@/modules/database/connection.js';
 import { initializeDatabase } from '@/modules/database/init-db.js';
+import { sessionLegsDb } from '@/modules/database/repositories/session-legs.db.js';
 import { sessionsDb } from '@/modules/database/repositories/sessions.db.js';
 
 async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promise<void> {
@@ -80,5 +81,89 @@ test('repository reads normalize SQLite UTC timestamps to ISO strings', async ()
     assert.ok(row?.updated_at.endsWith('Z'));
     assert.match(row?.created_at ?? '', /^\d{4}-\d{2}-\d{2}T/);
     assert.match(row?.updated_at ?? '', /^\d{4}-\d{2}-\d{2}T/);
+  });
+});
+
+test('deleteSessionById removes all legs belonging to that session', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('session-to-delete', 'claude', '/workspace/demo-project');
+    sessionLegsDb.openLeg({
+      sessionId: 'session-to-delete',
+      provider: 'claude',
+      profileId: null,
+      profileNameAtSwitch: null,
+    });
+    sessionLegsDb.openLeg({
+      sessionId: 'session-to-delete',
+      provider: 'codex',
+      profileId: null,
+      profileNameAtSwitch: null,
+    });
+
+    const deleted = sessionsDb.deleteSessionById('session-to-delete');
+
+    assert.equal(deleted, true);
+    assert.equal(sessionsDb.getSessionById('session-to-delete'), null);
+    assert.deepEqual(sessionLegsDb.listLegs('session-to-delete'), []);
+  });
+});
+
+test('deleteSessionsByProjectPath removes legs for every deleted session in that project, and leaves other projects untouched', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('session-project-a-1', 'claude', '/workspace/project-a');
+    sessionsDb.createAppSession('session-project-a-2', 'claude', '/workspace/project-a');
+    sessionsDb.createAppSession('session-project-b-1', 'claude', '/workspace/project-b');
+
+    sessionLegsDb.openLeg({
+      sessionId: 'session-project-a-1',
+      provider: 'claude',
+      profileId: null,
+      profileNameAtSwitch: null,
+    });
+    sessionLegsDb.openLeg({
+      sessionId: 'session-project-a-2',
+      provider: 'claude',
+      profileId: null,
+      profileNameAtSwitch: null,
+    });
+    sessionLegsDb.openLeg({
+      sessionId: 'session-project-b-1',
+      provider: 'claude',
+      profileId: null,
+      profileNameAtSwitch: null,
+    });
+
+    sessionsDb.deleteSessionsByProjectPath('/workspace/project-a');
+
+    assert.deepEqual(sessionLegsDb.listLegs('session-project-a-1'), []);
+    assert.deepEqual(sessionLegsDb.listLegs('session-project-a-2'), []);
+    assert.equal(sessionLegsDb.listLegs('session-project-b-1').length, 1);
+    assert.equal(sessionsDb.getSessionById('session-project-b-1')?.session_id, 'session-project-b-1');
+  });
+});
+
+test('archiving then unarchiving a multi-leg session leaves its legs untouched', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('session-archive-legs', 'claude', '/workspace/demo-project');
+    sessionLegsDb.openLeg({
+      sessionId: 'session-archive-legs',
+      provider: 'claude',
+      profileId: null,
+      profileNameAtSwitch: null,
+    });
+    sessionLegsDb.openLeg({
+      sessionId: 'session-archive-legs',
+      provider: 'codex',
+      profileId: null,
+      profileNameAtSwitch: null,
+    });
+
+    const legsBeforeArchiving = sessionLegsDb.listLegs('session-archive-legs');
+
+    sessionsDb.updateSessionIsArchived('session-archive-legs', true);
+    sessionsDb.updateSessionIsArchived('session-archive-legs', false);
+
+    const legsAfterUnarchiving = sessionLegsDb.listLegs('session-archive-legs');
+    assert.deepEqual(legsAfterUnarchiving, legsBeforeArchiving);
   });
 });

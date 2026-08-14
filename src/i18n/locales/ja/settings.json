@@ -104,21 +104,24 @@
       "loadError": "アカウントの読み込みに失敗しました",
       "empty": "他のアカウントはまだありません。",
       "current": "現在のアカウント",
-      "newSession": "新しいセッション",
+      "newSession": "同じセッション",
       "needsAuth": "まずこのアカウントにサインインしてください",
       "switch": "切り替え",
       "switching": "切り替え中…",
       "cancel": "キャンセル",
       "done": "完了",
       "confirmTitle": "{{provider}} に切り替えますか？",
-      "confirmBody": "{{provider}} で「{{profileName}}」による新しいセッションが開始され、この会話がコンテキストとして引き継がれます。このセッションはそのまま残り、引き続き利用できます。",
-      "confirmAction": "新しいセッションを開始",
+      "confirmBody": "このセッションは「{{profileName}}」で {{provider}} に移ります。会話全体が引き継がれます（収まらない場合は要約されます）。以前のプロバイダーの応答キャッシュは失われます。",
+      "confirmAction": "切り替え",
       "anotherProvider": "別のプロバイダー",
       "outcome": {
         "transplanted": "アカウントを切り替えました。次のやり取りは新しいアカウントで続きます。",
         "queued": "実行中のやり取りがあります — 完了後に切り替えが適用されます。",
         "seededPrimed": "会話は {{provider}} 上の新しいセッションで続きます。",
-        "seededUnprimed": "{{provider}} で新しいセッションが開始されましたが、以前の会話を引き継げなかったため、そのコンテキストなしで始まります。"
+        "seededUnprimed": "{{provider}} で新しいセッションが開始されましたが、以前の会話を引き継げなかったため、そのコンテキストなしで始まります。",
+        "legOpenedPrimed": "現在 {{provider}} で実行中です。会話は引き継がれました。",
+        "legOpenedUnprimed": "現在 {{provider}} で実行中です。以前の会話は引き継げなかったため、そのまま続行します。",
+        "legResumed": "{{provider}} に戻りました — 続きから再開します。"
       }
     }
   },

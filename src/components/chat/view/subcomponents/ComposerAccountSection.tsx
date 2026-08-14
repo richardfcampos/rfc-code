@@ -88,7 +88,7 @@ export default function ComposerAccountSection({
           <p className="mt-1 text-xs leading-4 text-faint">
             {t('composer.account.confirmBody', {
               defaultValue:
-                'This starts a new session on {{provider}} seeded with the current conversation as context. This session stays available and unchanged.',
+                'This session moves to {{provider}}. The whole conversation carries over — summarized if it doesn\'t fit — and the previous provider\'s response cache is lost.',
               provider: providerLabel(pendingConfirmation.toProvider),
             })}
           </p>

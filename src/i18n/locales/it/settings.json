@@ -104,21 +104,24 @@
       "loadError": "Impossibile caricare gli account",
       "empty": "Ancora nessun altro account.",
       "current": "Account attuale",
-      "newSession": "Nuova sessione",
+      "newSession": "Stessa sessione",
       "needsAuth": "Accedi prima a questo account",
       "switch": "Cambia",
       "switching": "Cambio in corso…",
       "cancel": "Annulla",
       "done": "Fatto",
       "confirmTitle": "Passare a {{provider}}?",
-      "confirmBody": "Questo avvia una nuova sessione su {{provider}} con \"{{profileName}}\", avviata con questa conversazione come contesto. Questa sessione resta qui e rimane disponibile.",
-      "confirmAction": "Avvia nuova sessione",
+      "confirmBody": "Questa sessione passa a {{provider}} con \"{{profileName}}\". L'intera conversazione viene trasferita — riassunta se necessario — e la cache delle risposte del provider precedente viene persa.",
+      "confirmAction": "Cambia",
       "anotherProvider": "un altro provider",
       "outcome": {
         "transplanted": "Account cambiato. Il prossimo messaggio prosegue sul nuovo account.",
         "queued": "È in corso un messaggio — il cambio verrà applicato al termine.",
         "seededPrimed": "La conversazione prosegue in una nuova sessione su {{provider}}.",
-        "seededUnprimed": "È stata avviata una nuova sessione su {{provider}} — non è stato possibile trasferire la conversazione precedente, quindi inizia senza quel contesto."
+        "seededUnprimed": "È stata avviata una nuova sessione su {{provider}} — non è stato possibile trasferire la conversazione precedente, quindi inizia senza quel contesto.",
+        "legOpenedPrimed": "Ora in esecuzione su {{provider}}. La conversazione è stata trasferita.",
+        "legOpenedUnprimed": "Ora in esecuzione su {{provider}}. Non è stato possibile trasferire la conversazione precedente — si continua senza di essa.",
+        "legResumed": "Di nuovo su {{provider}} — si riprende da dove avevi lasciato."
       }
     }
   },

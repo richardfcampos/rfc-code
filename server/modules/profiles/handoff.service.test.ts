@@ -5,7 +5,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
+import {
+  closeConnection,
+  initializeDatabase,
+  sessionLegsDb,
+  sessionsDb,
+} from '@/modules/database/index.js';
 import { profilesService, type ProfileView } from '@/modules/profiles/profiles.service.js';
 import { resolveCredentialPath, resolveProfileDir } from '@/modules/profiles/profile-env.js';
 import {
@@ -205,38 +210,73 @@ test('rejects a handoff for an unknown session', async () => {
   });
 });
 
-test('hands a session to another provider by seeding a primed session there', async () => {
+test('hands a session to another provider on a primed leg, keeping the session id', async () => {
   await withHandoffEnvironment(async () => {
     const claudeProfile = profilesService.createProfile({ provider: 'claude', name: 'Claude A' });
     const codexProfile = profilesService.createProfile({ provider: 'codex', name: 'Codex B' });
     authenticate(codexProfile);
     const sessionId = 'sess-cross';
-    seedTransplantableSession(claudeProfile.slug, claudeProfile.id, sessionId);
+    const sourceTranscript = seedTransplantableSession(
+      claudeProfile.slug,
+      claudeProfile.id,
+      sessionId,
+    );
 
     const result = await switchSessionProfile(sessionId, codexProfile.id, {
       isSessionRunning: () => false,
       loadHistory: async () => HISTORY,
     });
 
-    assert.equal(result.status, 'seeded');
+    assert.equal(result.status, 'leg-opened');
     assert.equal(result.primed, true);
-    assert.notEqual(result.seededSessionId, sessionId);
+    // The app-facing id survives the switch, so open tabs and links keep working.
+    assert.equal(result.sessionId, sessionId);
+    assert.equal(result.seededSessionId, undefined, 'no sibling session is created');
 
-    const seeded = sessionsDb.getSessionById(result.seededSessionId as string);
-    assert.equal(seeded?.provider, 'codex', 'new session runs on the target provider');
-    assert.equal(seeded?.profile_id, codexProfile.id);
-    assert.ok(seeded?.seed_primer_path, 'primer pointer recorded');
-    assert.ok(fs.existsSync(seeded!.seed_primer_path as string), 'primer written to disk');
+    const row = sessionsDb.getSessionById(sessionId);
+    assert.equal(row?.provider, 'codex', 'the session now runs on the target provider');
+    assert.equal(row?.profile_id, codexProfile.id);
+    // A fresh leg has no native transcript until the CLI announces its own id.
+    assert.equal(row?.provider_session_id, null);
+    assert.equal(row?.jsonl_path, null);
+    assert.ok(row?.seed_primer_path, 'primer pointer recorded');
+    assert.ok(fs.existsSync(row!.seed_primer_path as string), 'primer written to disk');
     assert.ok(
-      fs.readFileSync(seeded!.seed_primer_path as string, 'utf8').includes('port the parser to rust'),
+      fs.readFileSync(row!.seed_primer_path as string, 'utf8').includes('port the parser to rust'),
       'primer carries the prior conversation',
     );
 
-    // The source session keeps its provider, its account and its transcript, so
-    // the conversation stays browsable exactly where it was recorded.
-    const sourceRow = sessionsDb.getSessionById(sessionId);
-    assert.equal(sourceRow?.provider, 'claude');
-    assert.equal(sourceRow?.profile_id, claudeProfile.id);
+    const legs = sessionLegsDb.listLegs(sessionId);
+    assert.equal(legs.length, 1);
+    assert.equal(legs[0]?.provider, 'codex');
+    assert.equal(legs[0]?.profile_id, codexProfile.id);
+    assert.equal(legs[0]?.ended_at, null, 'the target leg is the active one');
+
+    // The source provider's own transcript is left where it was recorded.
+    assert.ok(fs.existsSync(sourceTranscript));
+    assert.equal(fs.readFileSync(sourceTranscript, 'utf8'), TRANSCRIPT);
+  });
+});
+
+test('resumes the leg a provider already owns instead of opening a third one', async () => {
+  await withHandoffEnvironment(async () => {
+    const claudeProfile = profilesService.createProfile({ provider: 'claude', name: 'Claude A' });
+    const codexProfile = profilesService.createProfile({ provider: 'codex', name: 'Codex B' });
+    authenticate(claudeProfile);
+    authenticate(codexProfile);
+    const sessionId = 'sess-cross-return';
+    seedTransplantableSession(claudeProfile.slug, claudeProfile.id, sessionId);
+
+    const deps = { isSessionRunning: () => false, loadHistory: async () => HISTORY };
+    await switchSessionProfile(sessionId, codexProfile.id, deps);
+    await switchSessionProfile(sessionId, claudeProfile.id, deps);
+    const back = await switchSessionProfile(sessionId, codexProfile.id, deps);
+
+    assert.equal(back.status, 'leg-resumed');
+    assert.equal(back.sessionId, sessionId);
+    assert.equal(back.seededSessionId, undefined);
+    assert.equal(sessionLegsDb.listLegs(sessionId).length, 2, 'the codex leg was reused');
+    assert.equal(sessionsDb.getSessionById(sessionId)?.profile_id, codexProfile.id);
   });
 });
 
@@ -252,14 +292,13 @@ test('applies a queued cross-provider switch once the running turn ends', async 
       isSessionRunning: () => true,
     });
     assert.equal(queued.status, 'queued');
+    assert.equal(sessionsDb.getSessionById(sessionId)?.provider, 'claude', 'nothing moves mid-turn');
 
     const applied = await drainPendingSwitch(sessionId, { loadHistory: async () => HISTORY });
-    assert.equal(applied?.status, 'seeded');
+    assert.equal(applied?.status, 'leg-opened');
     assert.equal(applied?.primed, true);
-    assert.equal(
-      sessionsDb.getSessionById(applied?.seededSessionId as string)?.provider,
-      'codex',
-    );
+    assert.equal(applied?.sessionId, sessionId);
+    assert.equal(sessionsDb.getSessionById(sessionId)?.provider, 'codex');
   });
 });
 

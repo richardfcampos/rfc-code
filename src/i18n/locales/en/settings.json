@@ -161,21 +161,24 @@
       "loadError": "Failed to load accounts",
       "empty": "No other accounts yet.",
       "current": "Current account",
-      "newSession": "New session",
+      "newSession": "Same session",
       "needsAuth": "Sign in to this account first",
       "switch": "Switch",
       "switching": "Switching…",
       "cancel": "Cancel",
       "done": "Done",
       "confirmTitle": "Switch to {{provider}}?",
-      "confirmBody": "This starts a new session on {{provider}} using \"{{profileName}}\", seeded with this conversation as context. This session stays here and remains available.",
-      "confirmAction": "Start new session",
+      "confirmBody": "This session moves to {{provider}} using \"{{profileName}}\". The whole conversation carries over — summarized if it doesn't fit — and the previous provider's response cache is lost.",
+      "confirmAction": "Switch",
       "anotherProvider": "another provider",
       "outcome": {
         "transplanted": "Account switched. The next turn continues on the new account.",
         "queued": "A turn is running — the switch will apply when it finishes.",
         "seededPrimed": "The conversation continues in a new session on {{provider}}.",
-        "seededUnprimed": "A new session was started on {{provider}} — the earlier conversation could not be carried over, so it begins without that context."
+        "seededUnprimed": "A new session was started on {{provider}} — the earlier conversation could not be carried over, so it begins without that context.",
+        "legOpenedPrimed": "Now running on {{provider}}. The conversation carried over.",
+        "legOpenedUnprimed": "Now running on {{provider}}. The earlier conversation could not be carried over — this continues without it.",
+        "legResumed": "Back on {{provider}} — picking up where you left off there."
       }
     }
   },

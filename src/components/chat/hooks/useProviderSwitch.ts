@@ -20,9 +20,11 @@ export interface PendingProviderSwitch {
   profileId: string;
   profileName: string;
   /**
-   * Always true today: leaving the provider means the conversation continues in
-   * a newly created session. Named explicitly so the copy in each surface can
-   * key off the consequence rather than off the provider comparison.
+   * Always false today: leaving the provider hands the conversation off onto a
+   * leg of the same session (context crosses over, possibly summarized or
+   * truncated) rather than creating a new one. Named explicitly so the copy in
+   * each surface can key off the consequence rather than off the provider
+   * comparison.
    */
   createsNewSession: boolean;
 }
@@ -36,8 +38,17 @@ export type ProviderSwitchOutcome =
   | { kind: 'transplanted'; sessionId: string; profileId: string }
   /** A turn was streaming; the server applies the switch when it ends and broadcasts it. */
   | { kind: 'queued'; sessionId: string; profileId: string }
-  /** A new session was created on the target provider and navigated to. */
+  /**
+   * Filesystem-level degradation of a same-provider transplant: a genuinely new
+   * session id was created, so this still means "navigate". Kept alongside the
+   * two leg kinds below rather than folded into them because it is unrelated to
+   * the cross-provider handoff path they cover.
+   */
   | { kind: 'seeded'; sessionId: string; profileId: string; primed: boolean }
+  /** Cross-provider handoff opened a new leg on the same session id — nothing to navigate to. */
+  | { kind: 'leg-opened'; sessionId: string; profileId: string; primed: boolean }
+  /** Cross-provider handoff resumed an existing leg on the same session id — nothing to navigate to. */
+  | { kind: 'leg-resumed'; sessionId: string; profileId: string; primed: boolean }
   | { kind: 'error'; message: string };
 
 export interface UseProviderSwitchArgs {
@@ -49,6 +60,12 @@ export interface UseProviderSwitchArgs {
   onNavigateToSession?: (targetSessionId: string, options?: SessionNavigationOptions) => void;
   /** Called when a new session appeared and the sidebar has to pick it up. */
   onSessionsRefresh?: () => void;
+  /**
+   * Called after a leg lands on the session already open in the UI, so the
+   * caller can refetch/invalidate its message history in place — no
+   * navigation involved since the session id never changes on this path.
+   */
+  onSessionHistoryChanged?: (sessionId: string) => void;
 }
 
 /**
@@ -83,6 +100,7 @@ export function useProviderSwitch({
   currentProvider,
   onNavigateToSession,
   onSessionsRefresh,
+  onSessionHistoryChanged,
 }: UseProviderSwitchArgs) {
   const { switchAccount, isSwitching } = useSessionHandoff();
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingProviderSwitch | null>(null);
@@ -116,6 +134,18 @@ export function useProviderSwitch({
         });
       }
 
+      if (result.status === 'leg-opened' || result.status === 'leg-resumed') {
+        // The session id never changes on this path: the user is already
+        // looking at the right session, so only its history needs refetching.
+        onSessionHistoryChanged?.(result.sessionId);
+        return remember({
+          kind: result.status,
+          sessionId: result.sessionId,
+          profileId: result.profileId,
+          primed: readPrimed(result),
+        });
+      }
+
       if (result.status === 'queued') {
         // Deferred until the running turn ends; the server broadcasts
         // `session.handoff` then, so nothing is navigated or refreshed here.
@@ -128,7 +158,7 @@ export function useProviderSwitch({
       setError(message);
       return remember({ kind: 'error', message });
     }
-  }, [onNavigateToSession, onSessionsRefresh, remember, switchAccount]);
+  }, [onNavigateToSession, onSessionHistoryChanged, onSessionsRefresh, remember, switchAccount]);
 
   const requestSwitch = useCallback(async (profile: Profile): Promise<ProviderSwitchOutcome> => {
     setError(null);
@@ -147,7 +177,7 @@ export function useProviderSwitch({
         toProvider: profile.provider,
         profileId: profile.id,
         profileName: profile.name,
-        createsNewSession: true,
+        createsNewSession: false,
       };
       setPendingConfirmation(pending);
       return remember({ kind: 'confirmation-required', pending });

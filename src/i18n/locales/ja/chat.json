@@ -213,7 +213,7 @@
     "worktreeHint": "このセッションを専用の git ワークツリーで実行",
     "account": {
       "confirmTitle": "{{provider}} の {{account}} に切り替えますか？",
-      "confirmBody": "{{provider}} で現在の会話をコンテキストとして引き継いだ新しいセッションが開始されます。このセッションはそのまま変更されず利用できます。",
+      "confirmBody": "このセッションは {{provider}} に移ります。会話全体が引き継がれます（収まらない場合は要約されます）。以前のプロバイダーの応答キャッシュは失われます。",
       "cancel": "キャンセル",
       "confirm": "切り替え",
       "switching": "切り替え中…",

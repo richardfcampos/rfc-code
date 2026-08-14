@@ -105,21 +105,24 @@
       "loadError": "加载账户失败",
       "empty": "暂无其他账户。",
       "current": "当前账户",
-      "newSession": "新会话",
+      "newSession": "同一会话",
       "needsAuth": "请先登录此账户",
       "switch": "切换",
       "switching": "正在切换…",
       "cancel": "取消",
       "done": "完成",
       "confirmTitle": "切换到 {{provider}}？",
-      "confirmBody": "此操作会在 {{provider}} 上使用「{{profileName}}」启动一个以当前对话为上下文的新会话。此会话会保留在这里，并继续可用。",
-      "confirmAction": "启动新会话",
+      "confirmBody": "此会话将使用「{{profileName}}」转移到 {{provider}}。整个对话都会带过去——如果放不下会进行摘要——之前供应商的响应缓存将丢失。",
+      "confirmAction": "切换",
       "anotherProvider": "其他供应商",
       "outcome": {
         "transplanted": "账户已切换。下一条回复将在新账户上继续。",
         "queued": "有一条回复正在处理 — 完成后将应用切换。",
         "seededPrimed": "对话将在 {{provider}} 上的新会话中继续。",
-        "seededUnprimed": "已在 {{provider}} 上启动新会话 — 由于无法带入此前的对话，该会话不包含之前的上下文。"
+        "seededUnprimed": "已在 {{provider}} 上启动新会话 — 由于无法带入此前的对话，该会话不包含之前的上下文。",
+        "legOpenedPrimed": "现在运行在 {{provider}} 上。对话已带过来。",
+        "legOpenedUnprimed": "现在运行在 {{provider}} 上。之前的对话无法带过来——将不带该上下文继续。",
+        "legResumed": "已回到 {{provider}} —— 从你上次离开的地方继续。"
       }
     }
   },
