@@ -23,6 +23,7 @@ import { getConnectableHost } from '../shared/networkHosts.js';
 import { findAppRoot, getModuleDir } from './utils/runtime-paths.js';
 import {
     queryClaudeSDK,
+    queryClaudeSDKOnce,
     abortClaudeSDKSession,
     resolveToolApproval,
     getPendingApprovalsForSession,
@@ -60,6 +61,7 @@ import {
     configureCollabClaudeRuntime,
     failOrphanedCollaborations,
 } from './modules/collab/index.js';
+import { configureBtwRuntime } from './modules/commands/index.js';
 import { runWorktreeSessionBackfill } from './modules/repo-context/index.js';
 import notificationRoutes from './modules/notifications/notifications.routes.js';
 import userRoutes from './routes/user.js';
@@ -1610,6 +1612,10 @@ async function startServer() {
             abortSession: abortClaudeSDKSession,
             resolveToolApproval,
         });
+
+        // `/btw` runs one detached Claude turn per question, with no session
+        // and no socket behind it, so it takes the SDK through the same seam.
+        configureBtwRuntime(queryClaudeSDKOnce);
 
         // A collaboration's round loop lives in memory and died with the last
         // process, so rows still marked running will never advance. Close them

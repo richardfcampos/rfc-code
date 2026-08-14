@@ -157,15 +157,31 @@ export type HelpCommandData = {
   }>;
 };
 
-export type CommandModalKind = 'help' | 'models' | 'cost' | 'status';
+export type BtwCommandData = {
+  status: 'loading' | 'done' | 'error';
+  question: string;
+  answer?: string;
+  message?: string;
+};
+
+export type CommandModalKind = 'help' | 'models' | 'cost' | 'status' | 'btw';
 
 export type CommandModalPayload = {
   kind: CommandModalKind;
-  data: HelpCommandData | ModelCommandData | CostCommandData | StatusCommandData;
+  data: HelpCommandData | ModelCommandData | CostCommandData | StatusCommandData | BtwCommandData;
 };
 
 const createFakeSubmitEvent = () => {
   return { preventDefault: () => undefined } as unknown as FormEvent<HTMLFormElement>;
+};
+
+// Strips the leading command name off typed composer input, leaving the
+// trimmed remainder as the `/btw` question. Shared by the optimistic loading
+// state (set before the request is sent) and the error fallback (best-effort
+// reconstruction of the question when the request itself failed).
+const extractBtwQuestion = (commandName: string, rawInput: string): string => {
+  const match = rawInput.match(new RegExp(`${escapeRegExp(commandName)}\\s*(.*)`));
+  return match && match[1] ? match[1].trim() : '';
 };
 
 export type QueuedDraft = {
@@ -310,6 +326,13 @@ export function useChatComposerState({
           break;
         }
 
+        case 'btw':
+          setCommandModalPayload({
+            kind: 'btw',
+            data: (data || {}) as BtwCommandData,
+          });
+          break;
+
         case 'memory':
           if (data.error) {
             addMessage({
@@ -439,11 +462,25 @@ export function useChatComposerState({
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown error';
         console.error('Error executing command:', error);
-        addMessage({
-          type: 'assistant',
-          content: `Error executing command: ${message}`,
-          timestamp: Date.now(),
-        });
+        // `/btw` answers are side questions that must never enter the chat
+        // message list — surface transport failures in the modal instead of
+        // falling back to the shared addMessage error path.
+        if (command.name === '/btw') {
+          setCommandModalPayload({
+            kind: 'btw',
+            data: {
+              status: 'error',
+              question: extractBtwQuestion(command.name, rawInput ?? input),
+              message,
+            },
+          });
+        } else {
+          addMessage({
+            type: 'assistant',
+            content: `Error executing command: ${message}`,
+            timestamp: Date.now(),
+          });
+        }
       }
     },
     [
@@ -749,6 +786,15 @@ export function useChatComposerState({
               } as SlashCommand)
             : undefined);
         if (matchedCommand && matchedCommand.type !== 'skill') {
+          // `/btw` opens the modal immediately in a loading state so the user
+          // gets feedback before the round trip resolves; the server never
+          // returns 'loading' itself, so this is purely a client-side stopgap.
+          if (matchedCommand.name === '/btw') {
+            setCommandModalPayload({
+              kind: 'btw',
+              data: { status: 'loading', question: extractBtwQuestion(matchedCommand.name, commandInput) },
+            });
+          }
           executeCommand(matchedCommand, isHelpAlias ? '/help' : commandInput);
           setInput('');
           inputValueRef.current = '';

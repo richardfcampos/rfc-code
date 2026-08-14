@@ -4,6 +4,7 @@ import path from "path";
 
 import express from "express";
 
+import { executeBtwCommand } from "../modules/commands/index.js";
 import { providerModelsService } from "../modules/providers/services/provider-models.service.js";
 import { parseFrontMatter } from "../shared/frontmatter.js";
 import { findAppRoot, getModuleDir } from "../utils/runtime-paths.js";
@@ -195,6 +196,13 @@ const builtInCommands = [
     namespace: "builtin",
     metadata: { type: "builtin" },
   },
+  {
+    name: "/btw",
+    description:
+      "Ask a side question with conversation context, without adding it to the session",
+    namespace: "builtin",
+    metadata: { type: "builtin" },
+  },
 ];
 
 /**
@@ -250,6 +258,8 @@ Custom commands can be created in:
   },
 
   "/models": executeModelsCommand,
+
+  "/btw": executeBtwCommand,
 
   "/cost": async (args, context) => {
     const tokenUsage = context?.tokenUsage || {};

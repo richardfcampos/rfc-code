@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react';
 import {
   Activity,
+  AlertCircle,
   BadgeCheck,
   CircleHelp,
   Coins,
   Cpu,
   Gauge,
+  MessageCircleQuestion,
   Package,
   Search,
   Server,
@@ -19,6 +21,7 @@ import {
 import { Badge, Button, Dialog, DialogContent, DialogTitle, Input } from '../../../../shared/view/ui';
 import type { LLMProvider, ProviderModelsCacheInfo, ProviderModelsDefinition } from '../../../../types/app';
 import type {
+  BtwCommandData,
   CommandModalPayload,
   CostCommandData,
   HelpCommandData,
@@ -71,6 +74,7 @@ const FALLBACK_COMMANDS: CommandEntry[] = [
   { name: '/memory', description: 'Open the project CLAUDE.md memory file.' },
   { name: '/config', description: 'Open settings and configuration.' },
   { name: '/help', description: 'Show command documentation and syntax.' },
+  { name: '/btw', description: 'Ask a side question without adding it to the conversation.' },
 ];
 
 const getProviderLabel = (provider: string | undefined, fallback = 'Unknown') => {
@@ -514,6 +518,44 @@ function StatusContent({ data }: { data: StatusCommandData }) {
   );
 }
 
+function BtwContent({ data }: { data: BtwCommandData }) {
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <div className="shrink-0 rounded-2xl border border-border/70 bg-muted/20 p-4">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Question</p>
+        <p className="mt-1.5 text-sm leading-5 text-foreground">"{data.question}"</p>
+      </div>
+
+      {data.status === 'loading' && (
+        <div className="flex flex-1 items-center justify-center gap-2.5 text-sm text-muted-foreground">
+          <RefreshCw className="h-4 w-4 animate-spin text-primary" />
+          Thinking…
+        </div>
+      )}
+
+      {data.status === 'done' && (
+        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto rounded-2xl border border-border/70 bg-background/75 p-4">
+          <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">{data.answer}</p>
+        </div>
+      )}
+
+      {data.status === 'error' && (
+        <div
+          role="alert"
+          className="flex items-start gap-2.5 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-destructive"
+        >
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+          <p className="text-sm leading-relaxed">{data.message || 'Something went wrong answering that question.'}</p>
+        </div>
+      )}
+
+      <p className="shrink-0 text-[11px] leading-4 text-muted-foreground">
+        Not added to the conversation — this exchange stays in this window only.
+      </p>
+    </div>
+  );
+}
+
 export default function CommandResultModal({
   payload,
   onClose,
@@ -551,6 +593,12 @@ export default function CommandResultModal({
       title: 'System Status',
       subtitle: 'Version, provider, runtime, and environment details in one place.',
       icon: Activity,
+    },
+    btw: {
+      eyebrow: 'Side question',
+      title: 'By the Way',
+      subtitle: 'Answered using this conversation for context — the exchange is not added to the session.',
+      icon: MessageCircleQuestion,
     },
   } as const;
 
@@ -614,6 +662,7 @@ export default function CommandResultModal({
           )}
           {payload?.kind === 'cost' && <CostContent data={payload.data as CostCommandData} />}
           {payload?.kind === 'status' && <StatusContent data={payload.data as StatusCommandData} />}
+          {payload?.kind === 'btw' && <BtwContent data={payload.data as BtwCommandData} />}
         </div>
 
         <div className="flex shrink-0 flex-col gap-3 border-t border-border/70 bg-muted/20 px-4 py-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">

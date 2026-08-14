@@ -54,6 +54,10 @@ const TOOL_APPROVAL_TIMEOUT_MS = parseInt(process.env.CLAUDE_TOOL_APPROVAL_TIMEO
 
 const TOOLS_REQUIRING_INTERACTION = new Set(['AskUserQuestion', 'ExitPlanMode']);
 
+// Ephemeral runs answer a single question with no tools, so they finish in
+// seconds; anything longer is a hung subprocess holding an HTTP request open.
+const EPHEMERAL_QUERY_TIMEOUT_MS = 60000;
+
 function resolveClaudeEffort(model, effort, modelsDefinition = CLAUDE_FALLBACK_MODELS) {
   const selectedModel = modelsDefinition?.OPTIONS?.find((option) => option.value === model) || null;
   const allowedEfforts = selectedModel?.effort?.values
@@ -172,7 +176,7 @@ function matchesToolPermission(entry, toolName, input) {
 }
 
 function mapCliOptionsToSDK(options = {}) {
-  const { sessionId, cwd, toolsSettings, permissionMode, effort, profileId, cavemanMode } = options;
+  const { sessionId, cwd, toolsSettings, permissionMode, effort, profileId, cavemanMode, ephemeral } = options;
 
   const sdkOptions = {};
 
@@ -227,10 +231,19 @@ function mapCliOptionsToSDK(options = {}) {
 
   sdkOptions.allowedTools = allowedTools;
 
-  // Use the tools preset to make all default built-in tools available (including AskUserQuestion).
-  // This was introduced in SDK 0.1.57. Omitting this preserves existing behavior (all tools available),
-  // but being explicit ensures forward compatibility and clarity.
-  sdkOptions.tools = { type: 'preset', preset: 'claude_code' };
+  if (ephemeral) {
+    // An ephemeral run answers from the prompt alone: an empty array disables
+    // every built-in tool (the preset would re-enable them), and
+    // persistSession keeps the run out of ~/.claude/projects, so it leaves no
+    // transcript behind and can never be resumed.
+    sdkOptions.tools = [];
+    sdkOptions.persistSession = false;
+  } else {
+    // Use the tools preset to make all default built-in tools available (including AskUserQuestion).
+    // This was introduced in SDK 0.1.57. Omitting this preserves existing behavior (all tools available),
+    // but being explicit ensures forward compatibility and clarity.
+    sdkOptions.tools = { type: 'preset', preset: 'claude_code' };
+  }
 
   sdkOptions.disallowedTools = settings.disallowedTools || [];
 
@@ -252,7 +265,9 @@ function mapCliOptionsToSDK(options = {}) {
 
   sdkOptions.settingSources = ['project', 'user', 'local'];
 
-  if (sessionId) {
+  // Resuming would attach the run to a stored session, which is exactly what an
+  // ephemeral run must not do — it carries its context in the prompt instead.
+  if (sessionId && !ephemeral) {
     sdkOptions.resume = sessionId;
   }
 
@@ -482,6 +497,34 @@ async function loadMcpConfig(cwd) {
 }
 
 /**
+ * Rejects when `cwd` is not a usable directory on this host.
+ *
+ * A session can point at a directory that does not exist here: an imported
+ * history still carrying the paths of another machine, or a worktree that was
+ * deleted. The SDK spawns the CLI with that cwd, and the resulting ENOENT is
+ * reported as "Claude Code native binary not found", which sends debugging
+ * after an installation that is in fact fine. Checking first makes the failure
+ * name itself.
+ * @param {string|undefined} cwd - Working directory to validate
+ * @returns {Promise<void>}
+ */
+async function assertWorkingDirectoryExists(cwd) {
+  if (!cwd) {
+    return;
+  }
+
+  let cwdStats = null;
+  try {
+    cwdStats = await fs.stat(cwd);
+  } catch {
+    throw new Error(`Working directory not found on this machine: ${cwd}`);
+  }
+  if (!cwdStats.isDirectory()) {
+    throw new Error(`Working directory is not a directory: ${cwd}`);
+  }
+}
+
+/**
  * Executes a Claude query using the SDK
  * @param {string} command - User prompt/command
  * @param {Object} options - Query options
@@ -514,23 +557,7 @@ async function queryClaudeSDK(command, options = {}, ws) {
       console.warn('[Claude SDK] Unable to load provider models for effort validation:', error);
     }
 
-    // A session can point at a directory that does not exist on this host: an
-    // imported history still carrying the paths of another machine, or a
-    // worktree that was deleted. The SDK spawns the CLI with that cwd, and the
-    // resulting ENOENT is reported as "Claude Code native binary not found",
-    // which sends debugging after an installation that is in fact fine. Check
-    // the directory first so the failure names itself.
-    if (options.cwd) {
-      let cwdStats = null;
-      try {
-        cwdStats = await fs.stat(options.cwd);
-      } catch {
-        throw new Error(`Working directory not found on this machine: ${options.cwd}`);
-      }
-      if (!cwdStats.isDirectory()) {
-        throw new Error(`Working directory is not a directory: ${options.cwd}`);
-      }
-    }
+    await assertWorkingDirectoryExists(options.cwd);
 
     const sdkOptions = mapCliOptionsToSDK({
       ...options,
@@ -797,6 +824,75 @@ async function queryClaudeSDK(command, options = {}, ws) {
 }
 
 /**
+ * Runs one detached Claude turn and returns its final text.
+ *
+ * Unlike queryClaudeSDK this leaves no trace: no session tracking, no
+ * transcript on disk, no tools, no websocket. It exists for side questions that
+ * borrow a conversation's context (passed inside `command`) without joining it,
+ * so nothing here may touch the session maps or the database.
+ * @param {string} command - Full prompt, context included
+ * @param {Object} options - { cwd, model, profileId }
+ * @returns {Promise<string>} Final assistant text
+ */
+async function queryClaudeSDKOnce(command, options = {}) {
+  await assertWorkingDirectoryExists(options.cwd);
+
+  const sdkOptions = mapCliOptionsToSDK({
+    cwd: options.cwd,
+    model: options.model,
+    profileId: options.profileId,
+    ephemeral: true
+  });
+
+  // Without a deadline a stuck CLI would hold the HTTP request open forever;
+  // aborting also tears the subprocess down instead of orphaning it.
+  const abortController = new AbortController();
+  sdkOptions.abortController = abortController;
+  let timedOut = false;
+  const timeout = setTimeout(() => {
+    timedOut = true;
+    abortController.abort();
+  }, EPHEMERAL_QUERY_TIMEOUT_MS);
+
+  try {
+    let resultText = '';
+    let assistantText = '';
+    let resultError = '';
+
+    for await (const message of query({ prompt: command, options: sdkOptions })) {
+      if (message.type === 'assistant') {
+        for (const block of message.message?.content || []) {
+          if (block?.type === 'text' && typeof block.text === 'string') {
+            assistantText += block.text;
+          }
+        }
+      } else if (message.type === 'result') {
+        if (message.subtype === 'success' && typeof message.result === 'string') {
+          resultText = message.result;
+        } else {
+          resultError = (message.errors || []).join('; ') || message.subtype;
+        }
+      }
+    }
+
+    // The result message carries the answer the CLI itself settled on; the
+    // accumulated text blocks are the fallback for shapes that omit it.
+    const answer = (resultText || assistantText).trim();
+    if (!answer) {
+      throw new Error(resultError ? `Claude failed to answer: ${resultError}` : 'Claude returned an empty answer.');
+    }
+    return answer;
+  } catch (error) {
+    if (timedOut) {
+      throw new Error(`Claude did not answer within ${EPHEMERAL_QUERY_TIMEOUT_MS / 1000}s.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
  * Aborts an active SDK session
  * @param {string} sessionId - Session identifier
  * @returns {boolean} True if session was aborted, false if not found
@@ -892,6 +988,7 @@ function reconnectSessionWriter(sessionId, newRawWs) {
 // Export public API
 export {
   queryClaudeSDK,
+  queryClaudeSDKOnce,
   mapCliOptionsToSDK,
   abortClaudeSDKSession,
   isClaudeSDKSessionActive,

@@ -58,6 +58,27 @@ test('mapCliOptionsToSDK injects the profile CLAUDE_CONFIG_DIR into the SDK env'
   });
 });
 
+test('ephemeral options disable tools, session persistence and resume', async () => {
+  await withProfilesEnvironment(() => {
+    const sdkOptions = mapCliOptionsToSDK({ ephemeral: true, sessionId: 'session-1' });
+
+    assert.deepEqual(sdkOptions.tools, []);
+    assert.equal(sdkOptions.persistSession, false);
+    assert.equal(sdkOptions.resume, undefined);
+    assert.deepEqual(sdkOptions.allowedTools, []);
+  });
+});
+
+test('a normal run keeps the tool preset and resumes its session', async () => {
+  await withProfilesEnvironment(() => {
+    const sdkOptions = mapCliOptionsToSDK({ sessionId: 'session-1' });
+
+    assert.deepEqual(sdkOptions.tools, { type: 'preset', preset: 'claude_code' });
+    assert.equal(sdkOptions.persistSession, undefined);
+    assert.equal(sdkOptions.resume, 'session-1');
+  });
+});
+
 // T6 Done-when: with no profile, behavior is byte-for-byte upstream (no injection).
 test('mapCliOptionsToSDK leaves CLAUDE_CONFIG_DIR untouched without a profile', async () => {
   await withProfilesEnvironment(() => {
