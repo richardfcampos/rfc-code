@@ -173,3 +173,4 @@ skills/**/*.pyc
 
 # Generated claude.ai/design upload bundle
 .design-sync/
+.gstack/
