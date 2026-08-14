@@ -96,6 +96,33 @@
     "plugins": "Eklentiler",
     "about": "Hakkında"
   },
+  "profiles": {
+    "accountSwitcher": {
+      "trigger": "Hesap değiştir",
+      "title": "Hesap değiştir",
+      "description": "Bu oturuma başka bir hesapta devam et.",
+      "loadingAccounts": "Hesaplar yükleniyor…",
+      "loadError": "Hesaplar yüklenemedi",
+      "empty": "Henüz başka hesap yok.",
+      "current": "Mevcut hesap",
+      "newSession": "Yeni oturum",
+      "needsAuth": "Önce bu hesaba giriş yap",
+      "switch": "Değiştir",
+      "switching": "Değiştiriliyor…",
+      "cancel": "İptal",
+      "done": "Tamam",
+      "confirmTitle": "{{provider}}'a geçilsin mi?",
+      "confirmBody": "Bu işlem, bu konuşmayı bağlam olarak taşıyan \"{{profileName}}\" ile {{provider}} üzerinde yeni bir oturum başlatır. Bu oturum burada kalır ve kullanılabilir olmaya devam eder.",
+      "confirmAction": "Yeni oturum başlat",
+      "anotherProvider": "başka bir sağlayıcı",
+      "outcome": {
+        "transplanted": "Hesap değiştirildi. Sıradaki yanıt yeni hesapta devam eder.",
+        "queued": "Şu anda bir yanıt sürüyor — bittiğinde değişiklik uygulanacak.",
+        "seededPrimed": "Konuşma, {{provider}} üzerindeki yeni bir oturumda devam ediyor.",
+        "seededUnprimed": "{{provider}} üzerinde yeni bir oturum başlatıldı — önceki konuşma taşınamadığı için bu bağlam olmadan başlıyor."
+      }
+    }
+  },
   "notifications": {
     "title": "Bildirimler",
     "description": "Hangi bildirim etkinliklerini alacağını kontrol et.",

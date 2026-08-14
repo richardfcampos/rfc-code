@@ -6,12 +6,17 @@ import { SessionAccountSwitcher, SessionProfileBadge } from '../../../profiles';
 import type { AppTab, Project, ProjectSession } from '../../../../types/app';
 import { usePlugins } from '../../../../contexts/PluginsContext';
 import { getSessionWorktreeLabel } from '../../../sidebar/utils/utils';
+import type { SessionNavigationOptions } from '../../../chat/types/types';
 
 type MainContentTitleProps = {
   activeTab: AppTab;
   selectedProject: Project;
   selectedSession: ProjectSession | null;
   shouldShowTasksTab: boolean;
+  /** Navigates to a seeded session once a cross-provider handoff creates one. */
+  onNavigateToSession?: (targetSessionId: string, options?: SessionNavigationOptions) => void;
+  /** Re-syncs the sidebar so a freshly seeded session shows up there. */
+  onSessionsRefresh?: () => void;
 };
 
 function getTabTitle(activeTab: AppTab, shouldShowTasksTab: boolean, t: (key: string) => string, pluginDisplayName?: string) {
@@ -81,6 +86,8 @@ export default function MainContentTitle({
   selectedProject,
   selectedSession,
   shouldShowTasksTab,
+  onNavigateToSession,
+  onSessionsRefresh,
 }: MainContentTitleProps) {
   const { t } = useTranslation();
   const { plugins } = usePlugins();
@@ -115,6 +122,8 @@ export default function MainContentTitle({
                 sessionId={selectedSession.id}
                 provider={selectedSession.__provider}
                 currentProfileId={selectedSession.profileId}
+                onNavigateToSession={onNavigateToSession}
+                onSessionsRefresh={onSessionsRefresh}
               />
             </div>
             <div className="truncate font-mono text-[11px] leading-tight tracking-wide text-muted-foreground">

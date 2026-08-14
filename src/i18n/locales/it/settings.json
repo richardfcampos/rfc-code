@@ -95,6 +95,33 @@
     "plugins": "Plugin",
     "about": "Informazioni"
   },
+  "profiles": {
+    "accountSwitcher": {
+      "trigger": "Cambia account",
+      "title": "Cambia account",
+      "description": "Continua questa sessione su un altro account.",
+      "loadingAccounts": "Caricamento account…",
+      "loadError": "Impossibile caricare gli account",
+      "empty": "Ancora nessun altro account.",
+      "current": "Account attuale",
+      "newSession": "Nuova sessione",
+      "needsAuth": "Accedi prima a questo account",
+      "switch": "Cambia",
+      "switching": "Cambio in corso…",
+      "cancel": "Annulla",
+      "done": "Fatto",
+      "confirmTitle": "Passare a {{provider}}?",
+      "confirmBody": "Questo avvia una nuova sessione su {{provider}} con \"{{profileName}}\", avviata con questa conversazione come contesto. Questa sessione resta qui e rimane disponibile.",
+      "confirmAction": "Avvia nuova sessione",
+      "anotherProvider": "un altro provider",
+      "outcome": {
+        "transplanted": "Account cambiato. Il prossimo messaggio prosegue sul nuovo account.",
+        "queued": "È in corso un messaggio — il cambio verrà applicato al termine.",
+        "seededPrimed": "La conversazione prosegue in una nuova sessione su {{provider}}.",
+        "seededUnprimed": "È stata avviata una nuova sessione su {{provider}} — non è stato possibile trasferire la conversazione precedente, quindi inizia senza quel contesto."
+      }
+    }
+  },
   "notifications": {
     "title": "Notifiche",
     "description": "Controlla quali notifiche ricevere.",

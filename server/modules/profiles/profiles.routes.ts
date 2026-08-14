@@ -202,7 +202,7 @@ router.post(
     const sessionId = parseSessionId(req.params.sessionId);
     const body = (req.body ?? {}) as Record<string, unknown>;
     const targetProfileId = parseProfileId(body.profileId);
-    const handoff = handoffService.switchSessionProfile(sessionId, targetProfileId);
+    const handoff = await handoffService.switchSessionProfile(sessionId, targetProfileId);
     res.json(createApiSuccessResponse({ handoff }));
   }),
 );

@@ -95,6 +95,33 @@
     "plugins": "プラグイン",
     "about": "概要"
   },
+  "profiles": {
+    "accountSwitcher": {
+      "trigger": "アカウントを切り替え",
+      "title": "アカウントを切り替え",
+      "description": "このセッションを別のアカウントで続けます。",
+      "loadingAccounts": "アカウントを読み込んでいます…",
+      "loadError": "アカウントの読み込みに失敗しました",
+      "empty": "他のアカウントはまだありません。",
+      "current": "現在のアカウント",
+      "newSession": "新しいセッション",
+      "needsAuth": "まずこのアカウントにサインインしてください",
+      "switch": "切り替え",
+      "switching": "切り替え中…",
+      "cancel": "キャンセル",
+      "done": "完了",
+      "confirmTitle": "{{provider}} に切り替えますか？",
+      "confirmBody": "{{provider}} で「{{profileName}}」による新しいセッションが開始され、この会話がコンテキストとして引き継がれます。このセッションはそのまま残り、引き続き利用できます。",
+      "confirmAction": "新しいセッションを開始",
+      "anotherProvider": "別のプロバイダー",
+      "outcome": {
+        "transplanted": "アカウントを切り替えました。次のやり取りは新しいアカウントで続きます。",
+        "queued": "実行中のやり取りがあります — 完了後に切り替えが適用されます。",
+        "seededPrimed": "会話は {{provider}} 上の新しいセッションで続きます。",
+        "seededUnprimed": "{{provider}} で新しいセッションが開始されましたが、以前の会話を引き継げなかったため、そのコンテキストなしで始まります。"
+      }
+    }
+  },
   "notifications": {
     "title": "通知",
     "description": "受信する通知イベントを設定します。",

@@ -435,6 +435,21 @@ const addCavemanModeToSessions = (db: Database): void => {
 };
 
 /**
+ * Adds the nullable `seed_primer_path` column used by mid-session provider
+ * handoffs to stash a one-shot "context primer" file on the freshly created
+ * session row. The session's next turn reads the file, prefixes its content
+ * to the outgoing prompt, then clears the column back to NULL.
+ *
+ * Existing rows predate the handoff feature and stay NULL, which is exactly
+ * the "no primer pending" state.
+ */
+const addSeedPrimerPathToSessions = (db: Database): void => {
+  const columnNames = getTableInfo(db, 'sessions').map((column) => column.name);
+
+  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'seed_primer_path', 'TEXT');
+};
+
+/**
  * Adds worktree execution context to sessions.
  *
  * worktree_path stores the absolute path to the worktree where the session
@@ -524,6 +539,7 @@ export const runMigrations = (db: Database) => {
     addProviderSessionIdMapping(db);
     addProfileIdToSessions(db);
     addCavemanModeToSessions(db);
+    addSeedPrimerPathToSessions(db);
     ensureProjectsForSessionPaths(db);
 
     db.exec(PROFILES_TABLE_SCHEMA_SQL);

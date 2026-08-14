@@ -41,6 +41,29 @@ type SessionUpsertedEvent = ServerEvent & {
   } | null;
 };
 
+/**
+ * Deferred account/provider switch landing notification (`type:
+ * session.handoff`). Unlike the `kind`-based provider/gateway protocol on
+ * this same socket, this mirrors the TaskMaster `type`-tagged broadcasts: a
+ * distinct sub-protocol the server uses for events that are not per-run
+ * stream frames. A cross-provider switch creates a brand-new session the
+ * sidebar has never seen, so the only client responsibility on receipt is to
+ * refresh the project/session list — never to navigate the viewer away from
+ * whatever is currently open.
+ */
+type SessionHandoffEvent = ServerEvent & {
+  type: 'session.handoff';
+  sessionId: string;
+  status: 'seeded' | 'transplanted';
+  targetSessionId: string;
+  provider: LLMProvider;
+  profileId: string;
+};
+
+function isSessionHandoffEvent(event: ServerEvent): event is SessionHandoffEvent {
+  return event.type === 'session.handoff';
+}
+
 type FetchProjectsOptions = {
   showLoadingState?: boolean;
 };
@@ -625,6 +648,16 @@ export function useProjectsState({
   // "suppress updates while a run is active" protection is needed anymore.
   useEffect(() => {
     const handleEvent = (event: ServerEvent) => {
+      if (isSessionHandoffEvent(event)) {
+        // A deferred switch just landed, possibly onto a brand-new session
+        // (cross-provider handoffs seed one) that has never been in this
+        // client's project list. Refresh silently so it appears in the
+        // sidebar; do not navigate — the switch resolves asynchronously and
+        // may land while the user is looking at something unrelated.
+        void refreshProjectsSilently();
+        return;
+      }
+
       if (event.kind === 'loading_progress') {
         if (loadingProgressTimeoutRef.current) {
           clearTimeout(loadingProgressTimeoutRef.current);
@@ -768,7 +801,7 @@ export function useProjectsState({
     };
 
     return subscribe(handleEvent);
-  }, [markSessionAttention, navigate, sessionId, subscribe]);
+  }, [markSessionAttention, navigate, refreshProjectsSilently, sessionId, subscribe]);
 
   useEffect(() => {
     return () => {

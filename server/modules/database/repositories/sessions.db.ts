@@ -16,10 +16,11 @@ export type SessionRow = {
   updated_at: string;
   worktree_path: string | null;
   worktree_branch: string | null;
+  seed_primer_path: string | null;
 };
 
 const SESSION_ROW_COLUMNS =
-  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, profile_id, caveman_mode, isArchived, created_at, updated_at, worktree_path, worktree_branch';
+  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, profile_id, caveman_mode, isArchived, created_at, updated_at, worktree_path, worktree_branch, seed_primer_path';
 
 const SQLITE_UTC_TIMESTAMP_REGEX = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 
@@ -312,6 +313,21 @@ export const sessionsDb = {
        SET jsonl_path = ?, updated_at = CURRENT_TIMESTAMP
        WHERE session_id = ?`
     ).run(jsonlPath ?? null, sessionId);
+  },
+
+  /**
+   * Points a session at its pending cross-provider context primer, or clears
+   * it. A handoff writes the primer file and stores its path here; the next
+   * turn reads the path, prefixes the primer to the outgoing prompt, then
+   * clears the path so the primer reaches the model exactly once.
+   */
+  updateSessionSeedPrimerPath(sessionId: string, seedPrimerPath: string | null): void {
+    const db = getConnection();
+    db.prepare(
+      `UPDATE sessions
+       SET seed_primer_path = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE session_id = ?`
+    ).run(seedPrimerPath ?? null, sessionId);
   },
 
   getSessionById(sessionId: string): SessionRow | null {

@@ -95,6 +95,33 @@
     "plugins": "Plugins",
     "about": "À propos"
   },
+  "profiles": {
+    "accountSwitcher": {
+      "trigger": "Changer de compte",
+      "title": "Changer de compte",
+      "description": "Continuer cette session sur un autre compte.",
+      "loadingAccounts": "Chargement des comptes…",
+      "loadError": "Échec du chargement des comptes",
+      "empty": "Aucun autre compte pour l'instant.",
+      "current": "Compte actuel",
+      "newSession": "Nouvelle session",
+      "needsAuth": "Connectez-vous d'abord à ce compte",
+      "switch": "Changer",
+      "switching": "Changement en cours…",
+      "cancel": "Annuler",
+      "done": "Terminé",
+      "confirmTitle": "Passer à {{provider}} ?",
+      "confirmBody": "Cela démarre une nouvelle session sur {{provider}} avec « {{profileName}} », amorcée avec cette conversation comme contexte. Cette session reste ici et demeure disponible.",
+      "confirmAction": "Démarrer une nouvelle session",
+      "anotherProvider": "un autre fournisseur",
+      "outcome": {
+        "transplanted": "Compte changé. Le prochain message se poursuit sur le nouveau compte.",
+        "queued": "Un message est en cours de traitement — le changement s'appliquera une fois celui-ci terminé.",
+        "seededPrimed": "La conversation se poursuit dans une nouvelle session sur {{provider}}.",
+        "seededUnprimed": "Une nouvelle session a été démarrée sur {{provider}} — la conversation précédente n'a pas pu être transférée, elle commence donc sans ce contexte."
+      }
+    }
+  },
   "notifications": {
     "title": "Notifications",
     "description": "Contrôlez les événements de notification que vous recevez.",

@@ -148,6 +148,11 @@ CREATE TABLE IF NOT EXISTS sessions (
     -- in the session list when worktree_path is present. NULL when worktree_path
     -- is NULL.
     worktree_branch TEXT,
+    -- Absolute path to a one-shot "context primer" file stashed on this
+    -- session by a mid-session provider handoff. The session's next turn
+    -- reads the file, prefixes its content to the outgoing prompt, then
+    -- clears this column back to NULL. NULL means no primer is pending.
+    seed_primer_path TEXT,
     isArchived BOOLEAN DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,

@@ -2,33 +2,30 @@
  * Mid-session account handoff (HUB-12).
  *
  * Switches the account profile that serves an existing session *between turns*,
- * preserving the conversation. Two mechanics:
+ * preserving the conversation. Which mechanic applies depends on whether the
+ * target account speaks the same provider:
  *
- *  1. Primary — session-file transplant + native resume. The provider's own
- *     transcript artifact is copied from the current profile's config dir into
- *     the target profile's config dir at the same relative store path, a switch
- *     marker is appended, and `sessions.profile_id` is repointed. The next turn
- *     resumes natively under the target account (dispatch reads `profile_id`).
- *     Proven portable for Claude and Codex (see design.md session portability
- *     spike): the only gate is that the destination profile is authenticated.
+ *  - Same provider — the session itself is handed over: its native transcript is
+ *    transplanted into the target profile's config dir and `profile_id` is
+ *    repointed, so the next turn resumes natively (see handoff-transplant.ts).
  *
- *  2. Degradation — for providers whose session file is not portable (or when
- *     the artifact is missing/unreadable), a brand-new session is seeded with
- *     the prior transcript as context and bound to the target profile. This is
- *     explicit and observable (status 'seeded'); it is never a silent failure.
+ *  - Different provider — the session cannot move, because its history only
+ *    exists in the source provider's store. A new session is created on the
+ *    target provider, seeded with the earlier conversation as text, and the
+ *    source session is left untouched (see handoff-seed.ts).
  *
  * Edge case: a switch requested while a turn is executing is queued and applied
  * once the turn ends — the running turn is never killed.
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
-import { randomUUID } from 'node:crypto';
-
 import { sessionsDb, type SessionRow } from '@/modules/database/index.js';
 import { AppError } from '@/shared/utils.js';
 import { profilesService, type ProfileView } from '@/modules/profiles/profiles.service.js';
-import { resolveProfileDir } from '@/modules/profiles/profile-env.js';
+import { applySameProviderSwitch } from '@/modules/profiles/handoff-transplant.js';
+import {
+  seedCrossProviderSession,
+  type LoadHandoffHistory,
+} from '@/modules/profiles/handoff-seed.js';
 
 export type HandoffStatus = 'queued' | 'transplanted' | 'seeded';
 
@@ -40,20 +37,23 @@ export interface HandoffResult {
   profileId: string;
   /** Present only when the handoff degraded to a fresh seeded session. */
   seededSessionId?: string;
+  /**
+   * Whether the new session carries the earlier conversation as context.
+   *
+   * Set only on the cross-provider path, where the prior history is best-effort:
+   * `false` means the session was created but starts clean (history empty,
+   * unreadable, or made entirely of tool traffic). Callers must surface that
+   * instead of assuming context always crossed over.
+   */
+  primed?: boolean;
 }
 
 export interface HandoffDeps {
   /** Whether a turn is currently executing for this session. */
   isSessionRunning?: (session: SessionRow) => boolean;
+  /** Source of the prior conversation for a cross-provider seed. */
+  loadHistory?: LoadHandoffHistory;
 }
-
-// Providers whose native session artifact is portable across config dirs, keyed
-// by the store-root directory segment their CLI writes it under (proven by the
-// portability spike). Absence here means "degrade to a seeded session".
-const PROVIDER_STORE_SEGMENT: Record<string, string> = {
-  claude: 'projects',
-  codex: 'sessions',
-};
 
 // Session ids the run loop has marked as actively executing a turn, and switches
 // deferred until the running turn ends. Both key off whatever id the run loop
@@ -94,114 +94,31 @@ function loadSessionOrThrow(sessionId: string): SessionRow {
   return session;
 }
 
-/**
- * Copies a provider transcript from its current config dir into `targetDir`,
- * preserving the relative path below the provider's store segment so the target
- * CLI discovers it exactly where it expects (that path layout is what makes the
- * session resumable under the new profile).
- */
-function transplantArtifact(sourcePath: string, storeSegment: string, targetDir: string): string {
-  const boundary = `${path.sep}${storeSegment}${path.sep}`;
-  const index = sourcePath.indexOf(boundary);
-  if (index === -1) {
-    throw new Error(`Transcript "${sourcePath}" is not under a "${storeSegment}" store.`);
-  }
-  const relative = sourcePath.slice(index + boundary.length);
-  const targetPath = path.join(targetDir, storeSegment, relative);
-  fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-  fs.copyFileSync(sourcePath, targetPath);
-  return targetPath;
-}
-
-function buildSwitchMarker(session: SessionRow, target: ProfileView): string {
-  const marker = {
-    type: 'profile-switch',
-    sessionId: session.provider_session_id ?? session.session_id,
-    fromProfileId: session.profile_id ?? null,
-    toProfileId: target.id,
-    toProfileName: target.name,
-    timestamp: new Date().toISOString(),
-    note: `Account switched to "${target.name}"`,
-  };
-  return `${JSON.stringify(marker)}\n`;
-}
-
-/** Primary path: transplant + marker + repoint profile_id. */
-function transplantHandoff(
+async function applySwitch(
   session: SessionRow,
   target: ProfileView,
-  storeSegment: string,
-): HandoffResult {
-  const targetDir = resolveProfileDir(target.provider, target.slug);
-  const transplantedPath = transplantArtifact(session.jsonl_path as string, storeSegment, targetDir);
-  fs.appendFileSync(transplantedPath, buildSwitchMarker(session, target));
-  sessionsDb.updateSessionProfileId(session.session_id, target.id);
-  return { status: 'transplanted', sessionId: session.session_id, profileId: target.id };
-}
-
-/** Degradation path: seed a new session with the prior context (AC2). */
-function seedHandoff(session: SessionRow, target: ProfileView): HandoffResult {
-  const newSessionId = randomUUID();
-  const projectPath = session.project_path ?? '';
-  sessionsDb.createAppSession(newSessionId, session.provider, projectPath, target.id);
-
-  const targetDir = resolveProfileDir(target.provider, target.slug);
-  const seedPath = path.join(targetDir, 'handoff-seeds', `${newSessionId}.jsonl`);
-  fs.mkdirSync(path.dirname(seedPath), { recursive: true });
-
-  const priorTranscript =
-    session.jsonl_path && fs.existsSync(session.jsonl_path)
-      ? fs.readFileSync(session.jsonl_path, 'utf8')
-      : '';
-  fs.writeFileSync(seedPath, `${buildSwitchMarker(session, target)}${priorTranscript}`);
-  sessionsDb.updateSessionJsonlPath(newSessionId, seedPath);
-
-  return {
-    status: 'seeded',
-    sessionId: newSessionId,
-    seededSessionId: newSessionId,
-    profileId: target.id,
-  };
-}
-
-function applySwitch(session: SessionRow, target: ProfileView): HandoffResult {
-  const storeSegment = PROVIDER_STORE_SEGMENT[session.provider];
-  const canTransplant =
-    Boolean(storeSegment) && Boolean(session.jsonl_path) && fs.existsSync(session.jsonl_path as string);
-
-  if (canTransplant) {
-    try {
-      return transplantHandoff(session, target, storeSegment);
-    } catch (error) {
-      // Primary mechanic failed at the filesystem level — degrade explicitly
-      // rather than leaving the session in a half-switched state.
-      console.error('[handoff] transplant failed, degrading to a seeded session:', error);
-    }
+  loadHistory?: LoadHandoffHistory,
+): Promise<HandoffResult> {
+  if (target.provider !== session.provider) {
+    return seedCrossProviderSession(session, target, loadHistory);
   }
-
-  return seedHandoff(session, target);
+  return applySameProviderSwitch(session, target);
 }
 
 /**
  * Switches the profile serving `sessionId` to `targetProfileId`.
  *
- * Validates eagerly (unknown session/profile, provider mismatch, no-op) so a bad
- * request is rejected up front even when the switch has to be queued.
+ * Validates eagerly (unknown session/profile, no-op) so a bad request is
+ * rejected up front even when the switch has to be queued.
  */
-export function switchSessionProfile(
+export async function switchSessionProfile(
   sessionId: string,
   targetProfileId: string,
   deps: HandoffDeps = {},
-): HandoffResult {
+): Promise<HandoffResult> {
   const session = loadSessionOrThrow(sessionId);
   const target = profilesService.getProfile(targetProfileId);
 
-  if (target.provider !== session.provider) {
-    throw new AppError(
-      `Cannot hand a ${session.provider} session to a ${target.provider} profile.`,
-      { code: 'HANDOFF_PROVIDER_MISMATCH', statusCode: 400 },
-    );
-  }
   if (session.profile_id === target.id) {
     throw new AppError('Session is already on that profile.', {
       code: 'HANDOFF_NO_OP',
@@ -215,7 +132,7 @@ export function switchSessionProfile(
     return { status: 'queued', sessionId: session.session_id, profileId: target.id };
   }
 
-  return applySwitch(session, target);
+  return applySwitch(session, target, deps.loadHistory);
 }
 
 /**
@@ -223,7 +140,10 @@ export function switchSessionProfile(
  * completion path, so it must never throw — a failed drain is logged and
  * dropped, and the operator can retry the switch.
  */
-export function drainPendingSwitch(sessionId: string): HandoffResult | null {
+export async function drainPendingSwitch(
+  sessionId: string,
+  deps: HandoffDeps = {},
+): Promise<HandoffResult | null> {
   try {
     const session =
       sessionsDb.getSessionById(sessionId) ?? sessionsDb.getSessionByProviderSessionId(sessionId);
@@ -236,7 +156,7 @@ export function drainPendingSwitch(sessionId: string): HandoffResult | null {
     }
 
     const target = profilesService.getProfile(targetProfileId);
-    return applySwitch(session, target);
+    return await applySwitch(session, target, deps.loadHistory);
   } catch (error) {
     console.error('[handoff] deferred switch failed to apply:', error);
     return null;

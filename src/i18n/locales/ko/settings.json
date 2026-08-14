@@ -95,6 +95,33 @@
     "plugins": "플러그인",
     "about": "정보"
   },
+  "profiles": {
+    "accountSwitcher": {
+      "trigger": "계정 전환",
+      "title": "계정 전환",
+      "description": "이 세션을 다른 계정에서 계속합니다.",
+      "loadingAccounts": "계정을 불러오는 중…",
+      "loadError": "계정을 불러오지 못했습니다",
+      "empty": "아직 다른 계정이 없습니다.",
+      "current": "현재 계정",
+      "newSession": "새 세션",
+      "needsAuth": "먼저 이 계정에 로그인하세요",
+      "switch": "전환",
+      "switching": "전환 중…",
+      "cancel": "취소",
+      "done": "완료",
+      "confirmTitle": "{{provider}}(으)로 전환할까요?",
+      "confirmBody": "이 작업은 \"{{profileName}}\" 계정으로 {{provider}}에서 새 세션을 시작하며, 이 대화가 컨텍스트로 이어집니다. 이 세션은 그대로 남아 계속 사용할 수 있습니다.",
+      "confirmAction": "새 세션 시작",
+      "anotherProvider": "다른 프로바이더",
+      "outcome": {
+        "transplanted": "계정이 전환되었습니다. 다음 응답부터 새 계정으로 진행됩니다.",
+        "queued": "응답이 진행 중입니다 — 완료되면 전환이 적용됩니다.",
+        "seededPrimed": "대화가 {{provider}}의 새 세션에서 계속됩니다.",
+        "seededUnprimed": "{{provider}}에서 새 세션이 시작되었지만, 이전 대화를 가져올 수 없어 해당 컨텍스트 없이 시작됩니다."
+      }
+    }
+  },
   "notifications": {
     "title": "알림",
     "description": "수신할 알림 이벤트를 설정합니다.",

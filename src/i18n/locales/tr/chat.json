@@ -224,6 +224,14 @@
     "modelMenu": "Model ve akıl yürütme düzeyini seç",
     "worktree": "Worktree",
     "worktreeHint": "Bu oturumu kendi git worktree'sinde çalıştır",
+    "account": {
+      "confirmTitle": "{{provider}} üzerinde {{account}}'a geçilsin mi?",
+      "confirmBody": "Bu işlem, geçerli konuşmayı bağlam olarak taşıyan {{provider}} üzerinde yeni bir oturum başlatır. Bu oturum değişmeden kullanılabilir kalır.",
+      "cancel": "İptal",
+      "confirm": "Değiştir",
+      "switching": "Değiştiriliyor…",
+      "notAuthenticated": "Bu hesabı kullanmak için giriş yap"
+    },
     "usage": {
       "button": "Plan kullanımı",
       "title": "Plan kullanımı",

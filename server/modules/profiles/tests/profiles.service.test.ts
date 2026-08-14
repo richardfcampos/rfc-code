@@ -145,6 +145,69 @@ test('getAuthStatus reports not-authenticated until a credential is present', as
   });
 });
 
+// The list payload carries the auth flag so callers rendering many accounts do
+// not have to issue a status request per row.
+test('listProfiles reports authenticated once the credential artifact exists', async () => {
+  await withProfilesEnvironment((profilesRoot) => {
+    const signedIn = profilesService.createProfile({ provider: 'claude', name: 'Signed In' });
+    const fresh = profilesService.createProfile({ provider: 'claude', name: 'Fresh' });
+
+    for (const profile of profilesService.listProfiles()) {
+      assert.equal(profile.authenticated, false);
+    }
+
+    fs.writeFileSync(
+      path.join(profilesRoot, 'claude', signedIn.slug, '.credentials.json'),
+      '{"token":"x"}',
+    );
+
+    const listed = profilesService.listProfiles();
+    assert.equal(listed.find((entry) => entry.id === signedIn.id)?.authenticated, true);
+    assert.equal(listed.find((entry) => entry.id === fresh.id)?.authenticated, false);
+  });
+});
+
+// The list flag and the status endpoint must never disagree: the UI enables a
+// row from the list, and the backend then decides with the status check.
+test('listProfiles and getAuthStatus agree for every profile and provider', async () => {
+  await withProfilesEnvironment((profilesRoot) => {
+    const claude = profilesService.createProfile({ provider: 'claude', name: 'C' });
+    const codex = profilesService.createProfile({ provider: 'codex', name: 'X' });
+    const cursor = profilesService.createProfile({ provider: 'cursor', name: 'U' });
+    const opencode = profilesService.createProfile({ provider: 'opencode', name: 'O' });
+
+    const assertAgreement = () => {
+      for (const profile of profilesService.listProfiles()) {
+        assert.equal(
+          profile.authenticated,
+          profilesService.getAuthStatus(profile.id).authenticated,
+          `list and status disagree for ${profile.provider}/${profile.slug}`,
+        );
+        assert.equal(profile.authenticated, profilesService.getProfile(profile.id).authenticated);
+      }
+    };
+
+    assertAgreement();
+
+    // Each provider marks a login with a different artifact in a different
+    // place; writing all of them proves the two paths resolve the same one.
+    const write = (relativePath: string) => {
+      const absolute = path.join(profilesRoot, relativePath);
+      fs.mkdirSync(path.dirname(absolute), { recursive: true });
+      fs.writeFileSync(absolute, '{"token":"x"}');
+    };
+    write(path.join('claude', claude.slug, '.credentials.json'));
+    write(path.join('codex', codex.slug, 'auth.json'));
+    write(path.join('cursor', cursor.slug, '.cursor', 'auth.json'));
+    write(path.join('opencode', opencode.slug, 'data', 'opencode', 'auth.json'));
+
+    assertAgreement();
+    for (const profile of profilesService.listProfiles()) {
+      assert.equal(profile.authenticated, true);
+    }
+  });
+});
+
 // Input validation at the service boundary.
 test('createProfile rejects an invalid provider and an empty name', async () => {
   await withProfilesEnvironment(() => {

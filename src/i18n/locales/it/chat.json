@@ -224,6 +224,14 @@
     "modelMenu": "Seleziona modello e livello di ragionamento",
     "worktree": "Worktree",
     "worktreeHint": "Esegui questa sessione in un worktree git dedicato",
+    "account": {
+      "confirmTitle": "Passare a {{account}} su {{provider}}?",
+      "confirmBody": "Questo avvia una nuova sessione su {{provider}}, avviata con la conversazione attuale come contesto. Questa sessione resta disponibile e invariata.",
+      "cancel": "Annulla",
+      "confirm": "Cambia",
+      "switching": "Cambio in corso…",
+      "notAuthenticated": "Accedi per usare questo account"
+    },
     "usage": {
       "button": "Utilizzo piano",
       "title": "Utilizzo piano",

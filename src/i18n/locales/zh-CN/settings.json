@@ -96,6 +96,33 @@
     "plugins": "插件",
     "about": "关于"
   },
+  "profiles": {
+    "accountSwitcher": {
+      "trigger": "切换账户",
+      "title": "切换账户",
+      "description": "在其他账户上继续此会话。",
+      "loadingAccounts": "正在加载账户…",
+      "loadError": "加载账户失败",
+      "empty": "暂无其他账户。",
+      "current": "当前账户",
+      "newSession": "新会话",
+      "needsAuth": "请先登录此账户",
+      "switch": "切换",
+      "switching": "正在切换…",
+      "cancel": "取消",
+      "done": "完成",
+      "confirmTitle": "切换到 {{provider}}？",
+      "confirmBody": "此操作会在 {{provider}} 上使用「{{profileName}}」启动一个以当前对话为上下文的新会话。此会话会保留在这里，并继续可用。",
+      "confirmAction": "启动新会话",
+      "anotherProvider": "其他供应商",
+      "outcome": {
+        "transplanted": "账户已切换。下一条回复将在新账户上继续。",
+        "queued": "有一条回复正在处理 — 完成后将应用切换。",
+        "seededPrimed": "对话将在 {{provider}} 上的新会话中继续。",
+        "seededUnprimed": "已在 {{provider}} 上启动新会话 — 由于无法带入此前的对话，该会话不包含之前的上下文。"
+      }
+    }
+  },
   "notifications": {
     "title": "通知",
     "description": "控制你希望接收的通知事件。",

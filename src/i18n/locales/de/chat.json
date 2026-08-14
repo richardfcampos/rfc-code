@@ -224,6 +224,14 @@
     "modelMenu": "Modell und Denkaufwand auswählen",
     "worktree": "Worktree",
     "worktreeHint": "Diese Sitzung in einem eigenen Git-Worktree ausführen",
+    "account": {
+      "confirmTitle": "Zu {{account}} auf {{provider}} wechseln?",
+      "confirmBody": "Dadurch wird auf {{provider}} eine neue Sitzung gestartet, die diese Unterhaltung als Kontext erhält. Diese Sitzung bleibt weiterhin verfügbar und unverändert.",
+      "cancel": "Abbrechen",
+      "confirm": "Wechseln",
+      "switching": "Wird gewechselt…",
+      "notAuthenticated": "Zur Nutzung dieses Kontos anmelden"
+    },
     "usage": {
       "button": "Kontingent",
       "title": "Kontingentnutzung",

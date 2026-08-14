@@ -23,6 +23,10 @@ export interface Profile {
   // keeps following its own configuration instead of being pinned by this app.
   cavemanMode: CavemanMode | null;
   rtkMode: RtkMode | null;
+  // Whether this account has been signed in. Carried by the list endpoint so a
+  // caller rendering many accounts can disable the unusable ones without one
+  // status request per row.
+  authenticated: boolean;
 }
 
 export interface ProfileAuthStatus {

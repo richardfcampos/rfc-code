@@ -16,6 +16,11 @@ export {
   resolveProfileScanRoots,
   type ProfileScanRoot,
 } from '@/modules/profiles/profile-sync.js';
+export { consumePendingPrimer } from '@/modules/profiles/handoff-primer-consume.js';
+export {
+  renderConversationPrimer,
+  type PrimerMessage,
+} from '@/modules/profiles/handoff-primer.js';
 export {
   handoffService,
   switchSessionProfile,

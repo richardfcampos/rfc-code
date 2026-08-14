@@ -250,6 +250,14 @@
     "modelMenu": "Select model and reasoning effort",
     "worktree": "Worktree",
     "worktreeHint": "Run this session in its own git worktree",
+    "account": {
+      "confirmTitle": "Switch to {{account}} on {{provider}}?",
+      "confirmBody": "This starts a new session on {{provider}} seeded with the current conversation as context. This session stays available and unchanged.",
+      "cancel": "Cancel",
+      "confirm": "Switch",
+      "switching": "Switching…",
+      "notAuthenticated": "Sign in to use this account"
+    },
     "modeShort": {
       "default": "Default",
       "auto": "Auto",

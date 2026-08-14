@@ -9,6 +9,9 @@ export interface HandoffResult {
   sessionId: string;
   profileId: string;
   seededSessionId?: string;
+  // Only meaningful when `status === 'seeded'`: whether the prior conversation
+  // was actually carried into the new session as context.
+  primed?: boolean;
 }
 
 type ApiEnvelope<T> = {

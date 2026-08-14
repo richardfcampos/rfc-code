@@ -12,7 +12,9 @@ import type {
 import type { QueuedDraft } from '../../hooks/useChatComposerState';
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
 import type { PendingPermissionRequest, PermissionMode } from '../../types/types';
-import type { ProviderModelOption } from '../../../../types/app';
+import type { LLMProvider, ProviderModelOption } from '../../../../types/app';
+import type { Profile } from '../../../profiles/types';
+import type { PendingProviderSwitch, ProviderSwitchOutcome } from '../../hooks/useProviderSwitch';
 
 export interface MentionableFile {
   name: string;
@@ -27,6 +29,30 @@ export interface SlashCommand {
   type?: string;
   metadata?: Record<string, unknown>;
   [key: string]: unknown;
+}
+
+/**
+ * Wires the composer's Provider/Account menu section to the switch decision
+ * owned by `useProviderSwitch`. Optional end to end (`ChatComposerProps` ->
+ * `ComposerToolbarProps` -> `ComposerModelMenu`) so the composer renders
+ * exactly as before wherever a caller does not supply it yet.
+ */
+export interface ComposerAccountSectionProps {
+  /** Provider currently serving the session, or the locally selected one when no session is open. */
+  provider: LLMProvider;
+  /** Every known account, grouped by provider — loaded once by useChatProviderState. */
+  profilesByProvider: Partial<Record<LLMProvider, Profile[]>>;
+  /** Account id currently serving the session (or locally selected); null while unknown. */
+  selectedProfileId: string | null;
+  /** Requests a switch to this account; resolves once the local/API decision is known. */
+  onSelectAccount: (profile: Profile) => Promise<ProviderSwitchOutcome>;
+  /** Cross-provider switch awaiting explicit confirmation, or null. */
+  pendingConfirmation: PendingProviderSwitch | null;
+  onConfirmSwitch: () => void;
+  onCancelSwitch: () => void;
+  isSwitching: boolean;
+  /** Error from the last switch attempt (e.g. target account not authenticated). */
+  switchError: string | null;
 }
 
 export interface ChatComposerProps {
@@ -50,6 +76,8 @@ export interface ChatComposerProps {
   modelsLoading: boolean;
   /** Profile behind the active session/provider — passed through to the plan-usage popover. */
   activeProfileId: string | null;
+  /** Drives the composer menu's Provider/Account section; absent hides that section entirely. */
+  accountSection?: ComposerAccountSectionProps;
   /** False once a session exists — its working directory is already fixed. */
   canUseWorktree: boolean;
   worktreeEnabled: boolean;

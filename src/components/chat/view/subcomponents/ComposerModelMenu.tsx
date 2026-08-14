@@ -13,10 +13,14 @@ import {
   ComposerMenuSeparator,
   ComposerMenuSurface,
 } from './ComposerMenuPrimitives';
+import ComposerAccountSection from './ComposerAccountSection';
+import type { ComposerAccountSectionProps } from './composerTypes';
 
 type EffortOption = NonNullable<ProviderModelOption['effort']>['values'][number];
 
 interface ComposerModelMenuProps {
+  /** Provider/Account section state; absent renders the menu exactly as before. */
+  accountSection?: ComposerAccountSectionProps;
   effort: string;
   /** Effort values the active provider/model actually accepts; empty hides the section. */
   effortOptions: EffortOption[];
@@ -29,6 +33,7 @@ interface ComposerModelMenuProps {
 }
 
 export default function ComposerModelMenu({
+  accountSection,
   effort,
   effortOptions,
   onSelectEffort,
@@ -66,7 +71,9 @@ export default function ComposerModelMenu({
 
   const hasEffortSection = resolvedEffortOptions.length > 0;
   const hasModelSection = modelOptions.length > 0 || modelsLoading;
-  if (!hasEffortSection && !hasModelSection) {
+  const hasAccountSection = Boolean(accountSection) && Object.values(accountSection?.profilesByProvider ?? {})
+    .some((accounts) => (accounts?.length ?? 0) > 0);
+  if (!hasEffortSection && !hasModelSection && !hasAccountSection) {
     return null;
   }
 
@@ -98,6 +105,28 @@ export default function ComposerModelMenu({
 
       {isOpen && anchor && createPortal(
         <ComposerMenuSurface anchor={anchor} menuRef={menuRef} ariaLabel={ariaLabel}>
+          {hasAccountSection && accountSection && (
+            <>
+              <ComposerAccountSection
+                {...accountSection}
+                isMenuOpen={isOpen}
+                onSelectAccount={(profile) => {
+                  const request = accountSection.onSelectAccount(profile);
+                  // A confirmation or a failed switch both need the menu to stay
+                  // open so the user can see and act on them; every other outcome
+                  // is already applied, so the popover closes like any other pick.
+                  void request.then((outcome) => {
+                    if (outcome.kind !== 'confirmation-required' && outcome.kind !== 'error') {
+                      setIsOpen(false);
+                    }
+                  });
+                  return request;
+                }}
+              />
+              {(hasEffortSection || hasModelSection) && <ComposerMenuSeparator />}
+            </>
+          )}
+
           {hasEffortSection && (
             <>
               <ComposerMenuHeading>

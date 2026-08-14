@@ -152,6 +152,31 @@
       "unavailable": "Usage data is not available right now.",
       "resets": "resets {{time}}",
       "asOf": "as of last session activity ({{time}})"
+    },
+    "accountSwitcher": {
+      "trigger": "Switch account",
+      "title": "Switch account",
+      "description": "Continue this session on a different account.",
+      "loadingAccounts": "Loading accounts…",
+      "loadError": "Failed to load accounts",
+      "empty": "No other accounts yet.",
+      "current": "Current account",
+      "newSession": "New session",
+      "needsAuth": "Sign in to this account first",
+      "switch": "Switch",
+      "switching": "Switching…",
+      "cancel": "Cancel",
+      "done": "Done",
+      "confirmTitle": "Switch to {{provider}}?",
+      "confirmBody": "This starts a new session on {{provider}} using \"{{profileName}}\", seeded with this conversation as context. This session stays here and remains available.",
+      "confirmAction": "Start new session",
+      "anotherProvider": "another provider",
+      "outcome": {
+        "transplanted": "Account switched. The next turn continues on the new account.",
+        "queued": "A turn is running — the switch will apply when it finishes.",
+        "seededPrimed": "The conversation continues in a new session on {{provider}}.",
+        "seededUnprimed": "A new session was started on {{provider}} — the earlier conversation could not be carried over, so it begins without that context."
+      }
     }
   },
   "notifications": {

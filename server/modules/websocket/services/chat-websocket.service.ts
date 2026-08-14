@@ -4,6 +4,12 @@ import path from 'node:path';
 import type { WebSocket } from 'ws';
 
 import { sessionsDb } from '@/modules/database/index.js';
+import {
+  consumePendingPrimer,
+  handoffService,
+  profilesService,
+  type HandoffResult,
+} from '@/modules/profiles/index.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
 import { getGlobalImageAssetsDir, normalizeImageDescriptors } from '@/shared/image-attachments.js';
@@ -44,6 +50,13 @@ export function filterImagesToUploadStore(images: unknown, assetsRootOverride?: 
     return isDirectChild;
   });
 }
+
+/**
+ * Splits the handed-over conversation from the user's own words on the first
+ * turn of a seeded session, so the model reads the primer as background rather
+ * than as part of the request it has to answer.
+ */
+const PRIMER_SEPARATOR = '\n\n---\n\n';
 
 /**
  * One provider runtime entry point. All five runtimes share this signature,
@@ -126,6 +139,43 @@ function sendProtocolError(
     error,
     sessionId: sessionId ?? null,
     timestamp: new Date().toISOString(),
+  });
+}
+
+/**
+ * Announces a deferred account/provider switch that just landed.
+ *
+ * The socket that requested the switch may be long gone by the time it is
+ * applied (that is the whole point of deferring it past the running turn),
+ * so this is a fire-and-out broadcast rather than a reply to one connection —
+ * same audience as `session_upserted`: every currently connected chat
+ * client, not only ones subscribed to `sourceSessionId`. Each client's job on
+ * receipt is to refresh its session/project list so a newly seeded session
+ * appears in the sidebar; it must never yank the user's current view, since
+ * the switch can land while they are reading something unrelated.
+ *
+ * `type` (not `kind`) deliberately mirrors the existing TaskMaster broadcast
+ * convention on this same socket, keeping it a distinct sub-protocol from the
+ * `kind`-based provider/gateway events.
+ */
+function broadcastSessionHandoff(sourceSessionId: string, result: HandoffResult): void {
+  const provider = profilesService.getProfile(result.profileId).provider;
+  const payload = JSON.stringify({
+    type: 'session.handoff',
+    sessionId: sourceSessionId,
+    status: result.status,
+    // Same session id as `sessionId` on a same-provider transplant; a new id
+    // on a cross-provider seed, which is the session the conversation now
+    // continues in.
+    targetSessionId: result.sessionId,
+    provider,
+    profileId: result.profileId,
+  });
+
+  connectedClients.forEach((client) => {
+    if (client.readyState === WS_OPEN_STATE) {
+      client.send(payload);
+    }
   });
 }
 
@@ -221,7 +271,19 @@ async function handleChatSend(
   }
 
   const clientOptions = (data.options ?? {}) as AnyRecord;
-  const command = typeof data.content === 'string' ? data.content : '';
+  const userPrompt = typeof data.content === 'string' ? data.content : '';
+
+  // A session born from a cross-provider handoff carries the earlier
+  // conversation as a text primer that the target model has never seen; this is
+  // the only place it reaches one. It is consumed here, after the run has been
+  // registered and past every early return (unknown session, unavailable
+  // provider, missing worktree, run already in progress): consuming it on a
+  // branch that bails out would clear the pointer without a model ever reading
+  // the context, and it would be lost for good. Everything below this point
+  // dispatches. Consuming clears the pointer, so the second turn onward sends
+  // the user's prompt untouched.
+  const primer = consumePendingPrimer(session);
+  const command = primer === null ? userPrompt : `${primer}${PRIMER_SEPARATOR}${userPrompt}`;
 
   // The provider runtimes receive the provider-native session id (that is the
   // id their CLI/SDK understands for resume). Brand-new sessions have no
@@ -250,6 +312,16 @@ async function handleChatSend(
     cavemanMode: session.caveman_mode ?? null,
   };
 
+  // From here on the session is executing a turn, so an account switch asked
+  // for meanwhile must be queued rather than applied on top of a live stream
+  // (a cross-provider switch even creates a new session). Marking happens only
+  // after `startRun` returned a live run: a send rejected at RUN_IN_PROGRESS
+  // never reaches the completion path below, so marking it there would leave
+  // the flag set forever and queue every later switch on that session. Nothing
+  // between this line and the `try` can throw, so the flag is always paired
+  // with the `finally` that clears it.
+  handoffService.markSessionRunning(sessionId);
+
   try {
     await spawnFn(command, runtimeOptions, run.writer);
   } catch (error) {
@@ -262,6 +334,34 @@ async function handleChatSend(
     // a queued message can start the session's next run before this promise
     // settles, and the session-keyed completeRun would kill that new run.
     chatRunRegistry.completeRunIfCurrent(run, { exitCode: 1 });
+
+    // The turn is over, so a switch deferred during it can be applied now.
+    // Idle strictly before the drain: while the session still counts as
+    // running, the switch the drain picks up would simply be queued again.
+    handoffService.markSessionIdle(sessionId);
+
+    // Applying a deferred switch creates sessions and touches the filesystem,
+    // so it is deliberately not awaited — the completion path must neither
+    // wait on it nor be rejected into by it. The result is kept in hand at
+    // this call site because the handoff outcome belongs here; a failure is
+    // logged and dropped, and the operator can request the switch again.
+    void handoffService
+      .drainPendingSwitch(sessionId)
+      .then((result) => {
+        if (result) {
+          console.log('[Chat] Applied a deferred account switch', {
+            sessionId,
+            status: result.status,
+            profileId: result.profileId,
+            continuesAs: result.sessionId,
+          });
+          broadcastSessionHandoff(sessionId, result);
+        }
+      })
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error('[Chat] Deferred account switch failed to apply', { sessionId, error: message });
+      });
   }
 }
 

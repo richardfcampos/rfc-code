@@ -226,6 +226,14 @@
     "modelMenu": "Sélectionner le modèle et l'effort de raisonnement",
     "worktree": "Worktree",
     "worktreeHint": "Lancer cette session dans son propre worktree git",
+    "account": {
+      "confirmTitle": "Passer à {{account}} sur {{provider}} ?",
+      "confirmBody": "Cela démarre une nouvelle session sur {{provider}}, amorcée avec la conversation actuelle comme contexte. Cette session reste disponible et inchangée.",
+      "cancel": "Annuler",
+      "confirm": "Changer",
+      "switching": "Changement en cours…",
+      "notAuthenticated": "Connectez-vous pour utiliser ce compte"
+    },
     "usage": {
       "button": "Utilisation du forfait",
       "title": "Utilisation du forfait",

@@ -154,6 +154,8 @@ function MainContent({
         shouldShowBrowserTab={shouldShowBrowserTab}
         isMobile={isMobile}
         onMenuClick={onMenuClick}
+        onNavigateToSession={onNavigateToSession}
+        onSessionsRefresh={onProjectsRefresh}
       />
 
       <div className="flex min-h-0 flex-1 overflow-hidden">

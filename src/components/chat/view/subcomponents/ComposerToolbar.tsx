@@ -27,6 +27,7 @@ type ComposerToolbarProps = Pick<
   | 'onSelectModel'
   | 'modelsLoading'
   | 'activeProfileId'
+  | 'accountSection'
   | 'onShowTokenUsage'
   | 'slashCommandsCount'
   | 'onToggleCommandMenu'
@@ -74,6 +75,7 @@ export default function ComposerToolbar({
   onSelectModel,
   modelsLoading,
   activeProfileId,
+  accountSection,
   onShowTokenUsage,
   usedContextTokens,
   slashCommandsCount,
@@ -131,6 +133,7 @@ export default function ComposerToolbar({
         modelOptions={availableModelOptions}
         onSelectModel={onSelectModel}
         modelsLoading={modelsLoading}
+        accountSection={accountSection}
       />
 
       {/* Usage gauge is a desktop/tablet affordance — the mock's mobile composer keeps

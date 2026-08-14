@@ -1,71 +1,104 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeftRight, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 
 import { authenticatedFetch } from '../../../utils/api';
 import { Button } from '../../../shared/view/ui';
 import type { LLMProvider } from '../../../types/app';
-import type { Profile } from '../types';
-import { useSessionHandoff, type HandoffResult } from '../hooks/useSessionHandoff';
+import type { SessionNavigationOptions } from '../../chat/types/types';
+import { useProviderSwitch } from '../../chat/hooks/useProviderSwitch';
+import type { Profile, ProfileWithStatus } from '../types';
+
+import SessionAccountSwitcherGroups from './SessionAccountSwitcherGroups';
+import SessionAccountSwitcherStatus from './SessionAccountSwitcherStatus';
 
 type SessionAccountSwitcherProps = {
   sessionId?: string;
-  provider?: LLMProvider | string;
+  provider?: LLMProvider;
   currentProfileId?: string | null;
+  /** Navigates to a seeded session once a cross-provider handoff creates one. */
+  onNavigateToSession?: (targetSessionId: string, options?: SessionNavigationOptions) => void;
+  /** Re-syncs the sidebar so a freshly seeded session shows up there. */
+  onSessionsRefresh?: () => void;
 };
 
-function describeOutcome(result: HandoffResult): string {
-  switch (result.status) {
-    case 'queued':
-      return 'A turn is running — the switch will apply when it finishes.';
-    case 'seeded':
-      return 'This provider cannot move a live session, so a new session was started with the prior context.';
-    case 'transplanted':
-    default:
-      return 'Account switched. The next turn continues on the new account.';
-  }
-}
-
 /**
- * Header action that hands the current session to another account of the same
- * provider (HUB-12). Lists the sibling profiles and posts the handoff; the
- * resolved status (switched / queued / seeded) is surfaced inline.
+ * Header action that hands the current session to another account — same
+ * provider or a different one. Same-provider targets apply immediately
+ * (transplant); cross-provider targets require confirmation because they
+ * create a brand-new session seeded with the current conversation, leaving
+ * this session behind but still browsable.
  */
 export default function SessionAccountSwitcher({
   sessionId,
   provider,
   currentProfileId,
+  onNavigateToSession,
+  onSessionsRefresh,
 }: SessionAccountSwitcherProps) {
+  const { t } = useTranslation('settings');
   const [isOpen, setIsOpen] = useState(false);
-  const [candidates, setCandidates] = useState<Profile[]>([]);
+  const [profiles, setProfiles] = useState<ProfileWithStatus[]>([]);
+  const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const { switchAccount, isSwitching, error, result, reset } = useSessionHandoff();
 
-  const loadCandidates = useCallback(async () => {
-    if (!provider) {
-      return;
-    }
+  const {
+    requestSwitch,
+    confirmSwitch,
+    cancelSwitch,
+    reset,
+    pendingConfirmation,
+    isSwitching,
+    error,
+    lastOutcome,
+  } = useProviderSwitch({
+    sessionId: sessionId ?? null,
+    // Falls back to 'claude' only to keep the hook call unconditional (Rules
+    // of Hooks); the component renders nothing below when `provider` is
+    // absent, so this value never reaches the UI.
+    currentProvider: provider ?? 'claude',
+    onNavigateToSession,
+    onSessionsRefresh,
+  });
+
+  const loadAccounts = useCallback(async () => {
     setLoadError(null);
+    setIsLoadingProfiles(true);
     try {
-      const response = await authenticatedFetch(
-        `/api/profiles?provider=${encodeURIComponent(provider)}`,
-      );
+      const response = await authenticatedFetch('/api/profiles');
       const body = await response.json();
       if (!response.ok || !body?.success) {
-        throw new Error('Failed to load accounts');
+        throw new Error(t('profiles.accountSwitcher.loadError', { defaultValue: 'Failed to load accounts' }));
       }
-      const profiles = (body.data?.profiles as Profile[] | undefined) ?? [];
-      setCandidates(profiles.filter((profile) => profile.id !== currentProfileId));
+      const list = (body.data?.profiles as Profile[] | undefined) ?? [];
+      // The list payload already carries each account's auth flag, so the whole
+      // modal resolves in one request instead of one status call per account.
+      // The status shape is kept because the child rows are shared with the
+      // settings tab, which still enriches its list lazily. The flag is coerced
+      // because this response is unvalidated JSON: an absent flag must read as
+      // "not signed in" rather than silently offering a dead account.
+      setProfiles(list.map((profile) => ({
+        ...profile,
+        status: { authenticated: Boolean(profile.authenticated) },
+        statusLoading: false,
+      })));
+      setIsLoadingProfiles(false);
     } catch (loadingError) {
-      setLoadError(loadingError instanceof Error ? loadingError.message : 'Failed to load accounts');
+      setIsLoadingProfiles(false);
+      setLoadError(
+        loadingError instanceof Error
+          ? loadingError.message
+          : t('profiles.accountSwitcher.loadError', { defaultValue: 'Failed to load accounts' }),
+      );
     }
-  }, [provider, currentProfileId]);
+  }, [t]);
 
   useEffect(() => {
     if (isOpen) {
-      void loadCandidates();
+      void loadAccounts();
     }
-  }, [isOpen, loadCandidates]);
+  }, [isOpen, loadAccounts]);
 
   if (!sessionId || !provider) {
     return null;
@@ -76,20 +109,19 @@ export default function SessionAccountSwitcher({
     reset();
   };
 
-  const onSwitch = async (profileId: string) => {
-    try {
-      await switchAccount(sessionId, profileId);
-    } catch {
-      // error is surfaced via the hook's `error` state; keep the modal open.
-    }
-  };
+  const successOutcome = lastOutcome
+    && (lastOutcome.kind === 'transplanted' || lastOutcome.kind === 'queued' || lastOutcome.kind === 'seeded')
+    ? lastOutcome
+    : null;
+
+  const switcherLabel = t('profiles.accountSwitcher.trigger', { defaultValue: 'Switch account' });
 
   return (
     <>
       <button
         type="button"
-        title="Switch account"
-        aria-label="Switch account"
+        title={switcherLabel}
+        aria-label={switcherLabel}
         onClick={() => setIsOpen(true)}
         className="ml-1 inline-flex flex-shrink-0 items-center rounded-full border border-border/60 bg-muted/40 p-1 text-muted-foreground transition-colors hover:bg-muted"
       >
@@ -101,60 +133,50 @@ export default function SessionAccountSwitcher({
           <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-4">
             <div className="w-full max-w-md rounded-lg border border-border bg-background">
               <div className="flex items-center justify-between border-b border-border p-4">
-                <h3 className="text-lg font-medium text-foreground">Switch account</h3>
+                <h3 className="text-lg font-medium text-foreground">
+                  {t('profiles.accountSwitcher.title', { defaultValue: 'Switch account' })}
+                </h3>
                 <Button variant="ghost" size="sm" onClick={close}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
 
               <div className="space-y-3 p-4">
-                {result ? (
-                  <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-foreground">
-                    {describeOutcome(result)}
-                  </div>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Continue this session on a different {String(provider)} account.
-                  </p>
-                )}
+                <SessionAccountSwitcherStatus
+                  pendingConfirmation={pendingConfirmation}
+                  successOutcome={successOutcome}
+                  profiles={profiles}
+                  isSwitching={isSwitching}
+                  onConfirm={() => void confirmSwitch()}
+                  onCancel={cancelSwitch}
+                />
 
-                {loadError && (
+                {(loadError || (error && !successOutcome)) && (
                   <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800/60 dark:bg-red-900/20 dark:text-red-200">
-                    {loadError}
-                  </div>
-                )}
-                {error && (
-                  <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-800/60 dark:bg-red-900/20 dark:text-red-200">
-                    {error}
+                    {loadError || error}
                   </div>
                 )}
 
-                {!result && candidates.length === 0 && !loadError && (
-                  <p className="text-sm text-muted-foreground">
-                    No other accounts for this provider yet.
-                  </p>
+                {!pendingConfirmation && !successOutcome && (
+                  <SessionAccountSwitcherGroups
+                    profiles={profiles}
+                    currentProvider={provider}
+                    currentProfileId={currentProfileId}
+                    isSwitching={isSwitching}
+                    isLoading={isLoadingProfiles}
+                    onSelect={(profile) => void requestSwitch(profile)}
+                  />
                 )}
 
-                {!result && candidates.length > 0 && (
-                  <ul className="space-y-2">
-                    {candidates.map((candidate) => (
-                      <li key={candidate.id} className="flex items-center justify-between gap-2">
-                        <span className="truncate text-sm text-foreground" title={candidate.name}>
-                          {candidate.name}
-                        </span>
-                        <Button size="sm" disabled={isSwitching} onClick={() => onSwitch(candidate.id)}>
-                          {isSwitching ? 'Switching…' : 'Switch'}
-                        </Button>
-                      </li>
-                    ))}
-                  </ul>
+                {!pendingConfirmation && (
+                  <div className="flex justify-end">
+                    <Button variant="ghost" onClick={close}>
+                      {successOutcome
+                        ? t('profiles.accountSwitcher.done', { defaultValue: 'Done' })
+                        : t('profiles.accountSwitcher.cancel', { defaultValue: 'Cancel' })}
+                    </Button>
+                  </div>
                 )}
-
-                <div className="flex justify-end">
-                  <Button variant="ghost" onClick={close}>
-                    {result ? 'Done' : 'Cancel'}
-                  </Button>
-                </div>
               </div>
             </div>
           </div>,

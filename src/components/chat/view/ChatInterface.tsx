@@ -7,10 +7,13 @@ import { useWebSocket } from '../../../contexts/WebSocketContext';
 import PermissionContext from '../../../contexts/PermissionContext';
 import { QuickSettingsPanel } from '../../quick-settings-panel';
 import type { ChatInterfaceProps, Provider  } from '../types/types';
+import type { Profile } from '../../profiles/types';
 import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '../hooks/useChatComposerState';
+import { useProviderSwitch } from '../hooks/useProviderSwitch';
+import type { ProviderSwitchOutcome } from '../hooks/useProviderSwitch';
 import { subscribeToChatSessionSeed } from '../utils/sessionSeed';
 import { getPendingPermissionsForSession } from '../utils/pending-permission-registry';
 import { useSessionStore } from '../../../stores/useSessionStore';
@@ -181,6 +184,30 @@ function ChatInterface({
     onSessionEstablished?.(sessionId, context);
     onNavigateToSession?.(sessionId);
   }, [setCurrentSessionId, onSessionEstablished, onNavigateToSession]);
+
+  // Owns the composer's "switch account/provider" decision (HUB-12): no open
+  // session yet -> local selection only, same provider -> immediate handoff,
+  // other provider -> confirmation first, since the conversation continues in
+  // a brand-new session on that provider.
+  const providerSwitch = useProviderSwitch({
+    sessionId: currentSessionId || selectedSession?.id || null,
+    currentProvider: provider,
+    onNavigateToSession,
+    onSessionsRefresh: onProjectsRefresh,
+  });
+
+  const handleSelectAccount = useCallback(async (profile: Profile): Promise<ProviderSwitchOutcome> => {
+    const outcome = await providerSwitch.requestSwitch(profile);
+    if (outcome.kind === 'local') {
+      setProvider(outcome.provider);
+      setSelectedProfileId(outcome.profileId);
+    } else if (outcome.kind === 'transplanted') {
+      // Same-provider switch applied in place: keep the badge in sync with the
+      // account that now actually serves this session.
+      setSelectedProfileId(outcome.profileId);
+    }
+    return outcome;
+  }, [providerSwitch, setProvider, setSelectedProfileId]);
 
   const {
     input,
@@ -487,6 +514,17 @@ function ChatInterface({
           onSelectModel={handleSelectComposerModel}
           modelsLoading={providerModelsLoading}
           activeProfileId={selectedProfileId}
+          accountSection={{
+            provider,
+            profilesByProvider,
+            selectedProfileId,
+            onSelectAccount: handleSelectAccount,
+            pendingConfirmation: providerSwitch.pendingConfirmation,
+            onConfirmSwitch: () => { void providerSwitch.confirmSwitch(); },
+            onCancelSwitch: providerSwitch.cancelSwitch,
+            isSwitching: providerSwitch.isSwitching,
+            switchError: providerSwitch.error,
+          }}
           canUseWorktree={Boolean(selectedProject) && !selectedSession && !currentSessionId}
           worktreeEnabled={worktreeEnabled}
           onToggleWorktree={handleToggleWorktree}

@@ -6,8 +6,8 @@ import path from 'node:path';
 import test from 'node:test';
 
 import { closeConnection, initializeDatabase, sessionsDb } from '@/modules/database/index.js';
-import { profilesService } from '@/modules/profiles/profiles.service.js';
-import { resolveProfileDir } from '@/modules/profiles/profile-env.js';
+import { profilesService, type ProfileView } from '@/modules/profiles/profiles.service.js';
+import { resolveCredentialPath, resolveProfileDir } from '@/modules/profiles/profile-env.js';
 import {
   drainPendingSwitch,
   switchSessionProfile,
@@ -67,6 +67,21 @@ function targetTransplantPath(targetSlug: string, sessionId: string): string {
   return path.join(resolveProfileDir('claude', targetSlug), 'projects', ENC, `${sessionId}.jsonl`);
 }
 
+/** Drops the credential artifact that marks a profile as signed in. */
+function authenticate(profile: ProfileView): void {
+  const credentialPath = resolveCredentialPath(
+    profile.provider,
+    resolveProfileDir(profile.provider, profile.slug),
+  );
+  fs.mkdirSync(path.dirname(credentialPath), { recursive: true });
+  fs.writeFileSync(credentialPath, '{}');
+}
+
+const HISTORY = [
+  { kind: 'text', role: 'user', content: 'port the parser to rust' },
+  { kind: 'text', role: 'assistant', content: 'started with the lexer' },
+];
+
 test('transplant preserves history, marks the switch point, and repoints profile_id (AC1/AC3)', async () => {
   await withHandoffEnvironment(async () => {
     const source = profilesService.createProfile({ provider: 'claude', name: 'Account A' });
@@ -74,7 +89,7 @@ test('transplant preserves history, marks the switch point, and repoints profile
     const sessionId = 'sess-transplant';
     seedTransplantableSession(source.slug, source.id, sessionId);
 
-    const result = switchSessionProfile(sessionId, target.id, { isSessionRunning: () => false });
+    const result = await switchSessionProfile(sessionId, target.id, { isSessionRunning: () => false });
 
     assert.equal(result.status, 'transplanted');
     assert.equal(result.profileId, target.id);
@@ -111,7 +126,7 @@ test('degrades to a seeded session when the provider is not transplantable (AC2)
     fs.writeFileSync(priorFile, 'PRIOR-CONTEXT-LINE\n');
     sessionsDb.createSession(sessionId, 'cursor', '/tmp/handoff-cursor', 'SC', undefined, undefined, priorFile, source.id);
 
-    const result = switchSessionProfile(sessionId, target.id, { isSessionRunning: () => false });
+    const result = await switchSessionProfile(sessionId, target.id, { isSessionRunning: () => false });
 
     assert.equal(result.status, 'seeded');
     assert.ok(result.seededSessionId);
@@ -147,7 +162,7 @@ test('degrades to a seeded session when a supported provider transcript is missi
       source.id,
     );
 
-    const result = switchSessionProfile(sessionId, target.id, { isSessionRunning: () => false });
+    const result = await switchSessionProfile(sessionId, target.id, { isSessionRunning: () => false });
 
     assert.equal(result.status, 'seeded');
     assert.equal(sessionsDb.getSessionById(result.seededSessionId as string)?.profile_id, target.id);
@@ -161,7 +176,7 @@ test('queues the switch while a turn is running, then applies it on turn end (ed
     const sessionId = 'sess-running';
     seedTransplantableSession(source.slug, source.id, sessionId);
 
-    const queued = switchSessionProfile(sessionId, target.id, { isSessionRunning: () => true });
+    const queued = await switchSessionProfile(sessionId, target.id, { isSessionRunning: () => true });
 
     assert.equal(queued.status, 'queued');
     // The running turn is not killed and nothing is applied yet.
@@ -169,40 +184,81 @@ test('queues the switch while a turn is running, then applies it on turn end (ed
     assert.ok(!fs.existsSync(targetTransplantPath(target.slug, sessionId)), 'no transplant mid-turn');
 
     // Turn ends: the queued switch is drained and applied.
-    const applied = drainPendingSwitch(sessionId);
+    const applied = await drainPendingSwitch(sessionId);
     assert.equal(applied?.status, 'transplanted');
     assert.equal(sessionsDb.getSessionById(sessionId)?.profile_id, target.id);
     assert.ok(fs.existsSync(targetTransplantPath(target.slug, sessionId)));
 
     // Draining again is a no-op (queue cleared).
-    assert.equal(drainPendingSwitch(sessionId), null);
+    assert.equal(await drainPendingSwitch(sessionId), null);
   });
 });
 
 test('rejects a handoff for an unknown session', async () => {
   await withHandoffEnvironment(async () => {
     const target = profilesService.createProfile({ provider: 'claude', name: 'Account B' });
-    assert.throws(
-      () => switchSessionProfile('does-not-exist', target.id, { isSessionRunning: () => false }),
+    await assert.rejects(
+      switchSessionProfile('does-not-exist', target.id, { isSessionRunning: () => false }),
       (error: unknown) =>
         error instanceof AppError && error.statusCode === 404 && error.code === 'SESSION_NOT_FOUND',
     );
   });
 });
 
-test('rejects a handoff to a profile of a different provider', async () => {
+test('hands a session to another provider by seeding a primed session there', async () => {
   await withHandoffEnvironment(async () => {
     const claudeProfile = profilesService.createProfile({ provider: 'claude', name: 'Claude A' });
     const codexProfile = profilesService.createProfile({ provider: 'codex', name: 'Codex B' });
-    const sessionId = 'sess-mismatch';
+    authenticate(codexProfile);
+    const sessionId = 'sess-cross';
     seedTransplantableSession(claudeProfile.slug, claudeProfile.id, sessionId);
 
-    assert.throws(
-      () => switchSessionProfile(sessionId, codexProfile.id, { isSessionRunning: () => false }),
-      (error: unknown) =>
-        error instanceof AppError &&
-        error.statusCode === 400 &&
-        error.code === 'HANDOFF_PROVIDER_MISMATCH',
+    const result = await switchSessionProfile(sessionId, codexProfile.id, {
+      isSessionRunning: () => false,
+      loadHistory: async () => HISTORY,
+    });
+
+    assert.equal(result.status, 'seeded');
+    assert.equal(result.primed, true);
+    assert.notEqual(result.seededSessionId, sessionId);
+
+    const seeded = sessionsDb.getSessionById(result.seededSessionId as string);
+    assert.equal(seeded?.provider, 'codex', 'new session runs on the target provider');
+    assert.equal(seeded?.profile_id, codexProfile.id);
+    assert.ok(seeded?.seed_primer_path, 'primer pointer recorded');
+    assert.ok(fs.existsSync(seeded!.seed_primer_path as string), 'primer written to disk');
+    assert.ok(
+      fs.readFileSync(seeded!.seed_primer_path as string, 'utf8').includes('port the parser to rust'),
+      'primer carries the prior conversation',
+    );
+
+    // The source session keeps its provider, its account and its transcript, so
+    // the conversation stays browsable exactly where it was recorded.
+    const sourceRow = sessionsDb.getSessionById(sessionId);
+    assert.equal(sourceRow?.provider, 'claude');
+    assert.equal(sourceRow?.profile_id, claudeProfile.id);
+  });
+});
+
+test('applies a queued cross-provider switch once the running turn ends', async () => {
+  await withHandoffEnvironment(async () => {
+    const claudeProfile = profilesService.createProfile({ provider: 'claude', name: 'Claude A' });
+    const codexProfile = profilesService.createProfile({ provider: 'codex', name: 'Codex B' });
+    authenticate(codexProfile);
+    const sessionId = 'sess-cross-queued';
+    seedTransplantableSession(claudeProfile.slug, claudeProfile.id, sessionId);
+
+    const queued = await switchSessionProfile(sessionId, codexProfile.id, {
+      isSessionRunning: () => true,
+    });
+    assert.equal(queued.status, 'queued');
+
+    const applied = await drainPendingSwitch(sessionId, { loadHistory: async () => HISTORY });
+    assert.equal(applied?.status, 'seeded');
+    assert.equal(applied?.primed, true);
+    assert.equal(
+      sessionsDb.getSessionById(applied?.seededSessionId as string)?.provider,
+      'codex',
     );
   });
 });
@@ -213,8 +269,8 @@ test('rejects a no-op handoff to the profile already in use', async () => {
     const sessionId = 'sess-noop';
     seedTransplantableSession(owner.slug, owner.id, sessionId);
 
-    assert.throws(
-      () => switchSessionProfile(sessionId, owner.id, { isSessionRunning: () => false }),
+    await assert.rejects(
+      switchSessionProfile(sessionId, owner.id, { isSessionRunning: () => false }),
       (error: unknown) =>
         error instanceof AppError && error.statusCode === 400 && error.code === 'HANDOFF_NO_OP',
     );

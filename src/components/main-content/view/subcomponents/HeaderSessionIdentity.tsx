@@ -2,11 +2,16 @@ import type { AppTab, ProjectSession } from '../../../../types/app';
 import { cn } from '../../../../lib/utils';
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 import { SessionAccountSwitcher, SessionProfileBadge } from '../../../profiles';
+import type { SessionNavigationOptions } from '../../../chat/types/types';
 
 type HeaderSessionIdentityProps = {
   activeTab: AppTab;
   selectedSession: ProjectSession | null;
   className?: string;
+  /** Navigates to a seeded session once a cross-provider handoff creates one. */
+  onNavigateToSession?: (targetSessionId: string, options?: SessionNavigationOptions) => void;
+  /** Re-syncs the sidebar so a freshly seeded session shows up there. */
+  onSessionsRefresh?: () => void;
 };
 
 /**
@@ -24,6 +29,8 @@ export default function HeaderSessionIdentity({
   activeTab,
   selectedSession,
   className = '',
+  onNavigateToSession,
+  onSessionsRefresh,
 }: HeaderSessionIdentityProps) {
   if (activeTab !== 'chat' || !selectedSession) {
     return null;
@@ -39,6 +46,8 @@ export default function HeaderSessionIdentity({
         sessionId={selectedSession.id}
         provider={selectedSession.__provider}
         currentProfileId={selectedSession.profileId}
+        onNavigateToSession={onNavigateToSession}
+        onSessionsRefresh={onSessionsRefresh}
       />
     </div>
   );

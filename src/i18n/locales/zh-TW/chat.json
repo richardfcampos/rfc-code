@@ -260,6 +260,14 @@
     "modelMenu": "選擇模型與推理強度",
     "worktree": "工作樹",
     "worktreeHint": "在獨立的 git 工作樹中執行此工作階段",
+    "account": {
+      "confirmTitle": "要切換到 {{provider}} 上的 {{account}} 嗎？",
+      "confirmBody": "此操作會在 {{provider}} 上啟動一個以目前對話為上下文的新工作階段。此工作階段將保持不變並繼續可用。",
+      "cancel": "取消",
+      "confirm": "切換",
+      "switching": "正在切換…",
+      "notAuthenticated": "請登入後使用此帳戶"
+    },
     "usage": {
       "button": "方案用量",
       "title": "方案用量",

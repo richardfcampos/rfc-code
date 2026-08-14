@@ -72,6 +72,10 @@ export type MainContentHeaderProps = {
   shouldShowBrowserTab: boolean;
   isMobile: boolean;
   onMenuClick: () => void;
+  /** Navigates to a seeded session once a cross-provider handoff creates one. */
+  onNavigateToSession?: (targetSessionId: string, options?: SessionNavigationOptions) => void;
+  /** Re-syncs the sidebar so a freshly seeded session shows up there. */
+  onSessionsRefresh?: () => void;
 };
 
 export type MainContentStateViewProps = {

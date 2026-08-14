@@ -211,6 +211,14 @@
     "modelMenu": "モデルと推論の強度を選択",
     "worktree": "ワークツリー",
     "worktreeHint": "このセッションを専用の git ワークツリーで実行",
+    "account": {
+      "confirmTitle": "{{provider}} の {{account}} に切り替えますか？",
+      "confirmBody": "{{provider}} で現在の会話をコンテキストとして引き継いだ新しいセッションが開始されます。このセッションはそのまま変更されず利用できます。",
+      "cancel": "キャンセル",
+      "confirm": "切り替え",
+      "switching": "切り替え中…",
+      "notAuthenticated": "このアカウントを使用するにはサインインしてください"
+    },
     "usage": {
       "button": "プラン使用状況",
       "title": "プラン使用状況",

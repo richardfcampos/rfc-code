@@ -55,6 +55,8 @@ export interface ProfileView {
   cavemanMode: CavemanMode | null;
   /** Command-rewriting level; null when never configured for this profile. */
   rtkMode: RtkMode | null;
+  /** Whether this account has been signed in — see `isProfileAuthenticated`. */
+  authenticated: boolean;
 }
 
 /**
@@ -77,6 +79,23 @@ export interface CreateProfileInput {
   name: unknown;
 }
 
+/**
+ * Single source of truth for "has this account been signed in".
+ *
+ * One existence check on the provider's login artifact — a single `stat`, no
+ * read and no CLI call — which is why it is cheap enough to run for every row
+ * of the profile list. Every caller (the list payload, the per-profile status
+ * endpoint, the handoff guard) resolves through here: two independent copies of
+ * this rule would let the UI offer an account the backend then refuses.
+ */
+function isProfileAuthenticated(row: ProfileRow): boolean {
+  const credentialPath = resolveCredentialPath(
+    row.provider,
+    resolveProfileDir(row.provider, row.slug),
+  );
+  return fs.existsSync(credentialPath);
+}
+
 function toView(row: ProfileRow): ProfileView {
   return {
     id: row.id,
@@ -86,6 +105,7 @@ function toView(row: ProfileRow): ProfileView {
     createdAt: row.created_at,
     cavemanMode: normalizeCavemanMode(row.caveman_mode),
     rtkMode: normalizeRtkMode(row.rtk_mode),
+    authenticated: isProfileAuthenticated(row),
   };
 }
 
@@ -380,12 +400,7 @@ export const profilesService = {
   },
 
   getAuthStatus(profileId: string): ProfileAuthStatus {
-    const row = loadProfileOrThrow(profileId);
-    const credentialPath = resolveCredentialPath(
-      row.provider,
-      resolveProfileDir(row.provider, row.slug),
-    );
-    return { authenticated: fs.existsSync(credentialPath) };
+    return { authenticated: isProfileAuthenticated(loadProfileOrThrow(profileId)) };
   },
 };
 
