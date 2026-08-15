@@ -11,6 +11,8 @@ export { pushSubscriptionsDb } from '@/modules/database/repositories/push-subscr
 export { scanStateDb } from '@/modules/database/repositories/scan-state.db.js';
 export { sessionLegsDb } from '@/modules/database/repositories/session-legs.db.js';
 export type { LegRow } from '@/modules/database/repositories/session-legs.db.js';
+export { sessionRunFailuresDb } from '@/modules/database/repositories/session-run-failures.db.js';
+export type { SessionRunFailureRow } from '@/modules/database/repositories/session-run-failures.db.js';
 export { sessionsDb } from '@/modules/database/repositories/sessions.db.js';
 export type { SessionRow } from '@/modules/database/repositories/sessions.db.js';
 export { userDb } from '@/modules/database/repositories/users.js';

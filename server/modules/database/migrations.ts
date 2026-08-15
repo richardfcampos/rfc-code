@@ -12,6 +12,7 @@ import {
   PROJECTS_TABLE_SCHEMA_SQL,
   PUSH_SUBSCRIPTIONS_TABLE_SCHEMA_SQL,
   SESSION_LEGS_TABLE_SCHEMA_SQL,
+  SESSION_RUN_FAILURES_TABLE_SCHEMA_SQL,
   SESSIONS_TABLE_SCHEMA_SQL,
   USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL,
   VAPID_KEYS_TABLE_SCHEMA_SQL,
@@ -781,6 +782,12 @@ export const runMigrations = (db: Database) => {
       console.log('Running migration: Dropping legacy workspace_original_paths table');
       db.exec('DROP TABLE workspace_original_paths');
     }
+
+    db.exec(SESSION_RUN_FAILURES_TABLE_SCHEMA_SQL);
+    db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_session_run_failures_session
+      ON session_run_failures(session_id, failed_at)
+    `);
 
     db.exec(LAST_SCANNED_AT_SQL);
     console.log('Database migrations completed successfully');

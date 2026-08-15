@@ -369,6 +369,15 @@ function pruneRealtimeSupersededByServer(
       }
     }
 
+    // A failed run now also persists its error, which comes back from the
+    // server under its own id — without matching on the text the same failure
+    // would render twice right after `complete`.
+    if (message.kind === 'error') {
+      return !serverMessages.some(
+        (serverMessage) => serverMessage.kind === 'error' && serverMessage.content === message.content,
+      );
+    }
+
     return true;
   });
 }

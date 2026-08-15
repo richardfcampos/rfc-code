@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 
-import { projectsDb, sessionLegsDb, sessionsDb } from '@/modules/database/index.js';
+import { projectsDb, sessionLegsDb, sessionRunFailuresDb, sessionsDb } from '@/modules/database/index.js';
 import { chatRunRegistry } from '@/modules/websocket/index.js';
 import { profilesService } from '@/modules/profiles/index.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
@@ -73,6 +73,51 @@ function resolveProjectDisplayName(
   }
 
   return path.basename(projectPath) || projectPath;
+}
+
+/**
+ * Appends this session's recorded run failures to a history page.
+ *
+ * Failures are the newest events in a conversation, and pagination here walks
+ * backwards from the end, so they only belong on the tail page (`offset === 0`).
+ * Older pages are pure transcript.
+ *
+ * They are emitted as ordinary `error` messages, which is exactly what the
+ * client already renders for a live failure — the difference is that these
+ * survive a reload, a closed tab, and the five-minute replay buffer.
+ */
+function withRunFailures(
+  result: FetchHistoryResult,
+  sessionId: string,
+  provider: LLMProvider,
+  requestedOffset: number,
+): FetchHistoryResult {
+  // The requested offset decides this, not the one the adapter echoed back:
+  // adapters are free to report their own paging metadata, and trusting it
+  // would append failures onto an older page.
+  if (requestedOffset !== 0) {
+    return result;
+  }
+
+  const failures = sessionRunFailuresDb.listBySession(sessionId);
+  if (failures.length === 0) {
+    return result;
+  }
+
+  const failureMessages: NormalizedMessage[] = failures.map((failure) => ({
+    id: `run_failure_${failure.failure_id}`,
+    sessionId,
+    provider: (failure.provider || provider) as LLMProvider,
+    kind: 'error',
+    content: failure.error_message,
+    timestamp: failure.failed_at,
+  }));
+
+  return {
+    ...result,
+    messages: [...result.messages, ...failureMessages],
+    total: result.total + failureMessages.length,
+  };
 }
 
 /**
@@ -199,15 +244,22 @@ export const sessionsService = {
     }
 
     // App-created sessions that never produced a provider transcript yet
-    // (e.g. first message still streaming) simply have no history.
+    // (e.g. first message still streaming) simply have no history — but a run
+    // that died before writing anything (not logged in, plan limit) still has
+    // a failure worth showing, and it is the only record of that attempt.
     if (!session.provider_session_id) {
-      return {
-        messages: [],
-        total: 0,
-        hasMore: false,
-        offset: options.offset ?? 0,
-        limit: options.limit ?? null,
-      };
+      return withRunFailures(
+        {
+          messages: [],
+          total: 0,
+          hasMore: false,
+          offset: options.offset ?? 0,
+          limit: options.limit ?? null,
+        },
+        session.session_id,
+        session.provider as LLMProvider,
+        options.offset ?? 0,
+      );
     }
 
     const legs = sessionLegsDb.listLegs(session.session_id);
@@ -229,13 +281,18 @@ export const sessionsService = {
       });
     }
 
-    return {
-      ...result,
-      messages: result.messages.map((message) => ({
-        ...message,
-        sessionId,
-      })),
-    };
+    return withRunFailures(
+      {
+        ...result,
+        messages: result.messages.map((message) => ({
+          ...message,
+          sessionId,
+        })),
+      },
+      sessionId,
+      session.provider as LLMProvider,
+      options.offset ?? 0,
+    );
   },
 
   /**
@@ -317,6 +374,8 @@ export const sessionsService = {
         statusCode: 404,
       });
     }
+
+    sessionRunFailuresDb.deleteBySession(sessionId);
 
     return {
       sessionId,

@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import { projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { projectsDb, sessionRunFailuresDb, sessionsDb } from '@/modules/database/index.js';
 import { generateDisplayName } from '@/modules/projects/index.js';
 import { ChatSessionWriter } from '@/modules/websocket/services/chat-session-writer.service.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
@@ -25,6 +25,9 @@ type ChatRunStatus = 'running' | 'completed';
  * - `lastSeq` / `events`: the per-run event log. Every live event gets a
  *   monotonically increasing `seq` and is buffered so a reconnecting client
  *   can replay exactly the events it missed via `chat.subscribe`.
+ * - `lastErrorText`: the most recent error the runtime reported. Held until
+ *   the terminal `complete` says whether the run actually failed, because
+ *   runtimes also emit `error` for mid-run stderr that ends fine.
  */
 type ChatRun = {
   appSessionId: string;
@@ -36,6 +39,7 @@ type ChatRun = {
   writer: ChatSessionWriter;
   startedAt: number;
   completedAt: number | null;
+  lastErrorText: string | null;
 };
 
 /**
@@ -104,6 +108,40 @@ async function broadcastCanonicalSessionUpsert(appSessionId: string): Promise<vo
   });
 }
 
+/**
+ * Writes the run's failure to the database when its terminal `complete` says
+ * the run ended badly.
+ *
+ * Live `error` events only ever reach an open websocket and are buffered for
+ * minutes, so a failure that lands while the tab is closed used to vanish
+ * entirely — the session simply appeared to stop. Persisting here means the
+ * history endpoint can still say what happened, hours later.
+ */
+function persistFailureIfAny(run: ChatRun, message: NormalizedMessage): void {
+  if (message.aborted) {
+    // The user stopped it on purpose; that is not a failure to explain.
+    return;
+  }
+
+  const exitCode = typeof message.exitCode === 'number' ? message.exitCode : null;
+  if (exitCode === 0) {
+    return;
+  }
+
+  try {
+    sessionRunFailuresDb.recordFailure({
+      sessionId: run.appSessionId,
+      provider: run.provider,
+      errorMessage: run.lastErrorText || 'The run stopped without reporting a reason.',
+      exitCode,
+      failedAt: new Date(),
+    });
+  } catch (error) {
+    // Never let bookkeeping break the terminal event the client is waiting on.
+    console.error('[ChatRunRegistry] Failed to persist run failure:', error);
+  }
+}
+
 function evictRunLater(appSessionId: string): void {
   const timer = setTimeout(() => {
     const run = runs.get(appSessionId);
@@ -143,12 +181,20 @@ function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): Norma
     seq: run.lastSeq,
   };
 
+  if (message.kind === 'error') {
+    const text = typeof message.content === 'string' ? message.content : '';
+    if (text.trim()) {
+      run.lastErrorText = text;
+    }
+  }
+
   if (message.kind === 'complete') {
     // The provider may report its own id here; the frontend only ever knows
     // the app id, so the "actual" id is by definition the app id as well.
     outbound.actualSessionId = run.appSessionId;
     run.status = 'completed';
     run.completedAt = Date.now();
+    persistFailureIfAny(run, message);
     evictRunLater(run.appSessionId);
   }
 
@@ -231,6 +277,7 @@ export const chatRunRegistry = {
       writer: null as unknown as ChatSessionWriter,
       startedAt: Date.now(),
       completedAt: null,
+      lastErrorText: null,
     };
 
     run.writer = new ChatSessionWriter({

@@ -229,6 +229,22 @@ CREATE TABLE IF NOT EXISTS session_legs (
 );
 `;
 
+export const SESSION_RUN_FAILURES_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS session_run_failures (
+    failure_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    -- Why the run died, as the runtime reported it ("session limit reached",
+    -- "not logged in", a SIGKILL notice). Live error events reach the client
+    -- over the websocket only, so without this row a failure that lands while
+    -- the tab is closed leaves no trace anywhere and the session just looks
+    -- stopped.
+    error_message TEXT NOT NULL,
+    exit_code INTEGER,
+    failed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
 export const LAST_SCANNED_AT_SQL = `
 CREATE TABLE IF NOT EXISTS scan_state (
   id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -297,6 +313,10 @@ CREATE INDEX IF NOT EXISTS idx_collaborations_project ON collaborations(project_
 
 ${COLLABORATION_TURNS_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_collaboration_turns_collab ON collaboration_turns(collaboration_id);
+
+${SESSION_RUN_FAILURES_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_session_run_failures_session
+  ON session_run_failures(session_id, failed_at);
 
 ${LAST_SCANNED_AT_SQL}
 

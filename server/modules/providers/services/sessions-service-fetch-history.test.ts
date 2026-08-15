@@ -4,7 +4,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { closeConnection, initializeDatabase, sessionLegsDb, sessionsDb } from '@/modules/database/index.js';
+import {
+  closeConnection,
+  initializeDatabase,
+  sessionLegsDb,
+  sessionRunFailuresDb,
+  sessionsDb,
+} from '@/modules/database/index.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
 import type { IProvider } from '@/shared/interfaces.js';
@@ -190,6 +196,98 @@ test('a session with two or more legs routes through fetchUnifiedHistory and get
       assert.equal(result.total, 3);
       assert.equal(patched.callsByProvider.claude, 1);
       assert.equal(patched.callsByProvider.codex, 1);
+    } finally {
+      patched.restore();
+    }
+  });
+});
+
+test('recorded run failures are appended to the newest history page', async () => {
+  await withIsolatedDatabase(async () => {
+    const created = await sessionsService.createAppSession(
+      'claude',
+      '/workspace/demo',
+      undefined,
+      async (cwd) => ({ projectPath: cwd, worktreePath: null, worktreeBranch: null }),
+    );
+    sessionsDb.assignProviderSessionId(created.sessionId, 'native-claude-1');
+    sessionRunFailuresDb.recordFailure({
+      sessionId: created.sessionId,
+      provider: 'claude',
+      errorMessage: "You've hit your session limit",
+      exitCode: 1,
+      failedAt: new Date('2026-01-01T11:00:00.000Z'),
+    });
+
+    const patched = patchProviderRegistry({
+      claude: [buildMessage('m1', '2026-01-01T10:00:00.000Z', 'claude')],
+    });
+
+    try {
+      const result = await sessionsService.fetchHistory(created.sessionId, { limit: null, offset: 0 });
+
+      assert.equal(result.messages.length, 2);
+      assert.equal(result.total, 2);
+      const failureRow = result.messages.at(-1);
+      assert.equal(failureRow?.kind, 'error');
+      assert.equal(failureRow?.content, "You've hit your session limit");
+      assert.equal(failureRow?.sessionId, created.sessionId);
+    } finally {
+      patched.restore();
+    }
+  });
+});
+
+test('a run that died before any transcript existed still explains itself', async () => {
+  await withIsolatedDatabase(async () => {
+    const created = await sessionsService.createAppSession(
+      'claude',
+      '/workspace/demo',
+      undefined,
+      async (cwd) => ({ projectPath: cwd, worktreePath: null, worktreeBranch: null }),
+    );
+    // No provider_session_id: the very first turn failed at login.
+    sessionRunFailuresDb.recordFailure({
+      sessionId: created.sessionId,
+      provider: 'claude',
+      errorMessage: 'Not logged in · Please run /login',
+      exitCode: 1,
+      failedAt: new Date('2026-01-01T11:00:00.000Z'),
+    });
+
+    const result = await sessionsService.fetchHistory(created.sessionId, { limit: null, offset: 0 });
+
+    assert.equal(result.messages.length, 1);
+    assert.equal(result.messages[0]?.kind, 'error');
+    assert.equal(result.messages[0]?.content, 'Not logged in · Please run /login');
+  });
+});
+
+test('older history pages stay pure transcript', async () => {
+  await withIsolatedDatabase(async () => {
+    const created = await sessionsService.createAppSession(
+      'claude',
+      '/workspace/demo',
+      undefined,
+      async (cwd) => ({ projectPath: cwd, worktreePath: null, worktreeBranch: null }),
+    );
+    sessionsDb.assignProviderSessionId(created.sessionId, 'native-claude-1');
+    sessionRunFailuresDb.recordFailure({
+      sessionId: created.sessionId,
+      provider: 'claude',
+      errorMessage: 'boom',
+      exitCode: 1,
+      failedAt: new Date('2026-01-01T11:00:00.000Z'),
+    });
+
+    const patched = patchProviderRegistry({
+      claude: [buildMessage('m1', '2026-01-01T10:00:00.000Z', 'claude')],
+    });
+
+    try {
+      const result = await sessionsService.fetchHistory(created.sessionId, { limit: 1, offset: 5 });
+
+      assert.ok(result.messages.every((message) => message.kind !== 'error'));
     } finally {
       patched.restore();
     }
