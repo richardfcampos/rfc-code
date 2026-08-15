@@ -182,13 +182,9 @@ export const profilesService = {
   deleteProfile(id: string): void {
     loadProfileOrThrow(id);
 
-    const activeSessions = profilesRepository.countActiveSessions(id);
-    if (activeSessions > 0) {
-      throw new AppError(
-        `Profile "${id}" still has ${activeSessions} active session(s).`,
-        { code: 'PROFILE_HAS_ACTIVE_SESSIONS', statusCode: 409 },
-      );
-    }
+    // Sessions are detached rather than blocking the delete: a NULL profile_id
+    // keeps them openable on the provider's default config directory.
+    profilesRepository.detachSessions(id);
 
     // The row is removed but the on-disk credential directory is intentionally
     // left in place, so re-creating the same account reuses its existing login.

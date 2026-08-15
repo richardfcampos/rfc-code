@@ -108,17 +108,14 @@ export const profilesRepository = {
   },
 
   /**
-   * Counts non-archived sessions bound to a profile. Used as the delete guard:
-   * a profile that still serves live sessions must not be removed underneath
-   * them.
+   * Detaches every session bound to a profile. A NULL profile_id falls back to
+   * the provider CLI's default config directory, so detached sessions stay
+   * openable after their profile is gone.
    */
-  countActiveSessions(profileId: string): number {
+  detachSessions(profileId: string): number {
     const db = getConnection();
-    const row = db
-      .prepare(
-        `SELECT COUNT(*) AS count FROM sessions WHERE profile_id = ? AND isArchived = 0`,
-      )
-      .get(profileId) as { count: number } | undefined;
-    return Number(row?.count ?? 0);
+    return db
+      .prepare(`UPDATE sessions SET profile_id = NULL WHERE profile_id = ?`)
+      .run(profileId).changes;
   },
 };

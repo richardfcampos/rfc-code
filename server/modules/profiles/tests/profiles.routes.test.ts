@@ -193,7 +193,7 @@ test('DELETE /api/profiles/:id returns 404 for an unknown profile', async () => 
   });
 });
 
-test('DELETE /api/profiles/:id returns 409 when a live session is bound', async () => {
+test('DELETE /api/profiles/:id detaches bound sessions and removes the profile', async () => {
   await withServer(async (baseUrl) => {
     const created = await postProfile(baseUrl, { provider: 'claude', name: 'Busy' });
     const id = created.json.data.profile.id;
@@ -203,8 +203,13 @@ test('DELETE /api/profiles/:id returns 409 when a live session is bound', async 
       .prepare('UPDATE sessions SET profile_id = ? WHERE session_id = ?')
       .run(id, 's-live');
 
-    const { status, json } = await request(baseUrl, `/api/profiles/${id}`, { method: 'DELETE' });
-    assert.equal(status, 409);
-    assert.equal(json.error.code, 'PROFILE_HAS_ACTIVE_SESSIONS');
+    const del = await request(baseUrl, `/api/profiles/${id}`, { method: 'DELETE' });
+    assert.equal(del.status, 200);
+    assert.equal(del.json.data.deleted, true);
+
+    const row = getConnection()
+      .prepare('SELECT profile_id FROM sessions WHERE session_id = ?')
+      .get('s-live') as { profile_id: string | null };
+    assert.equal(row.profile_id, null);
   });
 });

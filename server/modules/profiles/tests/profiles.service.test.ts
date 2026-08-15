@@ -222,8 +222,9 @@ test('createProfile rejects an invalid provider and an empty name', async () => 
   });
 });
 
-// T5 error path is enforced here: deleting a profile with a live session fails.
-test('deleteProfile refuses while a non-archived session is bound to it', async () => {
+// Deleting a profile detaches its sessions instead of refusing: the session
+// falls back to the provider's default config directory and stays openable.
+test('deleteProfile detaches bound sessions and removes the profile', async () => {
   await withProfilesEnvironment(() => {
     const profile = profilesService.createProfile({ provider: 'claude', name: 'Busy' });
 
@@ -235,11 +236,12 @@ test('deleteProfile refuses while a non-archived session is bound to it', async 
       .prepare('UPDATE sessions SET profile_id = ? WHERE session_id = ?')
       .run(profile.id, 's-live');
 
-    assert.throws(() => profilesService.deleteProfile(profile.id), /active session/i);
-
-    // Archiving the session releases the profile for deletion.
-    sessionsDb.updateSessionIsArchived('s-live', true);
     assert.doesNotThrow(() => profilesService.deleteProfile(profile.id));
+
+    const row = getConnection()
+      .prepare('SELECT profile_id FROM sessions WHERE session_id = ?')
+      .get('s-live') as { profile_id: string | null };
+    assert.equal(row.profile_id, null);
   });
 });
 
