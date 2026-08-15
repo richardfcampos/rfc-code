@@ -33,7 +33,16 @@ export function useComposerMenuAnchor(
       return;
     }
 
-    const right = Math.max(VIEWPORT_MARGIN, window.innerWidth - rect.right);
+    // Right-align to the trigger, but slide back toward the right edge when a
+    // mid-row trigger would otherwise squeeze the menu against the left margin
+    // — on phones that is the difference between a readable panel and a sliver.
+    const right = Math.max(
+      VIEWPORT_MARGIN,
+      Math.min(
+        window.innerWidth - rect.right,
+        window.innerWidth - preferredWidth - VIEWPORT_MARGIN,
+      ),
+    );
     setAnchor({
       right,
       bottom: window.innerHeight - rect.top + MENU_GAP,

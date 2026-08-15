@@ -136,11 +136,9 @@ export default function ComposerToolbar({
         accountSection={accountSection}
       />
 
-      {/* Usage gauge is a desktop/tablet affordance — the mock's mobile composer keeps
-          only Plan / model / ctx so the row fits above the keyboard. */}
-      <div className="hidden sm:inline-flex">
-        <ComposerUsagePopover activeProfileId={activeProfileId} />
-      </div>
+      {/* The chip row scrolls horizontally, so the usage gauge rides along on
+          phones too instead of being the one place plan usage is unreachable. */}
+      <ComposerUsagePopover activeProfileId={activeProfileId} />
 
       <button
         type="button"

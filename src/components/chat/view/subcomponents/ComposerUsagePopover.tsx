@@ -73,7 +73,7 @@ export default function ComposerUsagePopover({ activeProfileId }: { activeProfil
         ref={triggerRef}
         type="button"
         onClick={handleToggle}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-ctl border border-border bg-[var(--hover-soft)] text-muted-foreground transition-colors duration-150 ease-out hover:border-border-strong hover:bg-[var(--hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-ctl border border-border bg-[var(--hover-soft)] text-muted-foreground transition-colors duration-150 ease-out hover:border-border-strong hover:bg-[var(--hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-8 sm:w-8"
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-label={ariaLabel}
