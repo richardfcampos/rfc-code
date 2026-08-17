@@ -230,7 +230,8 @@
       "cancel": "Abbrechen",
       "confirm": "Wechseln",
       "switching": "Wird gewechselt…",
-      "notAuthenticated": "Zur Nutzung dieses Kontos anmelden"
+      "notAuthenticated": "Zur Nutzung dieses Kontos anmelden",
+      "default": "Standardkonto"
     },
     "usage": {
       "button": "Kontingent",

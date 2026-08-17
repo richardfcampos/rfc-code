@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { KeyRound, Plus, Trash2, Users } from 'lucide-react';
+import { KeyRound, Plus, Star, Trash2, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { Badge, Button } from '../../../shared/view/ui';
@@ -48,10 +48,25 @@ export default function ProfilesSettingsTab() {
     createProfile,
     deleteProfile,
     updateToolingModes,
+    setDefaultProfile,
   } = useProfiles();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [loginProfile, setLoginProfile] = useState<Profile | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [defaultingId, setDefaultingId] = useState<string | null>(null);
+
+  // Clicking the star of the current default clears it, leaving the provider
+  // with no fallback — otherwise a default could be moved but never undone.
+  const handleToggleDefault = async (profile: ProfileWithStatus) => {
+    setDefaultingId(profile.id);
+    try {
+      await setDefaultProfile(profile.id, !profile.isDefault);
+    } catch {
+      // actionError from the hook already surfaces the failure message.
+    } finally {
+      setDefaultingId(null);
+    }
+  };
 
   const handleDelete = async (profile: ProfileWithStatus) => {
     if (!window.confirm(
@@ -117,6 +132,14 @@ export default function ProfilesSettingsTab() {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="truncate font-medium text-foreground">{profile.name}</span>
                     <Badge variant="outline" className="text-xs capitalize">{profile.provider}</Badge>
+                    {profile.isDefault && (
+                      <Badge
+                        variant="secondary"
+                        className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                      >
+                        {t('profiles.status.default', { defaultValue: 'Default' })}
+                      </Badge>
+                    )}
                   </div>
                   <div className="mt-1">
                     <ProfileStatusBadge profile={profile} />
@@ -125,6 +148,24 @@ export default function ProfilesSettingsTab() {
               </div>
 
               <div className="flex flex-shrink-0 items-center gap-2">
+                <Button
+                  onClick={() => handleToggleDefault(profile)}
+                  variant="ghost"
+                  size="sm"
+                  disabled={defaultingId === profile.id}
+                  className={profile.isDefault ? 'text-amber-500 hover:text-amber-600' : undefined}
+                  title={profile.isDefault
+                    ? t('profiles.actions.clearDefault', {
+                      provider: profile.provider,
+                      defaultValue: 'Stop using this account by default for {{provider}}',
+                    })
+                    : t('profiles.actions.makeDefault', {
+                      provider: profile.provider,
+                      defaultValue: 'Use this account by default for {{provider}}',
+                    })}
+                >
+                  <Star className={`h-4 w-4 ${profile.isDefault ? 'fill-current' : ''}`} />
+                </Button>
                 <Button
                   onClick={() => setLoginProfile(profile)}
                   variant="outline"

@@ -232,7 +232,8 @@
       "cancel": "Annuler",
       "confirm": "Changer",
       "switching": "Changement en cours…",
-      "notAuthenticated": "Connectez-vous pour utiliser ce compte"
+      "notAuthenticated": "Connectez-vous pour utiliser ce compte",
+      "default": "Compte par défaut"
     },
     "usage": {
       "button": "Utilisation du forfait",

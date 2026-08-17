@@ -132,6 +132,28 @@ router.patch(
   }),
 );
 
+// PATCH /api/profiles/:id/default { isDefault }
+// Promotes this profile as the fallback for new sessions of its provider, or
+// demotes it. Promoting demotes the provider's previous default in the same
+// transaction.
+router.patch(
+  '/:id/default',
+  asyncHandler(async (req: Request, res: Response) => {
+    const id = parseProfileId(req.params.id);
+    const body = (req.body ?? {}) as Record<string, unknown>;
+
+    if (typeof body.isDefault !== 'boolean') {
+      throw new AppError('isDefault must be a boolean.', {
+        code: 'INVALID_PROFILE_DEFAULT',
+        statusCode: 400,
+      });
+    }
+
+    const profile = profilesService.setDefaultProfile(id, body.isDefault);
+    res.json(createApiSuccessResponse({ profile }));
+  }),
+);
+
 // DELETE /api/profiles/:id
 router.delete(
   '/:id',

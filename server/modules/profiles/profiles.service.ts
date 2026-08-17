@@ -55,6 +55,8 @@ export interface ProfileView {
   cavemanMode: CavemanMode | null;
   /** Command-rewriting level; null when never configured for this profile. */
   rtkMode: RtkMode | null;
+  /** Whether new sessions of this provider fall back to this account. */
+  isDefault: boolean;
   /** Whether this account has been signed in — see `isProfileAuthenticated`. */
   authenticated: boolean;
 }
@@ -105,6 +107,7 @@ function toView(row: ProfileRow): ProfileView {
     createdAt: row.created_at,
     cavemanMode: normalizeCavemanMode(row.caveman_mode),
     rtkMode: normalizeRtkMode(row.rtk_mode),
+    isDefault: row.is_default === 1,
     authenticated: isProfileAuthenticated(row),
   };
 }
@@ -189,6 +192,32 @@ export const profilesService = {
     // The row is removed but the on-disk credential directory is intentionally
     // left in place, so re-creating the same account reuses its existing login.
     profilesRepository.deleteById(id);
+  },
+
+  /**
+   * Promotes or demotes this profile as its provider's fallback account.
+   *
+   * Scoped per provider because a profile only ever holds credentials for one
+   * of them: a single global default would be unusable the moment the user
+   * switches provider.
+   */
+  setDefaultProfile(profileId: string, isDefault: boolean): ProfileView {
+    const row = loadProfileOrThrow(profileId);
+    const updated = isDefault
+      ? profilesRepository.setDefault(profileId, row.provider)
+      : profilesRepository.clearDefault(profileId);
+    return toView(updated ?? row);
+  },
+
+  /**
+   * The account a new session of this provider uses when none was picked.
+   *
+   * Returns null when the provider has no default, which keeps the historical
+   * behavior — the provider CLI's own config directory — for anyone who never
+   * nominated one.
+   */
+  resolveDefaultProfileId(provider: LLMProvider): string | null {
+    return profilesRepository.getDefault(provider)?.id ?? null;
   },
 
   /**

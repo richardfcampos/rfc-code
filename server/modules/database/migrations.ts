@@ -491,6 +491,24 @@ const addAgentToolingColumnsToProfiles = (db: Database): void => {
   addColumnToTableIfNotExists(db, 'profiles', columnNames, 'rtk_mode', 'TEXT');
 };
 
+/**
+ * Adds the fallback-account flag.
+ *
+ * Every existing profile starts at 0: promoting one is an explicit act, and
+ * guessing here would silently rebind new sessions of an account the user
+ * never nominated.
+ *
+ * Must run after the profiles table itself is created.
+ */
+const addDefaultFlagToProfiles = (db: Database): void => {
+  if (!tableExists(db, 'profiles')) {
+    return;
+  }
+  const columnNames = getTableInfo(db, 'profiles').map((column) => column.name);
+
+  addColumnToTableIfNotExists(db, 'profiles', columnNames, 'is_default', 'INTEGER NOT NULL DEFAULT 0');
+};
+
 const ensureProjectsForSessionPaths = (db: Database): void => {
   if (!tableExists(db, 'sessions')) {
     return;
@@ -749,6 +767,14 @@ export const runMigrations = (db: Database) => {
     db.exec(PROFILES_TABLE_SCHEMA_SQL);
     db.exec('CREATE INDEX IF NOT EXISTS idx_profiles_provider ON profiles(provider)');
     addAgentToolingColumnsToProfiles(db);
+    addDefaultFlagToProfiles(db);
+    // "At most one default per provider" is a data rule, so the database holds
+    // it: a second promotion racing the first fails loudly instead of leaving
+    // two candidates and a lookup that picks arbitrarily.
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_default_per_provider
+      ON profiles(provider) WHERE is_default = 1
+    `);
 
     db.exec(COLLABORATIONS_TABLE_SCHEMA_SQL);
     db.exec('CREATE INDEX IF NOT EXISTS idx_collaborations_project ON collaborations(project_path)');

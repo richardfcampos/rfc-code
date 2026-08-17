@@ -266,7 +266,8 @@
       "cancel": "取消",
       "confirm": "切換",
       "switching": "正在切換…",
-      "notAuthenticated": "請登入後使用此帳戶"
+      "notAuthenticated": "請登入後使用此帳戶",
+      "default": "預設帳號"
     },
     "usage": {
       "button": "方案用量",

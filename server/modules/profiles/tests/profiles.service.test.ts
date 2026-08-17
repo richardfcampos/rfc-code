@@ -257,3 +257,54 @@ test('listProfiles returns profiles and filters by provider', async () => {
     assert.equal(claudeOnly[0]?.provider, 'claude');
   });
 });
+
+// A default is scoped to its provider, and promoting a second one moves the
+// flag rather than leaving two candidates for the same provider.
+test('setDefaultProfile keeps at most one default per provider', async () => {
+  await withProfilesEnvironment(() => {
+    const first = profilesService.createProfile({ provider: 'claude', name: 'First' });
+    const second = profilesService.createProfile({ provider: 'claude', name: 'Second' });
+    const other = profilesService.createProfile({ provider: 'codex', name: 'Codex' });
+
+    assert.equal(first.isDefault, false);
+
+    profilesService.setDefaultProfile(first.id, true);
+    assert.equal(profilesService.resolveDefaultProfileId('claude'), first.id);
+
+    profilesService.setDefaultProfile(second.id, true);
+    assert.equal(profilesService.resolveDefaultProfileId('claude'), second.id);
+    assert.equal(profilesService.getProfile(first.id).isDefault, false);
+
+    // Another provider's default is untouched by claude's.
+    profilesService.setDefaultProfile(other.id, true);
+    assert.equal(profilesService.resolveDefaultProfileId('codex'), other.id);
+    assert.equal(profilesService.resolveDefaultProfileId('claude'), second.id);
+  });
+});
+
+// Demoting leaves the provider with no default, restoring the pre-feature
+// behavior of running on the provider CLI's own config directory.
+test('setDefaultProfile can clear the default entirely', async () => {
+  await withProfilesEnvironment(() => {
+    const profile = profilesService.createProfile({ provider: 'claude', name: 'Only' });
+
+    profilesService.setDefaultProfile(profile.id, true);
+    const cleared = profilesService.setDefaultProfile(profile.id, false);
+
+    assert.equal(cleared.isDefault, false);
+    assert.equal(profilesService.resolveDefaultProfileId('claude'), null);
+  });
+});
+
+// Deleting the default profile removes the fallback with it: no orphan id is
+// left behind for session creation to resolve.
+test('deleting the default profile leaves the provider without one', async () => {
+  await withProfilesEnvironment(() => {
+    const profile = profilesService.createProfile({ provider: 'claude', name: 'Doomed' });
+    profilesService.setDefaultProfile(profile.id, true);
+
+    profilesService.deleteProfile(profile.id);
+
+    assert.equal(profilesService.resolveDefaultProfileId('claude'), null);
+  });
+});

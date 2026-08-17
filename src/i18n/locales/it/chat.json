@@ -230,7 +230,8 @@
       "cancel": "Annulla",
       "confirm": "Cambia",
       "switching": "Cambio in corso…",
-      "notAuthenticated": "Accedi per usare questo account"
+      "notAuthenticated": "Accedi per usare questo account",
+      "default": "Account predefinito"
     },
     "usage": {
       "button": "Utilizzo piano",

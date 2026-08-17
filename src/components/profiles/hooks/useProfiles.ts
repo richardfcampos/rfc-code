@@ -160,6 +160,28 @@ export function useProfiles() {
     await refresh();
   }, [refresh]);
 
+  /**
+   * Promotes or demotes this profile as its provider's fallback account.
+   *
+   * The backend demotes the provider's previous default in the same write, so
+   * the list is refetched rather than patched locally — two rows change.
+   */
+  const setDefaultProfile = useCallback(async (profileId: string, isDefault: boolean) => {
+    setActionError(null);
+    const response = await authenticatedFetch(
+      `/api/profiles/${encodeURIComponent(profileId)}/default`,
+      { method: 'PATCH', body: JSON.stringify({ isDefault }) },
+    );
+    const body = await toResponseJson<ApiEnvelope<{ profile: Profile }>>(response);
+    if (!response.ok || !body.success) {
+      const message = getApiErrorMessage(body, 'Failed to update the default profile');
+      setActionError(message);
+      throw new Error(message);
+    }
+
+    await refresh();
+  }, [refresh]);
+
   const profilesByProvider = useMemo(() => {
     const grouped: Partial<Record<LLMProvider, ProfileWithStatus[]>> = {};
     profiles.forEach((profile) => {
@@ -180,5 +202,6 @@ export function useProfiles() {
     createProfile,
     deleteProfile,
     updateToolingModes,
+    setDefaultProfile,
   };
 }

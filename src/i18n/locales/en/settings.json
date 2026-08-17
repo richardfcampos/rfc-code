@@ -124,12 +124,15 @@
     "status": {
       "checking": "Checking...",
       "authenticated": "Authenticated",
-      "needsAuth": "Needs re-authentication"
+      "needsAuth": "Needs re-authentication",
+      "default": "Default"
     },
     "actions": {
       "new": "New profile",
       "authenticate": "Authenticate",
-      "delete": "Delete"
+      "delete": "Delete",
+      "makeDefault": "Use this account by default for {{provider}}",
+      "clearDefault": "Stop using this account by default for {{provider}}"
     },
     "form": {
       "title": "New profile",

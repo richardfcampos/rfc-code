@@ -20,6 +20,8 @@ type CreateAppSessionResult = {
   sessionId: string;
   provider: LLMProvider;
   projectPath: string;
+  /** The bound account, which may be the provider default the caller omitted. */
+  profileId: string | null;
 };
 
 type ArchivedSessionListItem = {
@@ -173,7 +175,8 @@ export const sessionsService = {
    * An optional `profileId` binds the session to one account profile from
    * creation (HUB-05 AC2): it is validated against the profile registry so a
    * dangling id fails loudly here rather than silently persisting a ghost
-   * reference the UI can never resolve to a name.
+   * reference the UI can never resolve to a name. Omitting it falls back to
+   * the provider's default profile, if the user nominated one.
    *
    * The caller-supplied `projectPath` is treated as the desired cwd, which
    * may point inside a worktree — the frontend no longer decides which
@@ -203,13 +206,20 @@ export const sessionsService = {
       profilesService.getProfile(profileId);
     }
 
+    // Only a session being created without a pick falls back to the provider's
+    // default account. Sessions already stored with a NULL profile_id keep
+    // running on the CLI's own config directory: they were started against
+    // those credentials, and re-pointing them at another account retroactively
+    // would change which account answers an ongoing conversation.
+    const resolvedProfileId = profileId ?? profilesService.resolveDefaultProfileId(provider);
+
     const context = await resolveContext(normalizedProjectPath);
     const sessionId = randomUUID();
     sessionsDb.createAppSession(
       sessionId,
       provider,
       context.projectPath,
-      profileId ?? null,
+      resolvedProfileId,
       context.worktreePath,
       context.worktreeBranch,
     );
@@ -219,6 +229,7 @@ export const sessionsService = {
       provider,
       // Reflects the resolved repository root, not the cwd the caller sent.
       projectPath: context.projectPath,
+      profileId: resolvedProfileId,
     };
   },
 

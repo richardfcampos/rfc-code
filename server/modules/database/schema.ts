@@ -110,6 +110,10 @@ CREATE TABLE IF NOT EXISTS profiles (
     -- overridable per session: it is installed as a hook in the profile's own
     -- settings.json, which every session of the profile shares.
     rtk_mode TEXT,
+    -- Marks the account a new session of this provider falls back to when the
+    -- user picked none. At most one row per provider may carry it, enforced by
+    -- a partial unique index rather than by application code alone.
+    is_default INTEGER NOT NULL DEFAULT 0,
     -- One isolated on-disk config directory per (provider, slug). The unique
     -- constraint guarantees two profiles of the same provider can never resolve
     -- to the same credential directory, which is what keeps their accounts

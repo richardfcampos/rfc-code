@@ -230,7 +230,8 @@
       "cancel": "取消",
       "confirm": "切换",
       "switching": "正在切换…",
-      "notAuthenticated": "请登录后使用此账户"
+      "notAuthenticated": "请登录后使用此账户",
+      "default": "默认账户"
     },
     "usage": {
       "button": "套餐用量",

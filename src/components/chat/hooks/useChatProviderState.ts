@@ -260,11 +260,15 @@ export function useChatProviderState({ selectedSession, selectedProject: _select
     };
   }, []);
 
-  // A profile belongs to one provider: switching provider clears the pick
-  // rather than carrying a now-meaningless id across providers.
+  // A profile belongs to one provider: switching provider drops the previous
+  // pick rather than carrying a now-meaningless id across providers, landing
+  // on the new provider's default account when it has one. `profilesByProvider`
+  // is loaded once, so this does not fight a pick the user makes afterwards —
+  // it only fills in the selection the backend would apply anyway, making the
+  // account that will serve the session visible before the first message.
   useEffect(() => {
-    setSelectedProfileId(null);
-  }, [provider]);
+    setSelectedProfileId(profilesByProvider[provider]?.find((entry) => entry.isDefault)?.id ?? null);
+  }, [provider, profilesByProvider]);
 
   useEffect(() => {
     let cancelled = false;

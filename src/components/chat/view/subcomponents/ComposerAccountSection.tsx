@@ -141,9 +141,11 @@ export default function ComposerAccountSection({
                   key={profile.id}
                   label={profile.name}
                   description={
-                    authenticated
-                      ? undefined
-                      : t('composer.account.notAuthenticated', { defaultValue: 'Sign in to use this account' })
+                    !authenticated
+                      ? t('composer.account.notAuthenticated', { defaultValue: 'Sign in to use this account' })
+                      : profile.isDefault
+                        ? t('composer.account.default', { defaultValue: 'Default account' })
+                        : undefined
                   }
                   isSelected={isCurrent}
                   trailing={authenticated ? undefined : <Lock className="h-3.5 w-3.5 text-faint" />}

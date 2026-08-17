@@ -23,6 +23,9 @@ export interface Profile {
   // keeps following its own configuration instead of being pinned by this app.
   cavemanMode: CavemanMode | null;
   rtkMode: RtkMode | null;
+  // Whether a new session of this provider falls back to this account when the
+  // user picked none. At most one profile per provider carries it.
+  isDefault: boolean;
   // Whether this account has been signed in. Carried by the list endpoint so a
   // caller rendering many accounts can disable the unusable ones without one
   // status request per row.

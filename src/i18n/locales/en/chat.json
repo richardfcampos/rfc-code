@@ -256,7 +256,8 @@
       "cancel": "Cancel",
       "confirm": "Switch",
       "switching": "Switching…",
-      "notAuthenticated": "Sign in to use this account"
+      "notAuthenticated": "Sign in to use this account",
+      "default": "Default account"
     },
     "modeShort": {
       "default": "Default",

@@ -230,7 +230,8 @@
       "cancel": "İptal",
       "confirm": "Değiştir",
       "switching": "Değiştiriliyor…",
-      "notAuthenticated": "Bu hesabı kullanmak için giriş yap"
+      "notAuthenticated": "Bu hesabı kullanmak için giriş yap",
+      "default": "Varsayılan hesap"
     },
     "usage": {
       "button": "Plan kullanımı",

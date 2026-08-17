@@ -230,7 +230,8 @@
       "cancel": "취소",
       "confirm": "전환",
       "switching": "전환 중…",
-      "notAuthenticated": "이 계정을 사용하려면 로그인하세요"
+      "notAuthenticated": "이 계정을 사용하려면 로그인하세요",
+      "default": "기본 계정"
     },
     "usage": {
       "button": "플랜 사용량",

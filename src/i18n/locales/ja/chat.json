@@ -217,7 +217,8 @@
       "cancel": "キャンセル",
       "confirm": "切り替え",
       "switching": "切り替え中…",
-      "notAuthenticated": "このアカウントを使用するにはサインインしてください"
+      "notAuthenticated": "このアカウントを使用するにはサインインしてください",
+      "default": "既定のアカウント"
     },
     "usage": {
       "button": "プラン使用状況",
