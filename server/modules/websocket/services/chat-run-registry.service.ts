@@ -125,6 +125,15 @@ function persistFailureIfAny(run: ChatRun, message: NormalizedMessage): void {
 
   const exitCode = typeof message.exitCode === 'number' ? message.exitCode : null;
   if (exitCode === 0) {
+    // A clean run supersedes recorded failures: they exist to explain why the
+    // session last stopped, and it just stopped fine. Left in place they would
+    // render at the tail of the transcript on every history load, long after
+    // the session recovered.
+    try {
+      sessionRunFailuresDb.deleteBySession(run.appSessionId);
+    } catch (error) {
+      console.error('[ChatRunRegistry] Failed to clear stale run failures:', error);
+    }
     return;
   }
 

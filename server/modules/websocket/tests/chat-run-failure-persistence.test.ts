@@ -148,6 +148,36 @@ test('successful and aborted runs record nothing', async () => {
   });
 });
 
+test('a later clean run clears the failures recorded before it', async () => {
+  await withIsolatedDatabase(() => {
+    const failedConnection = new FakeConnection();
+    const failedRun = startRun('recovering-run', failedConnection);
+    failedRun.writer.send({
+      kind: 'error',
+      provider: 'claude',
+      sessionId: 'native-6',
+      content: 'Claude Code process exited with code 1',
+    });
+    failedRun.writer.send({ kind: 'complete', provider: 'claude', sessionId: 'native-6', exitCode: 1 });
+    assert.equal(sessionRunFailuresDb.listBySession('recovering-run').length, 1);
+
+    // The session recovers: the old failure no longer explains anything and
+    // must stop rendering at the tail of the transcript.
+    chatRunRegistry.clearAll();
+    const okRun = chatRunRegistry.startRun({
+      appSessionId: 'recovering-run',
+      provider: 'claude',
+      providerSessionId: null,
+      connection: new FakeConnection(),
+      userId: 'user-1',
+    });
+    assert.ok(okRun);
+    okRun.writer.send({ kind: 'complete', provider: 'claude', sessionId: 'native-6', exitCode: 0 });
+
+    assert.equal(sessionRunFailuresDb.listBySession('recovering-run').length, 0);
+  });
+});
+
 test('failures are capped per session and keep the newest', async () => {
   await withIsolatedDatabase(() => {
     for (let attempt = 0; attempt < 55; attempt += 1) {
