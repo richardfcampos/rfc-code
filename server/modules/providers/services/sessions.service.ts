@@ -78,11 +78,18 @@ function resolveProjectDisplayName(
 }
 
 /**
- * Appends this session's recorded run failures to a history page.
+ * Merges this session's recorded run failures into a history page.
  *
- * Failures are the newest events in a conversation, and pagination here walks
- * backwards from the end, so they only belong on the tail page (`offset === 0`).
- * Older pages are pure transcript.
+ * Pagination here walks backwards from the end, and a failure always belongs
+ * to the tail of the conversation, so failures are only merged into the tail
+ * page (`offset === 0`). Older pages are pure transcript.
+ *
+ * Each failure lands at its own position in time rather than at the end of the
+ * page: a session that failed once and then recovered keeps talking, and
+ * appending would park that old error below every later message, making a
+ * resolved failure look like the newest thing that happened. Only the failures
+ * are placed — transcript messages keep the order the adapter returned, since
+ * not all of them carry a comparable timestamp.
  *
  * They are emitted as ordinary `error` messages, which is exactly what the
  * client already renders for a live failure — the difference is that these
@@ -115,11 +122,43 @@ function withRunFailures(
     timestamp: failure.failed_at,
   }));
 
+  // Failures arrive oldest first, so one forward pass over the transcript
+  // places them all: each is inserted before the first later message that has
+  // a usable timestamp. A failure newer than everything on the page — or a
+  // page whose messages carry no parseable timestamps at all — still ends up
+  // at the tail, which is the old behavior.
+  const merged: NormalizedMessage[] = [];
+  let nextFailure = 0;
+
+  for (const message of result.messages) {
+    const messageTime = toEpoch(message.timestamp);
+    while (
+      nextFailure < failureMessages.length
+      && messageTime !== null
+      && messageTime > toEpoch(failureMessages[nextFailure].timestamp)!
+    ) {
+      merged.push(failureMessages[nextFailure]);
+      nextFailure += 1;
+    }
+    merged.push(message);
+  }
+
+  merged.push(...failureMessages.slice(nextFailure));
+
   return {
     ...result,
-    messages: [...result.messages, ...failureMessages],
+    messages: merged,
     total: result.total + failureMessages.length,
   };
+}
+
+/** Milliseconds for a message timestamp, or null when it cannot be compared. */
+function toEpoch(timestamp: string | null | undefined): number | null {
+  if (!timestamp) {
+    return null;
+  }
+  const parsed = Date.parse(timestamp);
+  return Number.isNaN(parsed) ? null : parsed;
 }
 
 /**

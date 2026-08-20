@@ -293,3 +293,131 @@ test('older history pages stay pure transcript', async () => {
     }
   });
 });
+
+// A session that failed once and then recovered keeps talking. The failure has
+// to stay where it happened: appending it would park a resolved error below
+// every later message, reading as the newest thing in the conversation.
+test('a run failure sits in time order, not below later messages', async () => {
+  await withIsolatedDatabase(async () => {
+    const created = await sessionsService.createAppSession(
+      'claude',
+      '/workspace/demo',
+      undefined,
+      async (cwd) => ({ projectPath: cwd, worktreePath: null, worktreeBranch: null }),
+    );
+    sessionsDb.assignProviderSessionId(created.sessionId, 'native-claude-1');
+    sessionRunFailuresDb.recordFailure({
+      sessionId: created.sessionId,
+      provider: 'claude',
+      errorMessage: 'Not logged in · Please run /login',
+      exitCode: 1,
+      failedAt: new Date('2026-01-01T11:00:00.000Z'),
+    });
+
+    const patched = patchProviderRegistry({
+      claude: [
+        buildMessage('before', '2026-01-01T10:00:00.000Z', 'claude'),
+        buildMessage('after', '2026-01-01T12:00:00.000Z', 'claude'),
+        buildMessage('later', '2026-01-01T13:00:00.000Z', 'claude'),
+      ],
+    });
+
+    try {
+      const result = await sessionsService.fetchHistory(created.sessionId, { limit: null, offset: 0 });
+
+      assert.deepEqual(
+        result.messages.map((message) => message.id),
+        ['before', 'run_failure_1', 'after', 'later'],
+      );
+      assert.equal(result.total, 4);
+    } finally {
+      patched.restore();
+    }
+  });
+});
+
+// Several failures across one conversation each keep their own slot, and the
+// transcript itself is never reordered.
+test('multiple run failures each land at their own point in the transcript', async () => {
+  await withIsolatedDatabase(async () => {
+    const created = await sessionsService.createAppSession(
+      'claude',
+      '/workspace/demo',
+      undefined,
+      async (cwd) => ({ projectPath: cwd, worktreePath: null, worktreeBranch: null }),
+    );
+    sessionsDb.assignProviderSessionId(created.sessionId, 'native-claude-1');
+    sessionRunFailuresDb.recordFailure({
+      sessionId: created.sessionId,
+      provider: 'claude',
+      errorMessage: 'first boom',
+      exitCode: 1,
+      failedAt: new Date('2026-01-01T10:30:00.000Z'),
+    });
+    sessionRunFailuresDb.recordFailure({
+      sessionId: created.sessionId,
+      provider: 'claude',
+      errorMessage: 'second boom',
+      exitCode: 1,
+      failedAt: new Date('2026-01-01T12:30:00.000Z'),
+    });
+
+    const patched = patchProviderRegistry({
+      claude: [
+        buildMessage('m1', '2026-01-01T10:00:00.000Z', 'claude'),
+        buildMessage('m2', '2026-01-01T12:00:00.000Z', 'claude'),
+        buildMessage('m3', '2026-01-01T13:00:00.000Z', 'claude'),
+      ],
+    });
+
+    try {
+      const result = await sessionsService.fetchHistory(created.sessionId, { limit: null, offset: 0 });
+
+      assert.deepEqual(
+        result.messages.map((message) => message.id),
+        ['m1', 'run_failure_1', 'm2', 'run_failure_2', 'm3'],
+      );
+    } finally {
+      patched.restore();
+    }
+  });
+});
+
+// The tail is still the right place for a failure that really is the newest
+// event, and for a transcript whose messages carry no comparable timestamp.
+test('a failure newer than the whole page stays at the tail', async () => {
+  await withIsolatedDatabase(async () => {
+    const created = await sessionsService.createAppSession(
+      'claude',
+      '/workspace/demo',
+      undefined,
+      async (cwd) => ({ projectPath: cwd, worktreePath: null, worktreeBranch: null }),
+    );
+    sessionsDb.assignProviderSessionId(created.sessionId, 'native-claude-1');
+    sessionRunFailuresDb.recordFailure({
+      sessionId: created.sessionId,
+      provider: 'claude',
+      errorMessage: 'boom',
+      exitCode: 1,
+      failedAt: new Date('2026-01-01T14:00:00.000Z'),
+    });
+
+    const patched = patchProviderRegistry({
+      claude: [
+        buildMessage('m1', '2026-01-01T10:00:00.000Z', 'claude'),
+        { ...buildMessage('m2', '', 'claude'), timestamp: 'not-a-date' },
+      ],
+    });
+
+    try {
+      const result = await sessionsService.fetchHistory(created.sessionId, { limit: null, offset: 0 });
+
+      assert.deepEqual(
+        result.messages.map((message) => message.id),
+        ['m1', 'm2', 'run_failure_1'],
+      );
+    } finally {
+      patched.restore();
+    }
+  });
+});
