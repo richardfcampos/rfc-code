@@ -8,12 +8,17 @@ import {
   COLLABORATION_TURNS_TABLE_SCHEMA_SQL,
   LAST_SCANNED_AT_SQL,
   NOTIFICATION_CHANNEL_ENDPOINTS_TABLE_SCHEMA_SQL,
+  ORGS_TABLE_SCHEMA_SQL,
+  ORG_PROFILE_POLICIES_TABLE_SCHEMA_SQL,
+  ORG_PROJECT_RULES_TABLE_SCHEMA_SQL,
   PROFILES_TABLE_SCHEMA_SQL,
+  PROFILE_FALLBACK_AUDIT_TABLE_SCHEMA_SQL,
   PROJECTS_TABLE_SCHEMA_SQL,
   PUSH_SUBSCRIPTIONS_TABLE_SCHEMA_SQL,
   SESSION_LEGS_TABLE_SCHEMA_SQL,
   SESSION_RUN_FAILURES_TABLE_SCHEMA_SQL,
   SESSIONS_TABLE_SCHEMA_SQL,
+  TASKS_TABLE_SCHEMA_SQL,
   USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL,
   VAPID_KEYS_TABLE_SCHEMA_SQL,
 } from '@/modules/database/schema.js';
@@ -728,6 +733,28 @@ const mergeForkedHandoffPairsIntoLegs = (db: Database): void => {
   }
 };
 
+/**
+ * Ensures exactly one catch-all org exists so the org resolver always has a
+ * fallback to land on. Only seeds when no default org is present yet, so an
+ * install that already picked (or renamed) its default org is left alone.
+ */
+const seedDefaultOrg = (db: Database): void => {
+  const existingDefault = db
+    .prepare('SELECT id FROM orgs WHERE is_default = 1 LIMIT 1')
+    .get() as { id: string } | undefined;
+
+  if (existingDefault) {
+    return;
+  }
+
+  console.log('Running migration: Seeding default org "Pessoal"');
+  db.prepare(
+    `INSERT INTO orgs (id, name, is_default, fallback_threshold)
+     SELECT ${SQLITE_UUID_SQL}, 'Pessoal', 1, 85
+     WHERE NOT EXISTS (SELECT 1 FROM orgs WHERE name = 'Pessoal')`,
+  ).run();
+};
+
 export const runMigrations = (db: Database) => {
   try {
     const usersTableInfo = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
@@ -816,6 +843,21 @@ export const runMigrations = (db: Database) => {
     `);
 
     db.exec(LAST_SCANNED_AT_SQL);
+
+    db.exec(ORGS_TABLE_SCHEMA_SQL);
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_orgs_default ON orgs(is_default) WHERE is_default = 1');
+    db.exec(ORG_PROJECT_RULES_TABLE_SCHEMA_SQL);
+    db.exec('CREATE INDEX IF NOT EXISTS idx_org_project_rules_org ON org_project_rules(org_id)');
+    db.exec(ORG_PROFILE_POLICIES_TABLE_SCHEMA_SQL);
+    db.exec('CREATE INDEX IF NOT EXISTS idx_org_profile_policies_org ON org_profile_policies(org_id)');
+    db.exec(TASKS_TABLE_SCHEMA_SQL);
+    db.exec('CREATE INDEX IF NOT EXISTS idx_tasks_project_stage ON tasks(project_name, stage)');
+    db.exec(PROFILE_FALLBACK_AUDIT_TABLE_SCHEMA_SQL);
+    db.exec(
+      'CREATE INDEX IF NOT EXISTS idx_profile_fallback_audit_org ON profile_fallback_audit(org_id, created_at)',
+    );
+    seedDefaultOrg(db);
+
     console.log('Database migrations completed successfully');
   } catch (error: any) {
     console.error('Error running migrations:', error.message);

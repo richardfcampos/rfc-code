@@ -264,6 +264,81 @@ CREATE TABLE IF NOT EXISTS app_config (
 );
 `;
 
+export const ORGS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS orgs (
+    id TEXT PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL UNIQUE,
+    -- Catch-all org that every project resolves to when no rule matches.
+    -- Enforced as at most one row via a partial unique index in migrations,
+    -- the same pattern as profiles.is_default per provider.
+    is_default INTEGER NOT NULL DEFAULT 0,
+    -- Usage percentage (of the primary profile's quota) above which the
+    -- policy resolver may consider a fallback profile eligible.
+    fallback_threshold INTEGER NOT NULL DEFAULT 85,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
+export const ORG_PROJECT_RULES_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS org_project_rules (
+    id TEXT PRIMARY KEY NOT NULL,
+    org_id TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('path_prefix', 'project_name')),
+    pattern TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE
+);
+`;
+
+export const ORG_PROFILE_POLICIES_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS org_profile_policies (
+    id TEXT PRIMARY KEY NOT NULL,
+    org_id TEXT NOT NULL,
+    profile_id TEXT NOT NULL,
+    role TEXT NOT NULL CHECK (role IN ('primary', 'fallback')),
+    priority INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    -- A profile can only hold one policy row per org, so the resolver never
+    -- has to choose between two conflicting roles/priorities for the same pair.
+    UNIQUE(org_id, profile_id),
+    FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE,
+    FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+);
+`;
+
+export const TASKS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS tasks (
+    id TEXT PRIMARY KEY NOT NULL,
+    project_name TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    stage TEXT NOT NULL DEFAULT 'backlog'
+      CHECK (stage IN ('backlog', 'in_progress', 'review', 'done')),
+    origin TEXT NOT NULL DEFAULT 'user' CHECK (origin IN ('user', 'agent', 'automation')),
+    origin_detail TEXT,
+    assignee_profile_id TEXT,
+    suggested_skill TEXT,
+    worktree_branch TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (assignee_profile_id) REFERENCES profiles(id) ON DELETE SET NULL
+);
+`;
+
+export const PROFILE_FALLBACK_AUDIT_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS profile_fallback_audit (
+    id TEXT PRIMARY KEY NOT NULL,
+    org_id TEXT NOT NULL,
+    profile_id TEXT NOT NULL,
+    project_name TEXT NOT NULL,
+    session_id TEXT,
+    reason TEXT NOT NULL,
+    primary_usage_pct INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (org_id) REFERENCES orgs(id) ON DELETE CASCADE
+);
+`;
+
 export const INIT_SCHEMA_SQL = `
 -- Initialize authentication database
 PRAGMA foreign_keys = ON;
@@ -325,4 +400,19 @@ CREATE INDEX IF NOT EXISTS idx_session_run_failures_session
 ${LAST_SCANNED_AT_SQL}
 
 ${APP_CONFIG_TABLE_SCHEMA_SQL}
+
+${ORGS_TABLE_SCHEMA_SQL}
+CREATE UNIQUE INDEX IF NOT EXISTS idx_orgs_default ON orgs(is_default) WHERE is_default = 1;
+
+${ORG_PROJECT_RULES_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_org_project_rules_org ON org_project_rules(org_id);
+
+${ORG_PROFILE_POLICIES_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_org_profile_policies_org ON org_profile_policies(org_id);
+
+${TASKS_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_tasks_project_stage ON tasks(project_name, stage);
+
+${PROFILE_FALLBACK_AUDIT_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_profile_fallback_audit_org ON profile_fallback_audit(org_id, created_at);
 `;
