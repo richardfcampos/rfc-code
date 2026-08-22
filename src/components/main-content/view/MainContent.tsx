@@ -7,6 +7,7 @@ import GitPanel from '../../git-panel/view/GitPanel';
 import PluginTabContent from '../../plugins/view/PluginTabContent';
 import { BrowserUsePanel } from '../../browser-use';
 import { CollabPanel } from '../../collab';
+import { TaskBoardTab } from '../../task-board';
 import type { MainContentProps } from '../types/types';
 import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { usePaletteOpsRegister } from '../../../contexts/PaletteOpsContext';
@@ -227,6 +228,14 @@ function MainContent({
           )}
 
           {shouldShowTasksTab && <TaskMasterPanel isVisible={activeTab === 'tasks'} />}
+
+          {activeTab === 'board' && (
+            <div className="h-full overflow-hidden">
+              <ErrorBoundary showDetails>
+                <TaskBoardTab selectedProject={selectedProject} />
+              </ErrorBoundary>
+            </div>
+          )}
 
           {shouldShowBrowserTab && activeTab === 'browser' && (
             <div className="h-full overflow-hidden">

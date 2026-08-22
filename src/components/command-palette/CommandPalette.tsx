@@ -7,6 +7,7 @@ import {
   FileText,
   GitCommit,
   GitMerge,
+  ListTodo,
   MessageSquare,
   MessageSquarePlus,
   RefreshCw,
@@ -37,6 +38,7 @@ import { useCommitsSource } from './sources/useCommitsSource';
 import { useSessionMessageSearch } from './sources/useSessionMessageSearch';
 import { useBranchesSource } from './sources/useBranchesSource';
 import { useGitActions } from './sources/useGitActions';
+import { useTaskActionsSource } from './sources/useTaskActionsSource';
 
 type Page = 'actions' | 'files' | 'sessions' | 'commits' | 'branches';
 
@@ -61,6 +63,7 @@ const NAV_TABS: Array<{ id: AppTab; label: string; keywords: string }> = [
   { id: 'shell', label: 'Go to Shell', keywords: 'shell terminal console' },
   { id: 'git', label: 'Go to Git', keywords: 'git diff branches' },
   { id: 'tasks', label: 'Go to Tasks', keywords: 'tasks taskmaster' },
+  { id: 'board', label: 'Go to Board', keywords: 'board kanban tasks native' },
 ];
 
 export default function CommandPalette({
@@ -110,6 +113,7 @@ export default function CommandPalette({
   const commits = useCommitsSource(projectId, open && showCommits);
   const branches = useBranchesSource(projectId, open && showBranches);
   const git = useGitActions(projectId);
+  const taskActions = useTaskActionsSource(projectId, showActions ? search : '');
 
   const sessionRows = React.useMemo(() => {
     if (!showSessions) return [];
@@ -216,6 +220,21 @@ export default function CommandPalette({
                   <SunMoon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                   <span className="flex-1">Toggle theme</span>
                 </CommandItem>
+              </CommandGroup>
+            )}
+
+            {showActions && projectId && taskActions.length > 0 && (
+              <CommandGroup heading="Tasks">
+                {taskActions.map((action) => (
+                  <CommandItem
+                    key={action.id}
+                    value={action.label}
+                    onSelect={() => run(() => { void action.run(); })}
+                  >
+                    <ListTodo className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                    <span className="flex-1">{action.label}</span>
+                  </CommandItem>
+                ))}
               </CommandGroup>
             )}
 

@@ -1,0 +1,31 @@
+{
+  "quickAdd": {
+    "placeholder": "New task — Enter creates it"
+  },
+  "emptyProject": "Select a project to see its task board.",
+  "loadError": "Failed to load tasks. Try reloading the project.",
+  "columns": {
+    "backlog": "Backlog",
+    "inProgress": "In progress",
+    "review": "Review",
+    "done": "Done"
+  },
+  "column": {
+    "empty": "No tasks here yet."
+  },
+  "card": {
+    "delete": "Delete",
+    "confirmDelete": "Delete this task?",
+    "movePrevious": "Move to previous column",
+    "moveNext": "Move to next column",
+    "changeStage": "Change stage"
+  },
+  "origin": {
+    "user": "You",
+    "agent": "Agent",
+    "automation": "Automation"
+  },
+  "palette": {
+    "createTask": "Create task: \"{{query}}\""
+  }
+}

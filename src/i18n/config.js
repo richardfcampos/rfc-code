@@ -24,6 +24,8 @@ import enCodeEditor from './locales/en/codeEditor.json';
 import enCollab from './locales/en/collab.json';
 // eslint-disable-next-line import-x/order
 import enTasks from './locales/en/tasks.json';
+// eslint-disable-next-line import-x/order
+import enTaskBoard from './locales/en/taskBoard.json';
 
 import koCommon from './locales/ko/common.json';
 import koSettings from './locales/ko/settings.json';
@@ -100,6 +102,11 @@ import zhTWTasks from './locales/zh-TW/tasks.json';
 // `tasks`/`collab` entirely today.
 // eslint-disable-next-line import-x/order
 import ptBRSettings from './locales/pt-BR/settings.json';
+// pt-BR also has the `common` (tab label) and `taskBoard` namespaces,
+// bootstrapped for the native task board — same partial-translation pattern.
+import ptBRCommon from './locales/pt-BR/common.json';
+// eslint-disable-next-line import-x/order
+import ptBRTaskBoard from './locales/pt-BR/taskBoard.json';
 
 // Import supported languages configuration
 import { languages } from './languages.js';
@@ -134,6 +141,7 @@ i18n
         codeEditor: enCodeEditor,
         collab: enCollab,
         tasks: enTasks,
+        taskBoard: enTaskBoard,
       },
       ko: {
         common: koCommon,
@@ -207,6 +215,8 @@ i18n
       },
       'pt-BR': {
         settings: ptBRSettings,
+        common: ptBRCommon,
+        taskBoard: ptBRTaskBoard,
       },
     },
 
@@ -220,7 +230,7 @@ i18n
     debug: false,
 
     // Namespaces - load only what's needed
-    ns: ['common', 'settings', 'auth', 'sidebar', 'chat', 'codeEditor', 'tasks', 'collab'],
+    ns: ['common', 'settings', 'auth', 'sidebar', 'chat', 'codeEditor', 'tasks', 'collab', 'taskBoard'],
     defaultNS: 'common',
 
     // Key separator for nested keys (default: '.')

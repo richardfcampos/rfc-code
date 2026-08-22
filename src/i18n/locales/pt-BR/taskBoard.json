@@ -1,0 +1,31 @@
+{
+  "quickAdd": {
+    "placeholder": "Nova task — Enter cria"
+  },
+  "emptyProject": "Selecione um projeto para ver o quadro de tasks.",
+  "loadError": "Falha ao carregar as tasks. Tente recarregar o projeto.",
+  "columns": {
+    "backlog": "Backlog",
+    "inProgress": "Em progresso",
+    "review": "Revisão",
+    "done": "Concluído"
+  },
+  "column": {
+    "empty": "Nenhuma task aqui ainda."
+  },
+  "card": {
+    "delete": "Excluir",
+    "confirmDelete": "Excluir esta task?",
+    "movePrevious": "Mover para a coluna anterior",
+    "moveNext": "Mover para a próxima coluna",
+    "changeStage": "Mudar etapa"
+  },
+  "origin": {
+    "user": "Você",
+    "agent": "Agente",
+    "automation": "Automação"
+  },
+  "palette": {
+    "createTask": "Criar task: \"{{query}}\""
+  }
+}
