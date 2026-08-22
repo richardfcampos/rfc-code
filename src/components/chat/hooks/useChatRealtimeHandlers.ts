@@ -42,6 +42,13 @@ interface UseChatRealtimeHandlersArgs {
   lastSeqRef: MutableRefObject<Map<string, number>>;
   /** When each session's `chat.subscribe` was last sent; guards stale idle acks. */
   statusCheckSentAtRef: MutableRefObject<Map<string, number>>;
+  /**
+   * When each session's terminal `complete` frame last arrived over the live
+   * socket. Lets the poll-prune fallback refresh distinguish "the run ended
+   * and this client saw it" from "the run ended while this client was
+   * disconnected" — only the latter needs a transcript refetch.
+   */
+  completeReceivedAtRef: MutableRefObject<Map<string, number>>;
   onSessionProcessing?: MarkSessionProcessing;
   onSessionIdle?: MarkSessionIdle;
   onWebSocketReconnect?: () => void;
@@ -73,6 +80,7 @@ export function useChatRealtimeHandlers({
   accumulatedStreamRef,
   lastSeqRef,
   statusCheckSentAtRef,
+  completeReceivedAtRef,
   onSessionProcessing,
   onSessionIdle,
   onWebSocketReconnect,
@@ -240,6 +248,10 @@ export function useChatRealtimeHandlers({
       // --- UI side effects for specific kinds ---
       switch (msg.kind) {
         case 'complete': {
+          if (sid) {
+            completeReceivedAtRef.current.set(sid, Date.now());
+          }
+
           // Flush any remaining streaming state
           if (streamTimerRef.current) {
             clearTimeout(streamTimerRef.current);
@@ -359,6 +371,7 @@ export function useChatRealtimeHandlers({
     accumulatedStreamRef,
     lastSeqRef,
     statusCheckSentAtRef,
+    completeReceivedAtRef,
     onSessionProcessing,
     onSessionIdle,
     onWebSocketReconnect,

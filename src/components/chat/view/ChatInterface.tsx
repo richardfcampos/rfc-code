@@ -57,6 +57,10 @@ function ChatInterface({
   // on every sequenced frame, read whenever a `chat.subscribe` is sent so the
   // server replays only the events this client actually missed.
   const lastSeqRef = useRef(new Map<string, number>());
+  // When each session's terminal `complete` last arrived over the socket.
+  // Distinguishes a run this client watched end from one that ended while
+  // disconnected, which needs a transcript refetch when the poll prunes it.
+  const completeReceivedAtRef = useRef(new Map<string, number>());
 
   // Per-session worktree preference. Kept per project so turning it on for one
   // repository does not silently follow the user into another.
@@ -173,6 +177,7 @@ function ChatInterface({
     resetStreamingState,
     statusCheckSentAtRef,
     lastSeqRef,
+    completeReceivedAtRef,
     sessionStore,
   });
 
@@ -352,6 +357,7 @@ function ChatInterface({
     accumulatedStreamRef,
     lastSeqRef,
     statusCheckSentAtRef,
+    completeReceivedAtRef,
     onSessionProcessing,
     onSessionIdle,
     onWebSocketReconnect: handleWebSocketReconnect,
