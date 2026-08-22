@@ -9,7 +9,7 @@ Orquestração: Fable coordena, não implementa (C6). Workers: **sonnet** = mec�
 | T1 | Schema + repositories: tabelas orgs/org_project_rules/org_profile_policies/tasks/profile_fallback_audit em schema.ts, migrations idempotentes + seed org Pessoal, repos `orgs.db.ts` e `tasks.db.ts` + testes | R1,R4,R5 | sonnet | — | done |
 | T2 | Módulo orgs: org-resolver + profile-policy (assert/list/resolveForSpawn, fallback c/ audit, OrgPolicyError, compat org-sem-policy) + testes | R4–R7 | opus | T1 | done |
 | T3 | Enforcement no spawn: chat-websocket runtimeOptions consulta resolver; REST `GET /api/orgs/*` (orgs CRUD, allowed-profiles, recommend); mount em index.js + testes | R6,R8 | opus | T2 | done |
-| T4 | Quota recommend service (usage + policy, ordem primária→fallback) integrado no default de spawn + testes | R8 | sonnet | T2 | done (junto c/ T3) |
+| T4 | Quota recommend service (usage + policy, ordem primária→fallback) integrado no default de spawn + testes | R8 | sonnet | T2 | done |
 | T5 | Módulo tasks: service/routes/module, validações, broadcast `task_update` + testes | R1,R2 | sonnet | T1 | done |
 | T6 | Bridge MCP: `agent-bridge-mcp` stdio + `/api/agent-bridge/tools/*`, token HMAC por sessão, 5 tools, policy no assign + testes | R9 | opus | T3,T5 | done |
 | T7 | UI Board: tab builtin `board`, TaskBoardTab 4 colunas + quick-add, useTaskBoard (WS), palette source "Criar task" | R1–R3 | sonnet | T5 | done |
