@@ -58,6 +58,7 @@ import projectModuleRoutes from './modules/projects/projects.routes.js';
 import { worktreesRoutes } from './modules/worktrees/index.js';
 import { tasksRoutes } from './modules/tasks/index.js';
 import { orgsRoutes } from './modules/orgs/index.js';
+import { agentBridgeRoutes, agentBridgeSessionTokenRoutes } from './modules/agent-bridge/index.js';
 import {
     collabRoutes,
     configureCollabClaudeRuntime,
@@ -207,6 +208,13 @@ app.use('/api/tasks', authenticateToken, tasksRoutes);
 
 // Organizations: profile policy configuration and allow-list queries (protected)
 app.use('/api/orgs', authenticateToken, orgsRoutes);
+
+// Agent bridge: minting a session's bridge token is a user action (JWT), while
+// the tools an agent process calls authenticate with that token instead — agent
+// processes hold no user JWT. The specific path is mounted first so it is never
+// captured by the token-protected router below.
+app.use('/api/agent-bridge/session-token', authenticateToken, agentBridgeSessionTokenRoutes);
+app.use('/api/agent-bridge', agentBridgeRoutes);
 
 // Cursor API Routes (protected)
 app.use('/api/cursor', authenticateToken, cursorRoutes);
