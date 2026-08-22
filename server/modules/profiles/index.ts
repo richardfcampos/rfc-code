@@ -26,6 +26,13 @@ export {
   summarizeOverflow,
   type OverflowSummary,
 } from '@/modules/profiles/handoff-primer-summarize.js';
+// Plan-usage lives behind the barrel so quota-aware callers outside this module
+// (the org policy engine) reach it without deep-importing profiles internals.
+export { profileUsageService } from '@/modules/profiles/usage/profile-usage.service.js';
+export type {
+  ProfileUsageEnvelope,
+  ProfileUsageSnapshot,
+} from '@/modules/profiles/usage/profile-usage.types.js';
 export {
   handoffService,
   switchSessionProfile,
