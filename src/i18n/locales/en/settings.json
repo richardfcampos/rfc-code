@@ -105,6 +105,7 @@
     "label": "Settings",
     "agents": "Agents",
     "profiles": "Profiles",
+    "orgs": "Orgs",
     "appearance": "Appearance",
     "git": "Git",
     "apiTokens": "API & Tokens",
@@ -183,6 +184,56 @@
         "legOpenedUnprimed": "Now running on {{provider}}. The earlier conversation could not be carried over — this continues without it.",
         "legResumed": "Back on {{provider}} — picking up where you left off there."
       }
+    }
+  },
+  "orgs": {
+    "title": "Orgs",
+    "description": "Match projects to a company by path or name, and control which account profiles may run there.",
+    "loading": "Loading orgs…",
+    "empty": "No orgs yet. Create one to scope profiles to a company.",
+    "confirmDelete": "Delete org \"{{name}}\"? Its rules and profile policies are removed.",
+    "actions": {
+      "new": "New org"
+    },
+    "create": {
+      "namePlaceholder": "e.g. Company A",
+      "nameRequired": "Name is required.",
+      "cancel": "Cancel",
+      "submit": "Create org"
+    },
+    "card": {
+      "nameLabel": "Org name",
+      "default": "Default",
+      "fallbackThreshold": "Fallback at",
+      "delete": "Delete org",
+      "deleteDisabled": "The default org cannot be deleted."
+    },
+    "rules": {
+      "title": "Project rules",
+      "hint": "The longest matching path prefix wins. Projects that match no rule land in the default org.",
+      "kind": {
+        "path_prefix": "Path prefix",
+        "project_name": "Project name"
+      },
+      "pathPlaceholder": "/home/user/code/company-a",
+      "namePlaceholder": "project-name",
+      "patternRequired": "Pattern is required.",
+      "add": "Add rule",
+      "remove": "Remove rule"
+    },
+    "policies": {
+      "title": "Profile policies",
+      "compatNote": "No policy — every profile is allowed.",
+      "loadingProfiles": "Loading profiles…",
+      "noProfiles": "No account profiles yet.",
+      "role": {
+        "none": "Not allowed",
+        "primary": "Primary",
+        "fallback": "Fallback"
+      },
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "save": "Save policies"
     }
   },
   "notifications": {

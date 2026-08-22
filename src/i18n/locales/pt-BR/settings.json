@@ -1,0 +1,55 @@
+{
+  "mainTabs": {
+    "orgs": "Empresas"
+  },
+  "orgs": {
+    "title": "Empresas",
+    "description": "Associe projetos a uma empresa por caminho ou nome, e controle quais perfis de conta podem rodar ali.",
+    "loading": "Carregando empresas…",
+    "empty": "Nenhuma empresa ainda. Crie uma para restringir perfis a uma empresa.",
+    "confirmDelete": "Excluir a empresa \"{{name}}\"? As regras e políticas de perfil dela serão removidas.",
+    "actions": {
+      "new": "Nova empresa"
+    },
+    "create": {
+      "namePlaceholder": "ex. Empresa A",
+      "nameRequired": "O nome é obrigatório.",
+      "cancel": "Cancelar",
+      "submit": "Criar empresa"
+    },
+    "card": {
+      "nameLabel": "Nome da empresa",
+      "default": "Padrão",
+      "fallbackThreshold": "Fallback em",
+      "delete": "Excluir empresa",
+      "deleteDisabled": "A empresa padrão não pode ser excluída."
+    },
+    "rules": {
+      "title": "Regras de projeto",
+      "hint": "O prefixo de caminho mais longo que corresponder vence. Projetos que não corresponderem a nenhuma regra caem na empresa padrão.",
+      "kind": {
+        "path_prefix": "Prefixo de caminho",
+        "project_name": "Nome do projeto"
+      },
+      "pathPlaceholder": "/home/usuario/code/empresa-a",
+      "namePlaceholder": "nome-do-projeto",
+      "patternRequired": "O padrão é obrigatório.",
+      "add": "Adicionar regra",
+      "remove": "Remover regra"
+    },
+    "policies": {
+      "title": "Políticas de perfil",
+      "compatNote": "Sem política — todos os perfis são permitidos.",
+      "loadingProfiles": "Carregando perfis…",
+      "noProfiles": "Ainda não há perfis de conta.",
+      "role": {
+        "none": "Não permitido",
+        "primary": "Principal",
+        "fallback": "Fallback"
+      },
+      "moveUp": "Mover para cima",
+      "moveDown": "Mover para baixo",
+      "save": "Salvar políticas"
+    }
+  }
+}

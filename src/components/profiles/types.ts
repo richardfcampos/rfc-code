@@ -68,3 +68,56 @@ export type CreateProfileInput = {
   provider: LLMProvider;
   name: string;
 };
+
+// Org: groups projects (by path-prefix/name rule) under a set of profiles the
+// resolver is allowed to spawn there (AD C4 — a company's account must never
+// leak into another company's projects; personal stays a fallback everywhere).
+export const ORG_RULE_KINDS = ['path_prefix', 'project_name'] as const;
+export type OrgRuleKind = (typeof ORG_RULE_KINDS)[number];
+
+export const ORG_PROFILE_ROLES = ['primary', 'fallback'] as const;
+export type OrgProfileRole = (typeof ORG_PROFILE_ROLES)[number];
+
+export interface OrgRule {
+  id: string;
+  kind: OrgRuleKind;
+  pattern: string;
+}
+
+// A profile absent from `policies` is implicitly not allowed in the org, once
+// the org has at least one policy — see `Org.policies` below.
+export interface OrgProfilePolicy {
+  profileId: string;
+  role: OrgProfileRole;
+  priority: number;
+}
+
+export interface Org {
+  id: string;
+  name: string;
+  // Catch-all org for projects matching no rule. Exactly one exists; it
+  // cannot be deleted.
+  isDefault: boolean;
+  // Usage % (50-99) at or above which a primary is considered unavailable and
+  // a fallback profile becomes eligible.
+  fallbackThreshold: number;
+  rules: OrgRule[];
+  // Empty list is the compatibility path: every profile is allowed. Once
+  // non-empty, only listed profiles may run here.
+  policies: OrgProfilePolicy[];
+}
+
+export type CreateOrgInput = {
+  name: string;
+  fallbackThreshold?: number;
+};
+
+export type UpdateOrgInput = {
+  name?: string;
+  fallbackThreshold?: number;
+};
+
+export type CreateOrgRuleInput = {
+  kind: OrgRuleKind;
+  pattern: string;
+};

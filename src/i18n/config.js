@@ -94,6 +94,13 @@ import zhTWCodeEditor from './locales/zh-TW/codeEditor.json';
 // eslint-disable-next-line import-x/order
 import zhTWTasks from './locales/zh-TW/tasks.json';
 
+// pt-BR only has the `settings` namespace so far (bootstrapped for the Orgs
+// screen); every other namespace falls back to English via `fallbackLng`
+// until a full translation pass adds the rest, same as `ko`/`zh-CN` missing
+// `tasks`/`collab` entirely today.
+// eslint-disable-next-line import-x/order
+import ptBRSettings from './locales/pt-BR/settings.json';
+
 // Import supported languages configuration
 import { languages } from './languages.js';
 
@@ -197,6 +204,9 @@ i18n
         chat: zhTWChat,
         codeEditor: zhTWCodeEditor,
         tasks: zhTWTasks,
+      },
+      'pt-BR': {
+        settings: ptBRSettings,
       },
     },
 

@@ -1,4 +1,4 @@
-import { Bell, Bot, GitBranch, Info, Key, ListChecks, Mic, MonitorPlay, Palette, Puzzle, Users } from 'lucide-react';
+import { Bell, Bot, Building2, GitBranch, Info, Key, ListChecks, Mic, MonitorPlay, Palette, Puzzle, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { cn } from '../../../lib/utils';
@@ -19,6 +19,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { id: 'agents', labelKey: 'mainTabs.agents', icon: Bot },
   { id: 'profiles', labelKey: 'mainTabs.profiles', icon: Users },
+  { id: 'orgs', labelKey: 'mainTabs.orgs', icon: Building2 },
   { id: 'appearance', labelKey: 'mainTabs.appearance', icon: Palette },
   { id: 'git', labelKey: 'mainTabs.git', icon: GitBranch },
   { id: 'api', labelKey: 'mainTabs.apiTokens', icon: Key },

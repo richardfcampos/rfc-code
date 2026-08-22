@@ -59,6 +59,11 @@ export const languages = [
     label: 'Italian',
     nativeName: 'Italiano',
   },
+  {
+    value: 'pt-BR',
+    label: 'Portuguese (Brazil)',
+    nativeName: 'Português (Brasil)',
+  },
 ];
 
 /**
