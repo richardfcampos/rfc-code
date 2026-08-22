@@ -134,9 +134,9 @@ dev-debug.log
 *.sw?
 # OS specific
 
-# Task files
+# Task files (TaskMaster CLI, repo root only — do not shadow server/modules/tasks/)
 tasks.json
-tasks/ 
+/tasks/
 
 # Translations
 !src/i18n/locales/en/tasks.json
