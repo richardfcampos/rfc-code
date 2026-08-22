@@ -11,6 +11,8 @@ export {
   orgPolicyService,
   orgRecommendService,
   orgResolverService,
+  // orgsRoutes: mounted by the server entrypoint at `/api/orgs`.
+  orgsRoutes,
 } from '@/modules/orgs/orgs.module.js';
 
 export { OrgPolicyError } from '@/modules/orgs/orgs.errors.js';

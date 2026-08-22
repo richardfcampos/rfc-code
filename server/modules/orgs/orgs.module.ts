@@ -7,8 +7,10 @@
  * without touching a database or the network.
  */
 
-import { orgsDb, tasksDb } from '@/modules/database/index.js';
+import { getConnection, orgsDb, tasksDb } from '@/modules/database/index.js';
 import { profilesService, profileUsageService } from '@/modules/profiles/index.js';
+import { createOrgsRouter } from '@/modules/orgs/orgs.routes.js';
+import { createOrgAdminService } from '@/modules/orgs/services/org-admin.service.js';
 import { resolveOrgForProject } from '@/modules/orgs/services/org-resolver.service.js';
 import {
   assertProfileAllowed,
@@ -52,3 +54,22 @@ export const orgRecommendService: OrgRecommendService = {
   recommend: (projectPath, provider, options = {}) =>
     recommend(projectPath, provider, options, deps),
 };
+
+/**
+ * Configuration writes for orgs, project rules and profile policies.
+ *
+ * The transaction port is bound here rather than in the service: replacing an
+ * allow-list has to be atomic, and the connection is this file's business.
+ */
+export const orgAdminService = createOrgAdminService({
+  repository: orgsDb,
+  runInTransaction: (work) => getConnection().transaction(work)(),
+  listProfileIds: () => profilesService.listProfiles().map((profile) => profile.id),
+});
+
+/** Orgs router mounted by the server entrypoint at `/api/orgs`. */
+export const orgsRoutes = createOrgsRouter({
+  admin: orgAdminService,
+  policy: orgPolicyService,
+  recommend: orgRecommendService,
+});

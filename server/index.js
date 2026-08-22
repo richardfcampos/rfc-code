@@ -57,6 +57,7 @@ import agentRoutes from './routes/agent.js';
 import projectModuleRoutes from './modules/projects/projects.routes.js';
 import { worktreesRoutes } from './modules/worktrees/index.js';
 import { tasksRoutes } from './modules/tasks/index.js';
+import { orgsRoutes } from './modules/orgs/index.js';
 import {
     collabRoutes,
     configureCollabClaudeRuntime,
@@ -203,6 +204,9 @@ app.use('/api/worktrees', authenticateToken, worktreesRoutes);
 
 // Native task board (protected)
 app.use('/api/tasks', authenticateToken, tasksRoutes);
+
+// Organizations: profile policy configuration and allow-list queries (protected)
+app.use('/api/orgs', authenticateToken, orgsRoutes);
 
 // Cursor API Routes (protected)
 app.use('/api/cursor', authenticateToken, cursorRoutes);

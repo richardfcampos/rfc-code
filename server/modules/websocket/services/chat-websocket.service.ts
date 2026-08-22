@@ -5,6 +5,11 @@ import type { WebSocket } from 'ws';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import {
+  OrgPolicyError,
+  orgPolicyService,
+  type OrgPolicyService,
+} from '@/modules/orgs/index.js';
+import {
   consumePendingPrimer,
   handoffService,
   profilesService,
@@ -89,7 +94,67 @@ type ChatWebSocketDependencies = {
   ) => void;
   /** Claude-only today: pending tool approvals included in `chat_subscribed`. */
   getPendingApprovalsForSession: (providerSessionId: string) => unknown[];
+  /**
+   * Org policy engine consulted before every spawn. Defaults to the real
+   * service so the entrypoint keeps its current wiring; tests inject doubles.
+   */
+  orgPolicy?: OrgPolicyService;
 };
+
+/** Outcome of the pre-spawn policy check; `profileId` null means "runtime default". */
+type SpawnProfileDecision =
+  | { allowed: true; profileId: string | null }
+  | { allowed: false; code: string; reason: string };
+
+/**
+ * Decides which account a send may run on, or refuses it.
+ *
+ * An explicitly chosen profile (the session's own, or the one the composer
+ * sent) only has to pass the org allow-list — quota never overrides a
+ * deliberate choice. With no choice the org resolver picks one, which is what
+ * makes automatic quota fallback happen. The one case that keeps the upstream
+ * behavior is an installation with no accounts and no policies at all: there is
+ * nothing to enforce, so the runtime stays on its own config directory.
+ *
+ * Anything the policy engine cannot decide is a refusal, never a silent pass.
+ */
+async function decideSpawnProfile(
+  policy: OrgPolicyService,
+  projectPath: string | null,
+  requestedProfileId: string | null,
+  provider: LLMProvider,
+  sessionId: string
+): Promise<SpawnProfileDecision> {
+  try {
+    if (requestedProfileId) {
+      policy.assertProfileAllowed(projectPath, requestedProfileId);
+      return { allowed: true, profileId: requestedProfileId };
+    }
+
+    const allowed = policy.listAllowedProfiles(projectPath, { provider });
+    if (allowed.profiles.length === 0 && !allowed.policyManaged) {
+      return { allowed: true, profileId: null };
+    }
+
+    const selection = await policy.resolveProfileForSpawn(projectPath, { provider, sessionId });
+    if (selection.fallback) {
+      // The account is not the one the org lists first; it must be visible in
+      // the logs (it is also written to the fallback audit by the resolver).
+      console.warn('[Chat] Spawning on a fallback account', {
+        sessionId,
+        profileId: selection.profileId,
+        reason: selection.fallback.reason,
+        primaryUsagePct: selection.fallback.primaryUsagePct,
+      });
+    }
+    return { allowed: true, profileId: selection.profileId };
+  } catch (error) {
+    if (error instanceof OrgPolicyError) {
+      return { allowed: false, code: error.code, reason: error.reason };
+    }
+    throw error;
+  }
+}
 
 /**
  * Extracts the authenticated request user id in the formats currently produced
@@ -251,6 +316,31 @@ async function handleChatSend(
     return;
   }
 
+  const clientOptions = (data.options ?? {}) as AnyRecord;
+
+  // The owning account profile is a property of the session, so it is read from
+  // the session row rather than trusted from the per-message options; the
+  // composer's value only applies to a session that never picked one.
+  const requestedProfileId = session.profile_id
+    ?? (typeof clientOptions.profileId === 'string' ? clientOptions.profileId : null);
+
+  // Policy is evaluated against the session's own project path: a
+  // client-supplied one could name a project whose org allows more accounts.
+  // This runs before the run is registered and before the primer is consumed,
+  // so a refusal leaves neither a session stuck in "processing" nor a handed
+  // over conversation cleared without a model ever reading it.
+  const profileDecision = await decideSpawnProfile(
+    dependencies.orgPolicy ?? orgPolicyService,
+    session.project_path ?? null,
+    requestedProfileId,
+    provider,
+    sessionId
+  );
+  if (!profileDecision.allowed) {
+    sendProtocolError(ws, profileDecision.code, profileDecision.reason, sessionId);
+    return;
+  }
+
   const run = chatRunRegistry.startRun({
     appSessionId: sessionId,
     provider,
@@ -269,16 +359,15 @@ async function handleChatSend(
     return;
   }
 
-  const clientOptions = (data.options ?? {}) as AnyRecord;
   const userPrompt = typeof data.content === 'string' ? data.content : '';
 
   // A session born from a cross-provider handoff carries the earlier
   // conversation as a text primer that the target model has never seen; this is
   // the only place it reaches one. It is consumed here, after the run has been
   // registered and past every early return (unknown session, unavailable
-  // provider, missing worktree, run already in progress): consuming it on a
-  // branch that bails out would clear the pointer without a model ever reading
-  // the context, and it would be lost for good. Everything below this point
+  // provider, missing worktree, refused account, run already in progress):
+  // consuming it on a branch that bails out would clear the pointer without a
+  // model ever reading it, and it would be lost for good. Everything below this point
   // dispatches. Consuming clears the pointer, so the second turn onward sends
   // the user's prompt untouched.
   const primer = consumePendingPrimer(session);
@@ -301,10 +390,10 @@ async function handleChatSend(
     // isolated session out of the tree it was started in.
     cwd: session.worktree_path ?? clientOptions.cwd ?? session.project_path ?? undefined,
     projectPath: session.project_path ?? clientOptions.projectPath,
-    // The owning account profile is a property of the session, so it is read
-    // from the session row rather than trusted from the per-message options.
-    // NULL keeps the provider CLI on its default config dir (upstream behavior).
-    profileId: session.profile_id ?? clientOptions.profileId ?? null,
+    // Settled above by the org policy: either the requested account (allowed),
+    // the one the org picked, or NULL to keep the provider CLI on its default
+    // config dir (upstream behavior).
+    profileId: profileDecision.profileId,
     // Same reasoning as profileId: the override belongs to the session, so it
     // comes from the row. NULL means the session never chose one and follows
     // whatever its profile is set to.
