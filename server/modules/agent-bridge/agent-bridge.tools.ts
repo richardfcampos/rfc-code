@@ -8,7 +8,7 @@
  * which keeps this file dependency-free.
  */
 
-import type { TaskRow, TaskStage } from '@/modules/database/index.js';
+import type { TaskEvidenceRow, TaskRow, TaskStage } from '@/modules/database/index.js';
 import type { LLMProvider } from '@/shared/types.js';
 
 import {
@@ -20,12 +20,17 @@ import type { AgentBridgeSessionScope, AgentBridgeToolDeps } from './agent-bridg
 
 const TASK_STAGES: readonly TaskStage[] = ['backlog', 'in_progress', 'review', 'done'];
 const PROVIDERS: readonly LLMProvider[] = ['claude', 'codex', 'cursor', 'opencode'];
+/** Attachment upload is out of scope for the bridge; agents log a file path as a link instead. */
+const AGENT_EVIDENCE_KINDS = ['note', 'link'] as const;
+type AgentEvidenceKind = (typeof AGENT_EVIDENCE_KINDS)[number];
 
 export const AGENT_BRIDGE_TOOL_NAMES = [
   'task_create',
   'task_list',
   'task_update_stage',
+  'task_update_description',
   'task_assign',
+  'task_evidence_add',
   'profile_recommend',
 ] as const;
 
@@ -54,6 +59,14 @@ function readStage(value: unknown, field: string): TaskStage {
     throw new AgentBridgeValidationError(`${field} must be one of: ${TASK_STAGES.join(', ')}`);
   }
   return stage as TaskStage;
+}
+
+function readEvidenceKind(value: unknown, field: string): AgentEvidenceKind {
+  const kind = readRequiredString(value, field);
+  if (!AGENT_EVIDENCE_KINDS.includes(kind as AgentEvidenceKind)) {
+    throw new AgentBridgeValidationError(`${field} must be one of: ${AGENT_EVIDENCE_KINDS.join(', ')}`);
+  }
+  return kind as AgentEvidenceKind;
 }
 
 function readOptionalProvider(value: unknown): LLMProvider | undefined {
@@ -134,6 +147,20 @@ async function taskUpdateStage(
   return { task };
 }
 
+async function taskUpdateDescription(
+  input: Record<string, unknown>,
+  scope: AgentBridgeSessionScope,
+  deps: AgentBridgeToolDeps,
+): Promise<{ task: TaskRow }> {
+  const taskId = readRequiredString(input.taskId, 'taskId');
+  const description = readRequiredString(input.description, 'description');
+  requireTaskInScope(deps, scope, taskId);
+
+  const task = await deps.tasks.updateTask(taskId, { description });
+  deps.broadcast(task, 'updated');
+  return { task };
+}
+
 async function taskAssign(
   input: Record<string, unknown>,
   scope: AgentBridgeSessionScope,
@@ -151,6 +178,24 @@ async function taskAssign(
   const task = await deps.tasks.updateTask(taskId, { assignee_profile_id: profileId });
   deps.broadcast(task, 'updated');
   return { task };
+}
+
+function taskEvidenceAdd(
+  input: Record<string, unknown>,
+  scope: AgentBridgeSessionScope,
+  deps: AgentBridgeToolDeps,
+): { evidence: TaskEvidenceRow } {
+  const taskId = readRequiredString(input.taskId, 'taskId');
+  const kind = readEvidenceKind(input.kind, 'kind');
+  const content = readRequiredString(input.content, 'content');
+  const task = requireTaskInScope(deps, scope, taskId);
+
+  const evidence = deps.tasks.addEvidence(taskId, { kind, content });
+  // Evidence is not part of TaskRow, so the broadcast just tells open boards
+  // to refetch this task's detail — the same signal an attachment/evidence
+  // mutation sends over the REST API.
+  deps.broadcast(task, 'updated');
+  return { evidence };
 }
 
 async function profileRecommend(
@@ -183,8 +228,12 @@ export async function runAgentBridgeTool(
       return taskList(input, scope, deps);
     case 'task_update_stage':
       return taskUpdateStage(input, scope, deps);
+    case 'task_update_description':
+      return taskUpdateDescription(input, scope, deps);
     case 'task_assign':
       return taskAssign(input, scope, deps);
+    case 'task_evidence_add':
+      return taskEvidenceAdd(input, scope, deps);
     case 'profile_recommend':
       return profileRecommend(input, scope, deps);
     default:

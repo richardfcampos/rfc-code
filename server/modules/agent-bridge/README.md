@@ -17,7 +17,9 @@ agent process ──stdio──▶ server/agent-bridge-mcp.ts ──HTTP──�
 | `task_create` | `title`, `description?`, `suggested_skill?` | Creates a task with `origin: 'agent'` and the session id as `origin_detail` |
 | `task_list` | `stage?` | Lists the session project's tasks |
 | `task_update_stage` | `taskId`, `stage` | Moves a task between `backlog`/`in_progress`/`review`/`done` |
+| `task_update_description` | `taskId`, `description` | Sets a task's markdown description |
 | `task_assign` | `taskId`, `profileId` | Assigns an account profile, refused (403) when org policy denies it |
+| `task_evidence_add` | `taskId`, `kind` (`note`\|`link`), `content` | Appends a work-log entry to the task. Attachment upload is out of scope for the bridge — an agent that wants to reference a file logs `kind: 'link'` with the file path as `content` instead |
 | `profile_recommend` | `provider?` | Returns the profile the project should use next, quota aware |
 
 Every tool is scoped by the token: the agent never names a project, and a task

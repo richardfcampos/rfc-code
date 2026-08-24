@@ -5,7 +5,7 @@
  * describe the interaction it is actually about.
  */
 
-import type { TaskRow } from '@/modules/database/index.js';
+import type { TaskEvidenceRow, TaskRow } from '@/modules/database/index.js';
 import type { TaskUpdateAction } from '@/modules/tasks/index.js';
 
 import type {
@@ -34,16 +34,27 @@ export const TASK: TaskRow = {
   updated_at: '2026-08-20T00:00:00.000Z',
 };
 
+export const EVIDENCE: TaskEvidenceRow = {
+  evidence_id: 'evidence-1',
+  task_id: TASK.id,
+  kind: 'note',
+  content: 'Repro confirmed',
+  attachment_id: null,
+  created_at: '2026-08-20T00:00:00.000Z',
+};
+
 export interface BridgeTestDeps extends AgentBridgeToolDeps {
   broadcasts: Array<[TaskRow, TaskUpdateAction]>;
   updateCalls: Array<[unknown, Record<string, unknown>]>;
   createCalls: Array<Record<string, unknown>>;
+  evidenceCalls: Array<[unknown, Record<string, unknown>]>;
 }
 
 export function createBridgeDeps(overrides: Partial<AgentBridgeToolDeps> = {}): BridgeTestDeps {
   const broadcasts: Array<[TaskRow, TaskUpdateAction]> = [];
   const updateCalls: Array<[unknown, Record<string, unknown>]> = [];
   const createCalls: Array<Record<string, unknown>> = [];
+  const evidenceCalls: Array<[unknown, Record<string, unknown>]> = [];
 
   const deps: AgentBridgeToolDeps = {
     tasks: {
@@ -54,7 +65,15 @@ export function createBridgeDeps(overrides: Partial<AgentBridgeToolDeps> = {}): 
       listTasks: (project) => (project === SCOPE.projectName ? [TASK] : []),
       updateTask: async (id, body) => {
         updateCalls.push([id, body]);
-        return { ...TASK, ...(typeof body.stage === 'string' ? { stage: body.stage as TaskRow['stage'] } : {}) };
+        return {
+          ...TASK,
+          ...(typeof body.stage === 'string' ? { stage: body.stage as TaskRow['stage'] } : {}),
+          ...(typeof body.description === 'string' ? { description: body.description } : {}),
+        };
+      },
+      addEvidence: (taskId, body) => {
+        evidenceCalls.push([taskId, body]);
+        return { ...EVIDENCE, kind: (body.kind as TaskEvidenceRow['kind']) ?? EVIDENCE.kind, content: String(body.content ?? EVIDENCE.content) };
       },
       ...overrides.tasks,
     },
@@ -74,5 +93,5 @@ export function createBridgeDeps(overrides: Partial<AgentBridgeToolDeps> = {}): 
     }),
   };
 
-  return { ...deps, broadcasts, updateCalls, createCalls };
+  return { ...deps, broadcasts, updateCalls, createCalls, evidenceCalls };
 }

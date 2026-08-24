@@ -9,7 +9,7 @@
  * `agent-bridge.module.ts`.
  */
 
-import type { TaskRow } from '@/modules/database/index.js';
+import type { TaskEvidenceRow, TaskRow } from '@/modules/database/index.js';
 import type { ProfileRecommendation } from '@/modules/orgs/index.js';
 import type { TaskUpdateAction } from '@/modules/tasks/index.js';
 import type { LLMProvider } from '@/shared/types.js';
@@ -34,6 +34,7 @@ export interface AgentBridgeTasksPort {
   createTask(body: Record<string, unknown>): Promise<TaskRow>;
   listTasks(project: unknown): TaskRow[];
   updateTask(id: unknown, body: Record<string, unknown>): Promise<TaskRow>;
+  addEvidence(taskId: unknown, body: Record<string, unknown>): TaskEvidenceRow;
 }
 
 /** The slice of the org policy engine the bridge uses. */

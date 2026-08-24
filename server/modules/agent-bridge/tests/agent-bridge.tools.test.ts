@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { runAgentBridgeTool } from '@/modules/agent-bridge/agent-bridge.tools.js';
-import type { TaskRow } from '@/modules/database/index.js';
+import type { TaskEvidenceRow, TaskRow } from '@/modules/database/index.js';
 import { OrgPolicyError } from '@/modules/orgs/index.js';
 import { AppError } from '@/shared/utils.js';
 
@@ -94,6 +94,101 @@ test('task_update_stage refuses a task outside the session project', async () =>
   );
   assert.equal(deps.updateCalls.length, 0);
   assert.equal(deps.broadcasts.length, 0);
+});
+
+test('task_update_description sets the description of a task in this project and broadcasts', async () => {
+  const deps = createBridgeDeps();
+
+  const result = await runAgentBridgeTool(
+    'task_update_description',
+    { taskId: TASK.id, description: 'Longer form context for the task' },
+    SCOPE,
+    deps,
+  ) as { task: TaskRow };
+
+  assert.equal(result.task.description, 'Longer form context for the task');
+  assert.deepEqual(deps.updateCalls, [[TASK.id, { description: 'Longer form context for the task' }]]);
+  assert.deepEqual(deps.broadcasts.map(([, action]) => action), ['updated']);
+});
+
+test('task_update_description rejects a missing description before touching the service', async () => {
+  const deps = createBridgeDeps();
+
+  await expectAppError(
+    () => runAgentBridgeTool('task_update_description', { taskId: TASK.id }, SCOPE, deps),
+    { code: 'AGENT_BRIDGE_VALIDATION_ERROR', statusCode: 400 },
+  );
+  assert.equal(deps.updateCalls.length, 0);
+});
+
+test('task_update_description refuses a task outside the session project', async () => {
+  const deps = createBridgeDeps();
+
+  await expectAppError(
+    () =>
+      runAgentBridgeTool(
+        'task_update_description',
+        { taskId: 'other-project-task', description: 'x' },
+        SCOPE,
+        deps,
+      ),
+    { code: 'AGENT_BRIDGE_TASK_NOT_FOUND', statusCode: 404 },
+  );
+  assert.equal(deps.updateCalls.length, 0);
+});
+
+test('task_evidence_add records a note against a task in this project and broadcasts', async () => {
+  const deps = createBridgeDeps();
+
+  const result = await runAgentBridgeTool(
+    'task_evidence_add',
+    { taskId: TASK.id, kind: 'note', content: 'Repro confirmed on staging' },
+    SCOPE,
+    deps,
+  ) as { evidence: TaskEvidenceRow };
+
+  assert.equal(result.evidence.content, 'Repro confirmed on staging');
+  assert.deepEqual(deps.evidenceCalls, [[TASK.id, { kind: 'note', content: 'Repro confirmed on staging' }]]);
+  assert.deepEqual(deps.broadcasts.map(([, action]) => action), ['updated']);
+});
+
+test('task_evidence_add records a link, passing the file path along as the link content', async () => {
+  const deps = createBridgeDeps();
+
+  await runAgentBridgeTool(
+    'task_evidence_add',
+    { taskId: TASK.id, kind: 'link', content: '/repo/artifacts/build.log' },
+    SCOPE,
+    deps,
+  );
+
+  assert.deepEqual(deps.evidenceCalls, [[TASK.id, { kind: 'link', content: '/repo/artifacts/build.log' }]]);
+});
+
+test('task_evidence_add rejects an "attachment" kind — upload is out of scope for the bridge', async () => {
+  const deps = createBridgeDeps();
+
+  await expectAppError(
+    () => runAgentBridgeTool('task_evidence_add', { taskId: TASK.id, kind: 'attachment', content: 'x' }, SCOPE, deps),
+    { code: 'AGENT_BRIDGE_VALIDATION_ERROR', statusCode: 400 },
+  );
+  assert.equal(deps.evidenceCalls.length, 0);
+});
+
+test('task_evidence_add refuses a task outside the session project', async () => {
+  const deps = createBridgeDeps();
+
+  await expectAppError(
+    () =>
+      runAgentBridgeTool(
+        'task_evidence_add',
+        { taskId: 'other-project-task', kind: 'note', content: 'x' },
+        SCOPE,
+        deps,
+      ),
+    { code: 'AGENT_BRIDGE_TASK_NOT_FOUND', statusCode: 404 },
+  );
+  assert.equal(deps.evidenceCalls.length, 0);
 });
 
 test('task_assign sets the assignee once policy allows it', async () => {
