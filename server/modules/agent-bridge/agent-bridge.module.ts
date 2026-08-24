@@ -10,6 +10,7 @@
 import path from 'node:path';
 import fs from 'node:fs';
 
+import { agentMessagesService } from '@/modules/agent-messages/index.js';
 import { appConfigDb, projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { orgPolicyService, orgRecommendService } from '@/modules/orgs/index.js';
 import { broadcastTaskUpdate, tasksService } from '@/modules/tasks/index.js';
@@ -137,6 +138,9 @@ function describeRegistration(
 /** Agent-facing tools router, mounted by the entrypoint at `/api/agent-bridge`. */
 export const agentBridgeRoutes = createAgentBridgeRouter({
   tasks: tasksService,
+  // The handoff inbox broadcasts its own state changes, so unlike the task
+  // tools these do not go through the `broadcast` port below.
+  messages: agentMessagesService,
   policy: orgPolicyService,
   recommend: orgRecommendService,
   broadcast: broadcastTaskUpdate,
