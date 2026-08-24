@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowDownIcon } from 'lucide-react';
+import { ArrowDownIcon, WifiOffIcon } from 'lucide-react';
 
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
@@ -44,7 +44,7 @@ function ChatInterface({
   onProjectsRefresh,
 }: ChatInterfaceProps) {
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings();
-  const { subscribe } = useWebSocket();
+  const { subscribe, isConnected } = useWebSocket();
   const { t } = useTranslation('chat');
 
   const sessionStore = useSessionStore();
@@ -500,6 +500,15 @@ function ChatInterface({
               >
                 <ArrowDownIcon className="h-4 w-4" aria-hidden />
               </button>
+            </div>
+          )}
+
+          {!isConnected && (
+            <div className="pointer-events-none flex justify-center pb-1.5">
+              <div className="pointer-events-none flex h-7 items-center gap-1.5 rounded-full border border-border bg-card px-2.5 text-[11px] text-muted-foreground shadow-[var(--shadow-pop)]">
+                <WifiOffIcon className="h-3 w-3 text-danger" aria-hidden />
+                <span>{t('connection.offline', { defaultValue: 'Reconnecting…' })}</span>
+              </div>
             </div>
           )}
 
