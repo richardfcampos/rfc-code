@@ -7,6 +7,8 @@ import test from 'node:test';
 import { closeConnection, getConnection, initializeDatabase } from '@/modules/database/index.js';
 import {
   createTasksService,
+  TaskAttachmentNotFoundError,
+  TaskEvidenceNotFoundError,
   TaskNotFoundError,
   TaskValidationError,
   type AssertAssigneeAllowed,
@@ -252,5 +254,252 @@ test('deleteTask removes the task and returns the deleted row', async () => {
 
     assert.equal(deleted.id, task.id);
     assert.equal(service.listTasks('my-app').length, 0);
+  });
+});
+
+test('updateTask sets and clears the description', async () => {
+  await withIsolatedDatabase(async () => {
+    const service = createService();
+    const task = await service.createTask({ title: 'Ship it', project: 'my-app' });
+
+    const withDescription = await service.updateTask(task.id, { description: 'Repro then fix' });
+    assert.equal(withDescription.description, 'Repro then fix');
+
+    const cleared = await service.updateTask(task.id, { description: null });
+    assert.equal(cleared.description, null);
+  });
+});
+
+test('getTaskDetail rejects an unknown task id', async () => {
+  await withIsolatedDatabase(async () => {
+    const service = createService();
+    assert.throws(() => service.getTaskDetail('missing-id'), TaskNotFoundError);
+  });
+});
+
+test('getTaskDetail returns the task with its attachments and evidence', async () => {
+  await withIsolatedDatabase(async () => {
+    const service = createService();
+    const task = await service.createTask({ title: 'Ship it', project: 'my-app' });
+
+    const attachment = service.addAttachment(task.id, {
+      fileName: 'design.png',
+      mimeType: 'image/png',
+      sizeBytes: 1024,
+      storedPath: '/tmp/design.png',
+    });
+    service.addEvidence(task.id, { kind: 'note', content: 'Repro confirmed' });
+
+    const detail = service.getTaskDetail(task.id);
+    assert.equal(detail.task.id, task.id);
+    assert.equal(detail.attachments.length, 1);
+    assert.equal(detail.attachments[0]!.attachment_id, attachment.attachment_id);
+    assert.equal(detail.evidence.length, 1);
+    assert.equal(detail.evidence[0]!.content, 'Repro confirmed');
+  });
+});
+
+test('addAttachment rejects an unknown task id', async () => {
+  await withIsolatedDatabase(async () => {
+    const service = createService();
+    assert.throws(
+      () =>
+        service.addAttachment('missing-id', {
+          fileName: 'x.png',
+          mimeType: 'image/png',
+          sizeBytes: 10,
+          storedPath: '/tmp/x.png',
+        }),
+      TaskNotFoundError,
+    );
+  });
+});
+
+test('addAttachment rejects an empty file name', async () => {
+  await withIsolatedDatabase(async () => {
+    const service = createService();
+    const task = await service.createTask({ title: 'Ship it', project: 'my-app' });
+
+    assert.throws(
+      () =>
+        service.addAttachment(task.id, {
+          fileName: '   ',
+          mimeType: 'image/png',
+          sizeBytes: 10,
+          storedPath: '/tmp/x.png',
+        }),
+      TaskValidationError,
+    );
+  });
+});
+
+test('addAttachment rejects a size over the configured cap', async () => {
+  await withIsolatedDatabase(async () => {
+    const service = createService();
+    const task = await service.createTask({ title: 'Ship it', project: 'my-app' });
+
+    assert.throws(
+      () =>
+        service.addAttachment(task.id, {
+          fileName: 'huge.bin',
+          mimeType: 'application/octet-stream',
+          sizeBytes: 21 * 1024 * 1024,
+          storedPath: '/tmp/huge.bin',
+        }),
+      TaskValidationError,
+    );
+  });
+});
+
+test('getAttachment rejects an attachment that belongs to a different task', async () => {
+  await withIsolatedDatabase(async () => {
+    const service = createService();
+    const taskA = await service.createTask({ title: 'Task A', project: 'my-app' });
+    const taskB = await service.createTask({ title: 'Task B', project: 'my-app' });
+
+    const attachment = service.addAttachment(taskA.id, {
+      fileName: 'a.png',
+      mimeType: 'image/png',
+      sizeBytes: 10,
+      storedPath: '/tmp/a.png',
+    });
+
+    assert.throws(() => service.getAttachment(taskB.id, attachment.attachment_id), TaskAttachmentNotFoundError);
+  });
+});
+
+test('deleteAttachment removes the row and returns it', async () => {
+  await withIsolatedDatabase(async () => {
+    const service = createService();
+    const task = await service.createTask({ title: 'Ship it', project: 'my-app' });
+    const attachment = service.addAttachment(task.id, {
+      fileName: 'a.png',
+      mimeType: 'image/png',
+      sizeBytes: 10,
+      storedPath: '/tmp/a.png',
+    });
+
+    const deleted = service.deleteAttachment(task.id, attachment.attachment_id);
+    assert.equal(deleted.attachment_id, attachment.attachment_id);
+    assert.equal(service.getTaskDetail(task.id).attachments.length, 0);
+  });
+});
+
+test('deleteAttachment rejects an unknown attachment id', async () => {
+  await withIsolatedDatabase(async () => {
+    const service = createService();
+    const task = await service.createTask({ title: 'Ship it', project: 'my-app' });
+
+    assert.throws(() => service.deleteAttachment(task.id, 'missing-attachment'), TaskAttachmentNotFoundError);
+  });
+});
+
+test('addEvidence stores a note without an attachment reference', async () => {
+  await withIsolatedDatabase(async () => {
+    const service = createService();
+    const task = await service.createTask({ title: 'Ship it', project: 'my-app' });
+
+    const evidence = service.addEvidence(task.id, { kind: 'note', content: 'Repro confirmed on staging' });
+    assert.equal(evidence.kind, 'note');
+    assert.equal(evidence.attachment_id, null);
+  });
+});
+
+test('addEvidence rejects an invalid kind', async () => {
+  await withIsolatedDatabase(async () => {
+    const service = createService();
+    const task = await service.createTask({ title: 'Ship it', project: 'my-app' });
+
+    assert.throws(() => service.addEvidence(task.id, { kind: 'video', content: 'x' }), TaskValidationError);
+  });
+});
+
+test('addEvidence rejects empty content', async () => {
+  await withIsolatedDatabase(async () => {
+    const service = createService();
+    const task = await service.createTask({ title: 'Ship it', project: 'my-app' });
+
+    assert.throws(() => service.addEvidence(task.id, { kind: 'note', content: '   ' }), TaskValidationError);
+  });
+});
+
+test('addEvidence of kind "attachment" requires an attachment_id', async () => {
+  await withIsolatedDatabase(async () => {
+    const service = createService();
+    const task = await service.createTask({ title: 'Ship it', project: 'my-app' });
+
+    assert.throws(
+      () => service.addEvidence(task.id, { kind: 'attachment', content: 'see file' }),
+      TaskValidationError,
+    );
+  });
+});
+
+test('addEvidence of kind "attachment" requires an attachment_id that exists on the same task', async () => {
+  await withIsolatedDatabase(async () => {
+    const service = createService();
+    const task = await service.createTask({ title: 'Ship it', project: 'my-app' });
+
+    assert.throws(
+      () => service.addEvidence(task.id, { kind: 'attachment', content: 'see file', attachment_id: 'missing-id' }),
+      TaskAttachmentNotFoundError,
+    );
+
+    const attachment = service.addAttachment(task.id, {
+      fileName: 'log.txt',
+      mimeType: 'text/plain',
+      sizeBytes: 5,
+      storedPath: '/tmp/log.txt',
+    });
+    const evidence = service.addEvidence(task.id, {
+      kind: 'attachment',
+      content: 'see attached log',
+      attachment_id: attachment.attachment_id,
+    });
+    assert.equal(evidence.attachment_id, attachment.attachment_id);
+  });
+});
+
+test('addEvidence rejects attachment_id on a note or link entry', async () => {
+  await withIsolatedDatabase(async () => {
+    const service = createService();
+    const task = await service.createTask({ title: 'Ship it', project: 'my-app' });
+    const attachment = service.addAttachment(task.id, {
+      fileName: 'log.txt',
+      mimeType: 'text/plain',
+      sizeBytes: 5,
+      storedPath: '/tmp/log.txt',
+    });
+
+    assert.throws(
+      () =>
+        service.addEvidence(task.id, {
+          kind: 'note',
+          content: 'x',
+          attachment_id: attachment.attachment_id,
+        }),
+      TaskValidationError,
+    );
+  });
+});
+
+test('deleteEvidence removes the row and returns it', async () => {
+  await withIsolatedDatabase(async () => {
+    const service = createService();
+    const task = await service.createTask({ title: 'Ship it', project: 'my-app' });
+    const evidence = service.addEvidence(task.id, { kind: 'link', content: 'https://example.com/run/1' });
+
+    const deleted = service.deleteEvidence(task.id, evidence.evidence_id);
+    assert.equal(deleted.evidence_id, evidence.evidence_id);
+    assert.equal(service.getTaskDetail(task.id).evidence.length, 0);
+  });
+});
+
+test('deleteEvidence rejects an unknown evidence id', async () => {
+  await withIsolatedDatabase(async () => {
+    const service = createService();
+    const task = await service.createTask({ title: 'Ship it', project: 'my-app' });
+
+    assert.throws(() => service.deleteEvidence(task.id, 'missing-evidence'), TaskEvidenceNotFoundError);
   });
 });

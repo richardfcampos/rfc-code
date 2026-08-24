@@ -42,11 +42,29 @@ function createFakeService(overrides: Partial<TasksService> = {}): TasksService 
     listTasks: () => {
       throw new Error('Unexpected listTasks call');
     },
+    getTaskDetail: () => {
+      throw new Error('Unexpected getTaskDetail call');
+    },
     updateTask: async () => {
       throw new Error('Unexpected updateTask call');
     },
     deleteTask: () => {
       throw new Error('Unexpected deleteTask call');
+    },
+    addAttachment: () => {
+      throw new Error('Unexpected addAttachment call');
+    },
+    getAttachment: () => {
+      throw new Error('Unexpected getAttachment call');
+    },
+    deleteAttachment: () => {
+      throw new Error('Unexpected deleteAttachment call');
+    },
+    addEvidence: () => {
+      throw new Error('Unexpected addEvidence call');
+    },
+    deleteEvidence: () => {
+      throw new Error('Unexpected deleteEvidence call');
     },
     ...overrides,
   };

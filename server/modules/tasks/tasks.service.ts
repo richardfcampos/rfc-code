@@ -1,40 +1,54 @@
 /**
  * Application service for the native task board: `server/modules/tasks`.
  *
- * Owns all validation of untrusted input for tasks (title, stage, project)
- * before it reaches `tasksDb`. Named error classes (`TaskValidationError`,
- * `TaskNotFoundError`) extend the shared `AppError` so the existing global
- * error middleware maps them to HTTP status codes without any route-level
- * branching.
+ * Orchestrates the repositories behind the task board's rich fields
+ * (description, attachments, evidence): every id-scoped lookup happens here,
+ * field-level validation lives in `tasks.validation.ts`, and named errors
+ * live in `tasks.errors.ts` — the existing global error middleware maps them
+ * to HTTP status codes without any route-level branching.
  */
 
 import {
+  taskAttachmentsDb,
+  taskEvidenceDb,
   tasksDb,
   type CreateTaskInput,
-  type TaskOrigin,
+  type TaskAttachmentRow,
+  type TaskEvidenceRow,
   type TaskRow,
-  type TaskStage,
   type UpdateTaskInput,
 } from '@/modules/database/index.js';
-import { AppError } from '@/shared/utils.js';
 
-const TASK_STAGES: readonly TaskStage[] = ['backlog', 'in_progress', 'review', 'done'];
-const TASK_ORIGINS: readonly TaskOrigin[] = ['user', 'agent', 'automation'];
-const TITLE_MAX_LENGTH = 500;
+import {
+  TaskAttachmentNotFoundError,
+  TaskEvidenceNotFoundError,
+  TaskNotFoundError,
+  TaskValidationError,
+} from './tasks.errors.js';
+import {
+  readOptionalNullableString,
+  requireAttachmentId,
+  requireEvidenceId,
+  requireTaskId,
+  validateAttachmentFileName,
+  validateAttachmentMimeType,
+  validateAttachmentSize,
+  validateEvidenceContent,
+  validateEvidenceKind,
+  validateOrigin,
+  validateProject,
+  validateStage,
+  validateStoredPath,
+  validateTitle,
+} from './tasks.validation.js';
 
-export class TaskValidationError extends AppError {
-  constructor(message: string) {
-    super(message, { code: 'TASK_VALIDATION_ERROR', statusCode: 400 });
-    this.name = 'TaskValidationError';
-  }
-}
-
-export class TaskNotFoundError extends AppError {
-  constructor(id: string) {
-    super(`Task "${id}" not found`, { code: 'TASK_NOT_FOUND', statusCode: 404 });
-    this.name = 'TaskNotFoundError';
-  }
-}
+export {
+  TaskAttachmentNotFoundError,
+  TaskEvidenceNotFoundError,
+  TaskNotFoundError,
+  TaskValidationError,
+} from './tasks.errors.js';
+export { TASK_ATTACHMENT_MAX_SIZE_BYTES } from './tasks.validation.js';
 
 /**
  * Assignee-eligibility policy hook, injected by the module's composition
@@ -53,76 +67,57 @@ export type TasksServiceDeps = {
 /** Raw request bodies straight off the wire; every field is unvalidated. */
 export type CreateTaskRequestBody = Record<string, unknown>;
 export type UpdateTaskRequestBody = Record<string, unknown>;
+export type CreateEvidenceRequestBody = Record<string, unknown>;
+
+/** A task plus its rich fields, assembled for the task detail view. */
+export type TaskDetail = {
+  task: TaskRow;
+  attachments: TaskAttachmentRow[];
+  evidence: TaskEvidenceRow[];
+};
+
+/**
+ * Metadata for a file the route already wrote to disk (via multer) before
+ * calling the service. The service never touches the filesystem itself —
+ * upload and cleanup stay in the route layer, next to the multer wiring.
+ */
+export type UploadedAttachmentInput = {
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  storedPath: string;
+};
 
 export type TasksService = {
   createTask(body: CreateTaskRequestBody): Promise<TaskRow>;
   listTasks(project: unknown): TaskRow[];
+  getTaskDetail(id: unknown): TaskDetail;
   updateTask(id: unknown, body: UpdateTaskRequestBody): Promise<TaskRow>;
   deleteTask(id: unknown): TaskRow;
+  addAttachment(taskId: unknown, file: UploadedAttachmentInput): TaskAttachmentRow;
+  getAttachment(taskId: unknown, attachmentId: unknown): TaskAttachmentRow;
+  deleteAttachment(taskId: unknown, attachmentId: unknown): TaskAttachmentRow;
+  addEvidence(taskId: unknown, body: CreateEvidenceRequestBody): TaskEvidenceRow;
+  deleteEvidence(taskId: unknown, evidenceId: unknown): TaskEvidenceRow;
 };
 
-function validateTitle(rawTitle: unknown): string {
-  const title = typeof rawTitle === 'string' ? rawTitle.trim() : '';
-  if (!title) {
-    throw new TaskValidationError('title is required');
+/** Resolves a task id to its row, or throws the 404 every other lookup here throws. */
+function requireTask(id: string): TaskRow {
+  const task = tasksDb.get(id);
+  if (!task) {
+    throw new TaskNotFoundError(id);
   }
-  if (title.length > TITLE_MAX_LENGTH) {
-    throw new TaskValidationError(`title must be ${TITLE_MAX_LENGTH} characters or fewer`);
-  }
-  return title;
+  return task;
 }
 
-function validateStage(rawStage: unknown): TaskStage {
-  if (typeof rawStage !== 'string' || !TASK_STAGES.includes(rawStage as TaskStage)) {
-    throw new TaskValidationError(`stage must be one of: ${TASK_STAGES.join(', ')}`);
+/** Resolves an attachment id scoped to one task, or 404s — including when the id belongs to a different task. */
+function requireAttachmentOnTask(taskId: string, rawAttachmentId: unknown): TaskAttachmentRow {
+  const attachmentId = requireAttachmentId(rawAttachmentId);
+  const attachment = taskAttachmentsDb.get(attachmentId);
+  if (!attachment || attachment.task_id !== taskId) {
+    throw new TaskAttachmentNotFoundError(attachmentId);
   }
-  return rawStage as TaskStage;
-}
-
-function validateProject(rawProject: unknown): string {
-  const project = typeof rawProject === 'string' ? rawProject.trim() : '';
-  if (!project) {
-    throw new TaskValidationError('project is required');
-  }
-  return project;
-}
-
-function validateOrigin(rawOrigin: unknown): TaskOrigin | undefined {
-  if (rawOrigin === undefined) {
-    return undefined;
-  }
-  if (typeof rawOrigin !== 'string' || !TASK_ORIGINS.includes(rawOrigin as TaskOrigin)) {
-    throw new TaskValidationError(`origin must be one of: ${TASK_ORIGINS.join(', ')}`);
-  }
-  return rawOrigin as TaskOrigin;
-}
-
-/**
- * Reads an optional, nullable string field from a raw request body.
- *
- * `undefined` means "field absent" (leave untouched on update / default on
- * create); `null` or an empty string both mean "clear the field".
- */
-function readOptionalNullableString(value: unknown, field: string): string | null | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-  if (value === null) {
-    return null;
-  }
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
-  }
-  throw new TaskValidationError(`${field} must be a string or null`);
-}
-
-function requireTaskId(id: unknown): string {
-  const taskId = typeof id === 'string' ? id.trim() : '';
-  if (!taskId) {
-    throw new TaskValidationError('id is required');
-  }
-  return taskId;
+  return attachment;
 }
 
 async function createTask(
@@ -160,16 +155,23 @@ function listTasks(project: unknown): TaskRow[] {
   return tasksDb.listByProject(validateProject(project));
 }
 
+function getTaskDetail(rawId: unknown): TaskDetail {
+  const id = requireTaskId(rawId);
+  const task = requireTask(id);
+  return {
+    task,
+    attachments: taskAttachmentsDb.listByTask(id),
+    evidence: taskEvidenceDb.listByTask(id),
+  };
+}
+
 async function updateTask(
   deps: TasksServiceDeps,
   rawId: unknown,
   body: UpdateTaskRequestBody,
 ): Promise<TaskRow> {
   const id = requireTaskId(rawId);
-  const existing = tasksDb.get(id);
-  if (!existing) {
-    throw new TaskNotFoundError(id);
-  }
+  const existing = requireTask(id);
 
   const fields: UpdateTaskInput = {};
 
@@ -205,12 +207,70 @@ async function updateTask(
 
 function deleteTask(rawId: unknown): TaskRow {
   const id = requireTaskId(rawId);
-  const existing = tasksDb.get(id);
-  if (!existing) {
-    throw new TaskNotFoundError(id);
-  }
+  const existing = requireTask(id);
   tasksDb.delete(id);
   return existing;
+}
+
+function addAttachment(rawTaskId: unknown, file: UploadedAttachmentInput): TaskAttachmentRow {
+  const taskId = requireTaskId(rawTaskId);
+  requireTask(taskId);
+
+  return taskAttachmentsDb.create({
+    taskId,
+    fileName: validateAttachmentFileName(file.fileName),
+    mimeType: validateAttachmentMimeType(file.mimeType),
+    sizeBytes: validateAttachmentSize(file.sizeBytes),
+    storedPath: validateStoredPath(file.storedPath),
+  });
+}
+
+function getAttachment(rawTaskId: unknown, rawAttachmentId: unknown): TaskAttachmentRow {
+  const taskId = requireTaskId(rawTaskId);
+  requireTask(taskId);
+  return requireAttachmentOnTask(taskId, rawAttachmentId);
+}
+
+function deleteAttachment(rawTaskId: unknown, rawAttachmentId: unknown): TaskAttachmentRow {
+  const taskId = requireTaskId(rawTaskId);
+  requireTask(taskId);
+  const attachment = requireAttachmentOnTask(taskId, rawAttachmentId);
+
+  taskAttachmentsDb.delete(attachment.attachment_id);
+  return attachment;
+}
+
+function addEvidence(rawTaskId: unknown, body: CreateEvidenceRequestBody): TaskEvidenceRow {
+  const taskId = requireTaskId(rawTaskId);
+  requireTask(taskId);
+
+  const kind = validateEvidenceKind(body.kind);
+  const content = validateEvidenceContent(body.content);
+
+  let attachmentId: string | null = null;
+  if (kind === 'attachment') {
+    // Evidence of kind "attachment" documents a file the task already has;
+    // it never uploads a new one, so the id must resolve on this same task.
+    attachmentId = requireAttachmentOnTask(taskId, body.attachment_id).attachment_id;
+  } else if (body.attachment_id !== undefined && body.attachment_id !== null) {
+    throw new TaskValidationError('attachment_id is only allowed for evidence of kind "attachment"');
+  }
+
+  return taskEvidenceDb.create({ taskId, kind, content, attachmentId });
+}
+
+function deleteEvidence(rawTaskId: unknown, rawEvidenceId: unknown): TaskEvidenceRow {
+  const taskId = requireTaskId(rawTaskId);
+  requireTask(taskId);
+
+  const evidenceId = requireEvidenceId(rawEvidenceId);
+  const evidence = taskEvidenceDb.get(evidenceId);
+  if (!evidence || evidence.task_id !== taskId) {
+    throw new TaskEvidenceNotFoundError(evidenceId);
+  }
+
+  taskEvidenceDb.delete(evidenceId);
+  return evidence;
 }
 
 /**
@@ -224,7 +284,13 @@ export function createTasksService(deps: TasksServiceDeps): TasksService {
   return {
     createTask: (body) => createTask(deps, body),
     listTasks: (project) => listTasks(project),
+    getTaskDetail: (id) => getTaskDetail(id),
     updateTask: (id, body) => updateTask(deps, id, body),
     deleteTask: (id) => deleteTask(id),
+    addAttachment: (taskId, file) => addAttachment(taskId, file),
+    getAttachment: (taskId, attachmentId) => getAttachment(taskId, attachmentId),
+    deleteAttachment: (taskId, attachmentId) => deleteAttachment(taskId, attachmentId),
+    addEvidence: (taskId, body) => addEvidence(taskId, body),
+    deleteEvidence: (taskId, evidenceId) => deleteEvidence(taskId, evidenceId),
   };
 }
