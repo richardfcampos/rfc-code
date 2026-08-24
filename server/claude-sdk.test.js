@@ -86,3 +86,48 @@ test('mapCliOptionsToSDK leaves CLAUDE_CONFIG_DIR untouched without a profile', 
     assert.equal(sdkOptions.env.CLAUDE_CONFIG_DIR, undefined);
   });
 });
+
+test('the stream close timeout rides on the SDK env instead of this process', async () => {
+  await withProfilesEnvironment(() => {
+    // options.env replaces process.env for the CLI subprocess, so a value set
+    // on this process would never reach it — and mutating the shared process
+    // environment around a query construction races concurrent runs.
+    const before = process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT;
+    const sdkOptions = mapCliOptionsToSDK({});
+
+    assert.equal(sdkOptions.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT, '300000');
+    assert.equal(process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT, before);
+  });
+});
+
+test('an operator-set stream close timeout is left alone', async () => {
+  await withProfilesEnvironment(() => {
+    const previous = process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT;
+    process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT = '90000';
+
+    try {
+      assert.equal(mapCliOptionsToSDK({}).env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT, '90000');
+    } finally {
+      if (previous === undefined) {
+        delete process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT;
+      } else {
+        process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT = previous;
+      }
+    }
+  });
+});
+
+test('concurrent option builds each get their own timeout, unaffected by the others', async () => {
+  await withProfilesEnvironment(async () => {
+    // Two runs starting at the same moment used to race over a shared
+    // process.env entry: one restoring it landed inside the other's window and
+    // left that query on the SDK default.
+    const [first, second] = await Promise.all([
+      Promise.resolve().then(() => mapCliOptionsToSDK({ sessionId: 'a' })),
+      Promise.resolve().then(() => mapCliOptionsToSDK({ sessionId: 'b' })),
+    ]);
+
+    assert.equal(first.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT, '300000');
+    assert.equal(second.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT, '300000');
+  });
+});
