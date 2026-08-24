@@ -1631,6 +1631,15 @@ async function startServer() {
             console.log(`[Collab] Closed ${orphanedCollaborations} collaboration(s) left running by a restart`);
         }
 
+        // An agent run is tracked in memory and dies with its process. A crash or
+        // a kill signal leaves no terminal event and no explanation, so the runs
+        // the last process was still serving are turned into recorded failures
+        // before any client can ask for that session's history.
+        const interruptedRuns = chatRunRegistry.recordRunsInterruptedByCrash();
+        if (interruptedRuns > 0) {
+            console.log(`[Sessions] Recorded ${interruptedRuns} run(s) cut off when the server went down`);
+        }
+
         // Sessions recorded before worktrees were a per-session concern are
         // still grouped under the worktree directory they ran in, which hides
         // them from the repository they belong to. One-shot pass, guarded by

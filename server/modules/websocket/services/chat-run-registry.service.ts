@@ -1,9 +1,10 @@
 import path from 'node:path';
 
-import { projectsDb, sessionRunFailuresDb, sessionsDb } from '@/modules/database/index.js';
+import { activeSessionRunsDb, projectsDb, sessionRunFailuresDb, sessionsDb } from '@/modules/database/index.js';
 import { generateDisplayName } from '@/modules/projects/index.js';
 import { ChatSessionWriter } from '@/modules/websocket/services/chat-session-writer.service.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
+import type { ActiveSessionRunRow } from '@/modules/database/index.js';
 import type {
   LLMProvider,
   NormalizedMessage,
@@ -56,6 +57,13 @@ const COMPLETED_RUN_RETENTION_MS = 5 * 60 * 1000;
  * REST history refresh, which is always the authoritative source.
  */
 const MAX_BUFFERED_EVENTS_PER_RUN = 5000;
+
+/**
+ * Recorded for a run whose process died with no chance to say anything: a kill
+ * signal it cannot catch, an OOM kill, a hardware fault. Worded apart from the
+ * notice a graceful shutdown writes so a crash is never read as a restart.
+ */
+const INTERRUPTED_RUN_ERROR = 'The server went down while this run was in progress.';
 
 /**
  * Active and recently-completed runs keyed by app session id.
@@ -151,6 +159,49 @@ function persistFailureIfAny(run: ChatRun, message: NormalizedMessage): void {
   }
 }
 
+/**
+ * Drops the durable marker of a run that has ended, however it ended.
+ *
+ * A marker that survives its run only costs one spurious interruption row at
+ * the next boot, so this must never interrupt the terminal event the client is
+ * waiting on.
+ */
+function clearRunMarker(appSessionId: string): void {
+  try {
+    activeSessionRunsDb.clear(appSessionId);
+  } catch (error) {
+    console.error('[ChatRunRegistry] Failed to clear the marker of a finished run:', error);
+  }
+}
+
+/**
+ * Whether the session already has a failure recorded for the run that started
+ * at `startedAt`. A shutdown with time to write its own row has already
+ * explained the stop, and a second row would show one run ending twice in the
+ * transcript.
+ */
+function hasFailureRecordedSince(sessionId: string, startedAt: string): boolean {
+  const startedAtMs = Date.parse(startedAt);
+  if (!Number.isFinite(startedAtMs)) {
+    return false;
+  }
+
+  return sessionRunFailuresDb.listBySession(sessionId).some((failure) => {
+    const failedAtMs = Date.parse(failure.failed_at);
+    return Number.isFinite(failedAtMs) && failedAtMs >= startedAtMs;
+  });
+}
+
+/** Markers left by the previous process, or an empty list if they cannot be read. */
+function readRunMarkers(): ActiveSessionRunRow[] {
+  try {
+    return activeSessionRunsDb.listAll();
+  } catch (error) {
+    console.error('[ChatRunRegistry] Failed to read the runs a restart left behind:', error);
+    return [];
+  }
+}
+
 function evictRunLater(appSessionId: string): void {
   const timer = setTimeout(() => {
     const run = runs.get(appSessionId);
@@ -204,6 +255,7 @@ function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): Norma
     run.status = 'completed';
     run.completedAt = Date.now();
     persistFailureIfAny(run, message);
+    clearRunMarker(run.appSessionId);
     evictRunLater(run.appSessionId);
   }
 
@@ -301,6 +353,20 @@ export const chatRunRegistry = {
     });
 
     runs.set(input.appSessionId, run);
+
+    // Durable half of the registry. A run that dies with its process emits no
+    // terminal event and leaves nothing behind, so this marker is the only
+    // thing that can tell the next boot the session was cut off mid-run.
+    try {
+      activeSessionRunsDb.markStarted({
+        sessionId: run.appSessionId,
+        provider: run.provider,
+        startedAt: new Date(run.startedAt),
+      });
+    } catch (error) {
+      console.error('[ChatRunRegistry] Failed to mark a run as in flight:', error);
+    }
+
     return run;
   },
 
@@ -388,6 +454,54 @@ export const chatRunRegistry = {
     }
 
     run.writer.sendComplete(opts);
+  },
+
+  /**
+   * Turns the runs a dead process left behind into recorded failures.
+   *
+   * Runs are tracked in memory, so a kill signal the process cannot catch, an
+   * OOM kill or a hardware fault ends them with no terminal event and nothing
+   * on record — the session simply looks abandoned. Their markers outlive the
+   * process, and at boot each one is either already explained (a shutdown that
+   * had time to write its own reason) or becomes a failure here.
+   *
+   * Runs once, before anything can serve a request: nothing can be in flight
+   * while the process is still starting, so every marker left is stale and the
+   * table is emptied afterwards. Never throws — a sweep that fails is not a
+   * reason to refuse to boot.
+   *
+   * @returns how many interrupted runs were recorded.
+   */
+  recordRunsInterruptedByCrash(): number {
+    let recorded = 0;
+
+    for (const marker of readRunMarkers()) {
+      try {
+        if (hasFailureRecordedSince(marker.session_id, marker.started_at)) {
+          continue;
+        }
+
+        sessionRunFailuresDb.recordFailure({
+          sessionId: marker.session_id,
+          provider: marker.provider,
+          errorMessage: INTERRUPTED_RUN_ERROR,
+        });
+        recorded += 1;
+      } catch (error) {
+        console.error(
+          `[ChatRunRegistry] Failed to record run ${marker.session_id} as interrupted:`,
+          error,
+        );
+      }
+    }
+
+    try {
+      activeSessionRunsDb.clearAll();
+    } catch (error) {
+      console.error('[ChatRunRegistry] Failed to clear the runs a restart left behind:', error);
+    }
+
+    return recorded;
   },
 
   /**
