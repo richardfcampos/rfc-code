@@ -18,6 +18,8 @@ import {
   SESSION_LEGS_TABLE_SCHEMA_SQL,
   SESSION_RUN_FAILURES_TABLE_SCHEMA_SQL,
   SESSIONS_TABLE_SCHEMA_SQL,
+  TASK_ATTACHMENTS_TABLE_SCHEMA_SQL,
+  TASK_EVIDENCE_TABLE_SCHEMA_SQL,
   TASKS_TABLE_SCHEMA_SQL,
   USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL,
   VAPID_KEYS_TABLE_SCHEMA_SQL,
@@ -852,6 +854,10 @@ export const runMigrations = (db: Database) => {
     db.exec('CREATE INDEX IF NOT EXISTS idx_org_profile_policies_org ON org_profile_policies(org_id)');
     db.exec(TASKS_TABLE_SCHEMA_SQL);
     db.exec('CREATE INDEX IF NOT EXISTS idx_tasks_project_stage ON tasks(project_name, stage)');
+    db.exec(TASK_ATTACHMENTS_TABLE_SCHEMA_SQL);
+    db.exec('CREATE INDEX IF NOT EXISTS idx_task_attachments_task ON task_attachments(task_id)');
+    db.exec(TASK_EVIDENCE_TABLE_SCHEMA_SQL);
+    db.exec('CREATE INDEX IF NOT EXISTS idx_task_evidence_task ON task_evidence(task_id)');
     db.exec(PROFILE_FALLBACK_AUDIT_TABLE_SCHEMA_SQL);
     db.exec(
       'CREATE INDEX IF NOT EXISTS idx_profile_fallback_audit_org ON profile_fallback_audit(org_id, created_at)',

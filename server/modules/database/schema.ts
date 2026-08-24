@@ -325,6 +325,35 @@ CREATE TABLE IF NOT EXISTS tasks (
 );
 `;
 
+export const TASK_ATTACHMENTS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS task_attachments (
+    attachment_id TEXT PRIMARY KEY NOT NULL,
+    task_id TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    mime_type TEXT NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    stored_path TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+);
+`;
+
+export const TASK_EVIDENCE_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS task_evidence (
+    evidence_id TEXT PRIMARY KEY NOT NULL,
+    task_id TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('note', 'link', 'attachment')),
+    content TEXT NOT NULL,
+    -- Set only when kind = 'attachment'; points at the file this evidence
+    -- entry documents. ON DELETE SET NULL rather than CASCADE: deleting the
+    -- attached file should not erase the evidence trail that references it.
+    attachment_id TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (attachment_id) REFERENCES task_attachments(attachment_id) ON DELETE SET NULL
+);
+`;
+
 export const PROFILE_FALLBACK_AUDIT_TABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS profile_fallback_audit (
     id TEXT PRIMARY KEY NOT NULL,
@@ -412,6 +441,12 @@ CREATE INDEX IF NOT EXISTS idx_org_profile_policies_org ON org_profile_policies(
 
 ${TASKS_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_tasks_project_stage ON tasks(project_name, stage);
+
+${TASK_ATTACHMENTS_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_task_attachments_task ON task_attachments(task_id);
+
+${TASK_EVIDENCE_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_task_evidence_task ON task_evidence(task_id);
 
 ${PROFILE_FALLBACK_AUDIT_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_profile_fallback_audit_org ON profile_fallback_audit(org_id, created_at);

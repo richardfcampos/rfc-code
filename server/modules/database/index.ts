@@ -15,6 +15,17 @@ export type {
 export { projectsDb } from '@/modules/database/repositories/projects.db.js';
 export { pushSubscriptionsDb } from '@/modules/database/repositories/push-subscriptions.js';
 export { scanStateDb } from '@/modules/database/repositories/scan-state.db.js';
+export { taskAttachmentsDb } from '@/modules/database/repositories/task-attachments.db.js';
+export type {
+  CreateTaskAttachmentInput,
+  TaskAttachmentRow,
+} from '@/modules/database/repositories/task-attachments.db.js';
+export { taskEvidenceDb } from '@/modules/database/repositories/task-evidence.db.js';
+export type {
+  CreateTaskEvidenceInput,
+  TaskEvidenceKind,
+  TaskEvidenceRow,
+} from '@/modules/database/repositories/task-evidence.db.js';
 export { sessionLegsDb } from '@/modules/database/repositories/session-legs.db.js';
 export type { LegRow } from '@/modules/database/repositories/session-legs.db.js';
 export { sessionRunFailuresDb } from '@/modules/database/repositories/session-run-failures.db.js';
