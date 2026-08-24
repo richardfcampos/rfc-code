@@ -60,6 +60,13 @@ import { tasksRoutes } from './modules/tasks/index.js';
 import { orgsRoutes } from './modules/orgs/index.js';
 import { agentBridgeRoutes, agentBridgeSessionTokenRoutes } from './modules/agent-bridge/index.js';
 import {
+    automationsRoutes,
+    automationsWebhookRoutes,
+    configureAutomationRuntimes,
+    startAutomations,
+    stopAutomations,
+} from './modules/automations/index.js';
+import {
     collabRoutes,
     configureCollabClaudeRuntime,
     failOrphanedCollaborations,
@@ -208,6 +215,13 @@ app.use('/api/tasks', authenticateToken, tasksRoutes);
 
 // Organizations: profile policy configuration and allow-list queries (protected)
 app.use('/api/orgs', authenticateToken, orgsRoutes);
+
+// Automations: managing rules is a user action (JWT), while an inbound webhook
+// authenticates with that automation's own secret instead — the sending system
+// holds no user JWT. The webhook path is mounted first so it is never captured
+// by the JWT-protected router below.
+app.use('/api/automations/webhook', automationsWebhookRoutes);
+app.use('/api/automations', authenticateToken, automationsRoutes);
 
 // Agent bridge: minting a session's bridge token is a user action (JWT), while
 // the tools an agent process calls authenticate with that token instead — agent
@@ -1634,6 +1648,18 @@ async function startServer() {
         // and no socket behind it, so it takes the SDK through the same seam.
         configureBtwRuntime(queryClaudeSDKOnce);
 
+        // An automation that prompts an agent starts a real session with no
+        // socket behind it, so it dispatches through the same provider runtimes
+        // the chat gateway uses. Configured before the engine starts: a rule
+        // that fires with no runtime wired would fail its attempts for nothing.
+        configureAutomationRuntimes({
+            claude: queryClaudeSDK,
+            cursor: spawnCursor,
+            codex: queryCodex,
+            opencode: spawnOpenCode,
+        });
+        startAutomations();
+
         // A cross-provider handoff whose history overflows the destination's
         // budget compresses its oldest turns the same detached way, so the
         // summary borrows the same one-shot entry point.
@@ -1722,6 +1748,14 @@ async function startServer() {
         await closeSessionsWatcher();
         // Clean up plugin processes on shutdown
         const shutdownRuntimeServices = async () => {
+            try {
+                // Stops the minute clock first: a tick that starts while the
+                // process is tearing down would spawn a run nothing is left to
+                // supervise.
+                stopAutomations();
+            } catch (err) {
+                console.error('[Automations] Error stopping the engine during shutdown:', err?.message || err);
+            }
             try {
                 await browserUseService.stopAllSessions();
             } catch (err) {
