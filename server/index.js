@@ -60,6 +60,7 @@ import { tasksRoutes } from './modules/tasks/index.js';
 import { orgsRoutes } from './modules/orgs/index.js';
 import { agentBridgeRoutes, agentBridgeSessionTokenRoutes } from './modules/agent-bridge/index.js';
 import { agentMessagesRoutes } from './modules/agent-messages/index.js';
+import { teamViewRoutes } from './modules/team-view/index.js';
 import {
     collabRoutes,
     configureCollabClaudeRuntime,
@@ -222,6 +223,10 @@ app.use('/api/agent-bridge', agentBridgeRoutes);
 // session is proven by its token; this surface only lets the UI read what the
 // agents are saying to each other.
 app.use('/api/agent-messages', authenticateToken, agentMessagesRoutes);
+
+// Team View, read-only (protected): one aggregation snapshot of running
+// sessions and their handoffs, composed from the sources above. No writes.
+app.use('/api/team-view', authenticateToken, teamViewRoutes);
 
 // Cursor API Routes (protected)
 app.use('/api/cursor', authenticateToken, cursorRoutes);
