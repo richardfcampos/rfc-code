@@ -64,6 +64,7 @@ const NAV_TABS: Array<{ id: AppTab; label: string; keywords: string }> = [
   { id: 'git', label: 'Go to Git', keywords: 'git diff branches' },
   { id: 'tasks', label: 'Go to Tasks', keywords: 'tasks taskmaster' },
   { id: 'board', label: 'Go to Board', keywords: 'board kanban tasks native' },
+  { id: 'reviews', label: 'Go to Reviews', keywords: 'review diff approve merge comments' },
 ];
 
 export default function CommandPalette({
