@@ -7,6 +7,8 @@
  * route implementation files.
  */
 
+import { createTaskDecompositionService } from '@/modules/tasks/services/task-decomposition.service.js';
+import { createTaskDecompositionRouter } from '@/modules/tasks/task-decomposition.routes.js';
 import { createTasksRouter } from '@/modules/tasks/tasks.routes.js';
 import { createTasksService, type TasksServiceDeps } from '@/modules/tasks/tasks.service.js';
 
@@ -18,4 +20,11 @@ const assertAssigneeAllowed: TasksServiceDeps['assertAssigneeAllowed'] = () => {
 
 export const tasksService = createTasksService({ assertAssigneeAllowed });
 
-export const tasksRoutes = createTasksRouter(tasksService);
+export const taskDecompositionService = createTaskDecompositionService();
+
+const router = createTasksRouter(tasksService);
+// Composed into the same router the entrypoint mounts, rather than a second
+// mount point: `/api/tasks/:id/subtasks` belongs to the task it hangs off.
+router.use(createTaskDecompositionRouter(taskDecompositionService));
+
+export const tasksRoutes = router;
