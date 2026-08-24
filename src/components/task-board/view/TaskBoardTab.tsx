@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { KanbanSquare } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -9,6 +9,7 @@ import { TASK_BOARD_COLUMNS } from '../utils/taskBoardStages';
 import type { Task, TaskStage } from '../types';
 
 import TaskBoardColumn from './TaskBoardColumn';
+import TaskDetailModal from './TaskDetailModal';
 
 type TaskBoardTabProps = {
   selectedProject: Project | null;
@@ -33,9 +34,15 @@ export default function TaskBoardTab({ selectedProject }: TaskBoardTabProps) {
   const { tasks, loadError, createTask, moveTask, deleteTask } = useTaskBoard(projectId);
   const [quickAddValue, setQuickAddValue] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [openTaskId, setOpenTaskId] = useState<string | null>(null);
   const quickAddRef = useRef<HTMLInputElement>(null);
 
   const tasksByStage = useMemo(() => groupByStage(tasks), [tasks]);
+
+  // A project switch invalidates any open task id from the previous board.
+  useEffect(() => {
+    setOpenTaskId(null);
+  }, [projectId]);
 
   if (!selectedProject) {
     return (
@@ -100,10 +107,20 @@ export default function TaskBoardTab({ selectedProject }: TaskBoardTabProps) {
               tasks={tasksByStage[column.stage]}
               onMove={(id, stage) => void moveTask(id, stage)}
               onDelete={(id) => void deleteTask(id)}
+              onOpen={setOpenTaskId}
             />
           ))}
         </div>
       </div>
+
+      {openTaskId && (
+        <TaskDetailModal
+          taskId={openTaskId}
+          onClose={() => setOpenTaskId(null)}
+          onMoveStage={moveTask}
+          onDeleteTask={deleteTask}
+        />
+      )}
     </div>
   );
 }

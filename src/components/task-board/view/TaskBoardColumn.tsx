@@ -10,9 +10,10 @@ type TaskBoardColumnProps = {
   tasks: Task[];
   onMove: (id: string, stage: TaskStage) => void;
   onDelete: (id: string) => void;
+  onOpen: (id: string) => void;
 };
 
-export default function TaskBoardColumn({ column, tasks, onMove, onDelete }: TaskBoardColumnProps) {
+export default function TaskBoardColumn({ column, tasks, onMove, onDelete, onOpen }: TaskBoardColumnProps) {
   const { t } = useTranslation('taskBoard');
 
   return (
@@ -36,7 +37,7 @@ export default function TaskBoardColumn({ column, tasks, onMove, onDelete }: Tas
           </p>
         ) : (
           tasks.map((task) => (
-            <TaskBoardCard key={task.id} task={task} onMove={onMove} onDelete={onDelete} />
+            <TaskBoardCard key={task.id} task={task} onMove={onMove} onDelete={onDelete} onOpen={onOpen} />
           ))
         )}
       </div>

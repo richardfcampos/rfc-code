@@ -27,5 +27,42 @@
   },
   "palette": {
     "createTask": "Criar task: \"{{query}}\""
+  },
+  "detail": {
+    "title": "Detalhe da task",
+    "loading": "Carregando task…",
+    "loadError": "Falha ao carregar esta task.",
+    "close": "Fechar",
+    "deleteFailed": "Falha ao excluir a task."
+  },
+  "description": {
+    "title": "Descrição",
+    "edit": "Editar",
+    "save": "Salvar",
+    "cancel": "Cancelar",
+    "placeholder": "Markdown suportado…",
+    "empty": "Nenhuma descrição ainda.",
+    "saveFailed": "Falha ao salvar a descrição."
+  },
+  "attachments": {
+    "title": "Anexos",
+    "upload": "Enviar",
+    "uploading": "Enviando…",
+    "empty": "Nenhum anexo ainda — arraste um arquivo aqui ou use Enviar.",
+    "download": "Baixar",
+    "downloadFailed": "Falha ao baixar o anexo.",
+    "delete": "Excluir",
+    "confirmDelete": "Excluir este anexo?",
+    "deleteFailed": "Falha ao excluir o anexo."
+  },
+  "evidence": {
+    "title": "Evidências",
+    "empty": "Nenhuma evidência registrada ainda.",
+    "notePlaceholder": "Adicionar uma nota…",
+    "linkPlaceholder": "Adicionar um link ou caminho de arquivo…",
+    "addFailed": "Falha ao adicionar evidência.",
+    "delete": "Excluir",
+    "confirmDelete": "Excluir esta evidência?",
+    "deleteFailed": "Falha ao excluir a evidência."
   }
 }

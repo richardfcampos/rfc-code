@@ -1,3 +1,4 @@
+import type { MouseEvent } from 'react';
 import { ChevronLeft, ChevronRight, GitBranch, Trash2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -13,14 +14,16 @@ type TaskBoardCardProps = {
   task: Task;
   onMove: (id: string, stage: TaskStage) => void;
   onDelete: (id: string) => void;
+  onOpen: (id: string) => void;
 };
 
-export default function TaskBoardCard({ task, onMove, onDelete }: TaskBoardCardProps) {
+export default function TaskBoardCard({ task, onMove, onDelete, onOpen }: TaskBoardCardProps) {
   const { t } = useTranslation('taskBoard');
   const prev = previousStage(task.stage);
   const next = nextStage(task.stage);
 
-  const handleDelete = () => {
+  const handleDelete = (event: MouseEvent) => {
+    event.stopPropagation();
     const confirmed = window.confirm(
       t('card.confirmDelete', { defaultValue: 'Delete this task?' }),
     );
@@ -30,7 +33,21 @@ export default function TaskBoardCard({ task, onMove, onDelete }: TaskBoardCardP
   };
 
   return (
-    <div className="group rounded-card border border-border bg-card p-3 shadow-sm transition-shadow duration-150 ease-out hover:shadow-md">
+    // The whole card opens the detail view; every interactive child below
+    // (move/delete buttons, stage select) stops propagation so it acts on
+    // itself instead of also triggering the open.
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={() => onOpen(task.id)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          onOpen(task.id);
+        }
+      }}
+      className="group cursor-pointer rounded-card border border-border bg-card p-3 shadow-sm transition-shadow duration-150 ease-out hover:shadow-md"
+    >
       <div className="flex items-start justify-between gap-2">
         <p className="min-w-0 flex-1 break-words text-sm font-medium leading-tight text-foreground">
           {task.title}
@@ -72,7 +89,12 @@ export default function TaskBoardCard({ task, onMove, onDelete }: TaskBoardCardP
             variant="outline"
             size="icon"
             disabled={!prev}
-            onClick={() => prev && onMove(task.id, prev)}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (prev) {
+                onMove(task.id, prev);
+              }
+            }}
             title={t('card.movePrevious', { defaultValue: 'Move to previous column' })}
             aria-label={t('card.movePrevious', { defaultValue: 'Move to previous column' })}
             className="h-6 w-6"
@@ -84,7 +106,12 @@ export default function TaskBoardCard({ task, onMove, onDelete }: TaskBoardCardP
             variant="outline"
             size="icon"
             disabled={!next}
-            onClick={() => next && onMove(task.id, next)}
+            onClick={(event) => {
+              event.stopPropagation();
+              if (next) {
+                onMove(task.id, next);
+              }
+            }}
             title={t('card.moveNext', { defaultValue: 'Move to next column' })}
             aria-label={t('card.moveNext', { defaultValue: 'Move to next column' })}
             className="h-6 w-6"
@@ -98,6 +125,7 @@ export default function TaskBoardCard({ task, onMove, onDelete }: TaskBoardCardP
         <select
           value={task.stage}
           onChange={(event) => onMove(task.id, event.target.value as TaskStage)}
+          onClick={(event) => event.stopPropagation()}
           aria-label={t('card.changeStage', { defaultValue: 'Change stage' })}
           className={cn(
             'h-7 rounded-ctl border border-input bg-card px-1.5 text-[11px] text-foreground',

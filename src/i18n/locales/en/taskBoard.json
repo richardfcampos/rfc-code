@@ -27,5 +27,42 @@
   },
   "palette": {
     "createTask": "Create task: \"{{query}}\""
+  },
+  "detail": {
+    "title": "Task detail",
+    "loading": "Loading task…",
+    "loadError": "Failed to load this task.",
+    "close": "Close",
+    "deleteFailed": "Failed to delete task."
+  },
+  "description": {
+    "title": "Description",
+    "edit": "Edit",
+    "save": "Save",
+    "cancel": "Cancel",
+    "placeholder": "Markdown supported…",
+    "empty": "No description yet.",
+    "saveFailed": "Failed to save description."
+  },
+  "attachments": {
+    "title": "Attachments",
+    "upload": "Upload",
+    "uploading": "Uploading…",
+    "empty": "No attachments yet — drop a file here or use Upload.",
+    "download": "Download",
+    "downloadFailed": "Failed to download attachment.",
+    "delete": "Delete",
+    "confirmDelete": "Delete this attachment?",
+    "deleteFailed": "Failed to delete attachment."
+  },
+  "evidence": {
+    "title": "Evidence",
+    "empty": "No evidence logged yet.",
+    "notePlaceholder": "Add a note…",
+    "linkPlaceholder": "Add a link or file path…",
+    "addFailed": "Failed to add evidence.",
+    "delete": "Delete",
+    "confirmDelete": "Delete this evidence entry?",
+    "deleteFailed": "Failed to delete evidence."
   }
 }
