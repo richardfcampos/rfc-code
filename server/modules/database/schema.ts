@@ -368,6 +368,37 @@ CREATE TABLE IF NOT EXISTS profile_fallback_audit (
 );
 `;
 
+export const TASK_REVIEWS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS task_reviews (
+    review_id TEXT PRIMARY KEY NOT NULL,
+    task_id TEXT NOT NULL,
+    -- 'open' and 'changes_requested' are both live states: the card is still
+    -- waiting on a human. 'approved' and 'closed' are terminal and drop the
+    -- review out of the queue.
+    state TEXT NOT NULL DEFAULT 'open'
+      CHECK (state IN ('open', 'approved', 'changes_requested', 'closed')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+);
+`;
+
+export const REVIEW_COMMENTS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS review_comments (
+    comment_id TEXT PRIMARY KEY NOT NULL,
+    review_id TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    -- NULL means the comment is about the file as a whole (or about the whole
+    -- review, when file_path is the empty string) rather than about one line.
+    line_no INTEGER,
+    body TEXT NOT NULL,
+    author TEXT NOT NULL CHECK (author IN ('user', 'agent')),
+    state TEXT NOT NULL DEFAULT 'open' CHECK (state IN ('open', 'resolved')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (review_id) REFERENCES task_reviews(review_id) ON DELETE CASCADE
+);
+`;
+
 export const INIT_SCHEMA_SQL = `
 -- Initialize authentication database
 PRAGMA foreign_keys = ON;
@@ -450,4 +481,14 @@ CREATE INDEX IF NOT EXISTS idx_task_evidence_task ON task_evidence(task_id);
 
 ${PROFILE_FALLBACK_AUDIT_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_profile_fallback_audit_org ON profile_fallback_audit(org_id, created_at);
+
+${TASK_REVIEWS_TABLE_SCHEMA_SQL}
+-- A task has at most one live review: re-entering the Review column reuses the
+-- existing thread instead of forking the comments across duplicates.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_task_reviews_live
+  ON task_reviews(task_id) WHERE state IN ('open', 'changes_requested');
+CREATE INDEX IF NOT EXISTS idx_task_reviews_state ON task_reviews(state, updated_at);
+
+${REVIEW_COMMENTS_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_review_comments_review ON review_comments(review_id, file_path);
 `;
