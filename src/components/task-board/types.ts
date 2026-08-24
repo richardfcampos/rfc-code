@@ -31,3 +31,34 @@ export interface TaskUpdateEvent {
   action: TaskUpdateAction;
   task: Task;
 }
+
+// Mirrors `server/modules/database/repositories/task-attachments.db.ts` and
+// `task-evidence.db.ts` — same "frontend keeps its own copy" convention as `Task` above.
+
+export interface TaskAttachment {
+  attachment_id: string;
+  task_id: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  stored_path: string;
+  created_at: string;
+}
+
+export type TaskEvidenceKind = 'note' | 'link' | 'attachment';
+
+export interface TaskEvidence {
+  evidence_id: string;
+  task_id: string;
+  kind: TaskEvidenceKind;
+  content: string;
+  attachment_id: string | null;
+  created_at: string;
+}
+
+/** Response body of `GET /api/tasks/:id` — the task plus its rich fields. */
+export interface TaskDetail {
+  task: Task;
+  attachments: TaskAttachment[];
+  evidence: TaskEvidence[];
+}
