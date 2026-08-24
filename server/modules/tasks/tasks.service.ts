@@ -19,6 +19,7 @@ import {
   type UpdateTaskInput,
 } from '@/modules/database/index.js';
 
+import { emitTaskStageChanged } from './task-stage-listeners.js';
 import {
   TaskAttachmentNotFoundError,
   TaskEvidenceNotFoundError,
@@ -202,6 +203,14 @@ async function updateTask(
   if (!updated) {
     throw new TaskNotFoundError(id);
   }
+
+  // Announced after the write and only on a real transition: a PATCH that
+  // resends the stage a task is already on is not an event, and whatever reacts
+  // to one must never see a change that did not reach the database.
+  if (fields.stage !== undefined && fields.stage !== existing.stage) {
+    emitTaskStageChanged({ task: updated, previousStage: existing.stage });
+  }
+
   return updated;
 }
 
