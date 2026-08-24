@@ -319,9 +319,34 @@ CREATE TABLE IF NOT EXISTS tasks (
     assignee_profile_id TEXT,
     suggested_skill TEXT,
     worktree_branch TEXT,
+    -- Set on a subtask: the task it was broken out of. Deleting the parent
+    -- takes its subtasks with it, because a subtask has no meaning on its own
+    -- (the board only ever shows it under the work it decomposes).
+    parent_task_id TEXT REFERENCES tasks(id) ON DELETE CASCADE,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (assignee_profile_id) REFERENCES profiles(id) ON DELETE SET NULL
+);
+`;
+
+/**
+ * Ordering constraints between tasks: `task_id` cannot start before
+ * `depends_on_task_id` is done.
+ *
+ * The pair is the primary key, so declaring the same edge twice is a no-op
+ * rather than a duplicate that would have to be de-duplicated on every read,
+ * and the CHECK stops a task from depending on itself — an edge that could
+ * never be satisfied and would silently park the task forever.
+ */
+export const TASK_DEPENDENCIES_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS task_dependencies (
+    task_id TEXT NOT NULL,
+    depends_on_task_id TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (task_id, depends_on_task_id),
+    CHECK (task_id <> depends_on_task_id),
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (depends_on_task_id) REFERENCES tasks(id) ON DELETE CASCADE
 );
 `;
 
@@ -482,4 +507,8 @@ CREATE INDEX IF NOT EXISTS idx_profile_fallback_audit_org ON profile_fallback_au
 ${AGENT_MESSAGES_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_agent_messages_inbox ON agent_messages(to_session_id, state);
 CREATE INDEX IF NOT EXISTS idx_agent_messages_outbox ON agent_messages(from_session_id, state);
+
+${TASK_DEPENDENCIES_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);
+CREATE INDEX IF NOT EXISTS idx_task_dependencies_depends_on ON task_dependencies(depends_on_task_id);
 `;
