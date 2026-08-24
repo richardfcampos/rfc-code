@@ -490,6 +490,16 @@ function handlePermissionResponse(data: AnyRecord, dependencies: ChatWebSocketDe
 }
 
 /**
+ * Handles `chat.ping`: a lightweight liveness probe the client sends after
+ * waking from background/sleep to tell a socket that still reports OPEN
+ * apart from a truly half-open one (TCP still "connected" from the OS's
+ * view, but the peer is gone). Carries no payload of its own.
+ */
+function handleChatPing(ws: WebSocket): void {
+  sendJson(ws, { kind: 'chat_pong', timestamp: new Date().toISOString() });
+}
+
+/**
  * Handles authenticated chat websocket messages used by the main chat panel.
  *
  * Inbound protocol (client to server):
@@ -497,11 +507,12 @@ function handlePermissionResponse(data: AnyRecord, dependencies: ChatWebSocketDe
  * - `chat.abort`               { sessionId }
  * - `chat.subscribe`           { sessions: [{ sessionId, lastSeq? }] }
  * - `chat.permission-response` { requestId, allow, updatedInput?, message?, rememberEntry? }
+ * - `chat.ping`                {}
  *
  * Outbound protocol (server to client): every frame is `kind`-based — either
  * a provider `NormalizedMessage` (with `seq`) or a gateway event
  * (`chat_subscribed`, `session_upserted`, `loading_progress`,
- * `protocol_error`).
+ * `protocol_error`, `chat_pong`).
  */
 export function handleChatConnection(
   ws: WebSocket,
@@ -535,6 +546,9 @@ export function handleChatConnection(
           return;
         case 'chat.permission-response':
           handlePermissionResponse(data, dependencies);
+          return;
+        case 'chat.ping':
+          handleChatPing(ws);
           return;
         default:
           sendProtocolError(ws, 'UNKNOWN_MESSAGE_TYPE', `Unknown message type "${messageType}".`);
