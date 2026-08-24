@@ -40,6 +40,8 @@ export default function ReviewDetailPanel({ reviewId, onResolved }: ReviewDetail
   const [diffError, setDiffError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isActing, setIsActing] = useState(false);
+  const [isRequestingChanges, setIsRequestingChanges] = useState(false);
+  const [changesDraft, setChangesDraft] = useState('');
 
   // A new review resets the file selection; the first file is a useful default.
   useEffect(() => {
@@ -99,11 +101,13 @@ export default function ReviewDetailPanel({ reviewId, onResolved }: ReviewDetail
   };
 
   const handleRequestChanges = async () => {
-    const summary = window.prompt('What should the agent change?') ?? '';
+    const summary = changesDraft.trim();
     setIsActing(true);
     try {
       const result = await requestChanges(summary);
       setNotice(summary ? describeRouting(result.routing) : 'Changes requested.');
+      setChangesDraft('');
+      setIsRequestingChanges(false);
       onResolved();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Could not request changes');
@@ -137,7 +141,12 @@ export default function ReviewDetailPanel({ reviewId, onResolved }: ReviewDetail
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Button size="sm" variant="outline" disabled={isActing || isReadOnly} onClick={() => void handleRequestChanges()}>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={isActing || isReadOnly}
+            onClick={() => setIsRequestingChanges((open) => !open)}
+          >
             <RotateCcw className="mr-1 h-3.5 w-3.5" />
             Request changes
           </Button>
@@ -147,6 +156,25 @@ export default function ReviewDetailPanel({ reviewId, onResolved }: ReviewDetail
           </Button>
         </div>
       </header>
+
+      {isRequestingChanges && (
+        <div className="flex items-start gap-2 border-b border-border bg-card p-3">
+          <textarea
+            autoFocus
+            rows={2}
+            value={changesDraft}
+            placeholder="What should the agent change? (optional — sent to its session)"
+            onChange={(event) => setChangesDraft(event.target.value)}
+            className="min-w-0 flex-1 resize-y rounded-ctl border border-border bg-background px-2 py-1.5 text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          <Button size="sm" disabled={isActing} onClick={() => void handleRequestChanges()}>
+            Send
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setIsRequestingChanges(false)}>
+            Cancel
+          </Button>
+        </div>
+      )}
 
       {notice && (
         <p className="border-b border-border bg-card px-3 py-2 text-xs text-muted-foreground">
