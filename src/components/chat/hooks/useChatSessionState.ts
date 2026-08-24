@@ -7,6 +7,10 @@ import type { Project, ProjectSession, LLMProvider } from '../../../types/app';
 import type { SessionStore, NormalizedMessage } from '../../../stores/useSessionStore';
 import type { ChatMessage } from '../types/types';
 import { createCachedDiffCalculator, type DiffCalculator } from '../utils/messageTransforms';
+import {
+  shouldRefreshTranscriptAfterRunEnd,
+  type ProcessingTransition,
+} from '../utils/run-end-transcript-refresh';
 
 import { normalizedToChatMessages } from './useChatMessages';
 
@@ -27,6 +31,8 @@ interface UseChatSessionStateArgs {
   statusCheckSentAtRef: MutableRefObject<Map<string, number>>;
   /** Highest live seq observed per session; sent as `lastSeq` on subscribe. */
   lastSeqRef: MutableRefObject<Map<string, number>>;
+  /** When each session's terminal `complete` last arrived over the socket. */
+  completeReceivedAtRef: MutableRefObject<Map<string, number>>;
   sessionStore: SessionStore;
 }
 
@@ -105,6 +111,7 @@ export function useChatSessionState({
   resetStreamingState,
   statusCheckSentAtRef,
   lastSeqRef,
+  completeReceivedAtRef,
   sessionStore,
 }: UseChatSessionStateArgs) {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(selectedSession?.id || null);
@@ -222,6 +229,33 @@ export function useChatSessionState({
   // every activity transition.
   const processingSessionsRef = useRef(processingSessions);
   processingSessionsRef.current = processingSessions;
+
+  // A run whose terminal `complete` frame never reached this client (socket
+  // died half-open, page reloaded, server restarted) is only noticed when the
+  // running-sessions poll prunes it from the processing map; refetch then so
+  // the persisted failure row or final answer shows instead of a silent stop.
+  const prevProcessingRef = useRef<ProcessingTransition>({
+    sessionId: null,
+    wasProcessing: false,
+  });
+  useEffect(() => {
+    const previous = prevProcessingRef.current;
+    prevProcessingRef.current = { sessionId: activeSessionId, wasProcessing: isProcessing };
+
+    const refreshNeeded = shouldRefreshTranscriptAfterRunEnd({
+      previous,
+      sessionId: activeSessionId,
+      isProcessing,
+      completeReceivedAt: activeSessionId
+        ? completeReceivedAtRef.current.get(activeSessionId)
+        : undefined,
+      now: Date.now(),
+    });
+
+    if (refreshNeeded && activeSessionId) {
+      void sessionStore.refreshFromServer(activeSessionId);
+    }
+  }, [activeSessionId, isProcessing, completeReceivedAtRef, sessionStore]);
 
   /* ---------------------------------------------------------------- */
   /*  Derive chatMessages from the store                              */

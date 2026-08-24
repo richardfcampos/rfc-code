@@ -58,6 +58,11 @@ const TOOLS_REQUIRING_INTERACTION = new Set(['AskUserQuestion', 'ExitPlanMode'])
 // seconds; anything longer is a hung subprocess holding an HTTP request open.
 const EPHEMERAL_QUERY_TIMEOUT_MS = 60000;
 
+// Grace the CLI gives a silent stream before closing it. Generous on purpose:
+// a single tool call (a long build, a slow MCP server) routinely outlives the
+// one-minute default, and hitting it tears the run down mid-turn.
+const STREAM_CLOSE_TIMEOUT_MS = 300000;
+
 function resolveClaudeEffort(model, effort, modelsDefinition = CLAUDE_FALLBACK_MODELS) {
   const selectedModel = modelsDefinition?.OPTIONS?.find((option) => option.value === model) || null;
   const allowedEfforts = selectedModel?.effort?.values
@@ -183,6 +188,17 @@ function mapCliOptionsToSDK(options = {}) {
   // Forward all host env vars (e.g. ANTHROPIC_BASE_URL) to the subprocess.
   // Since SDK 0.2.113, options.env replaces process.env instead of overlaying it.
   sdkOptions.env = { ...process.env };
+
+  // How long the CLI waits on a stream that has produced nothing before closing
+  // it. The default is a minute, which cuts off tool calls that legitimately run
+  // longer. Because options.env replaces process.env for the subprocess, this
+  // has to be set here: setting it on this process would never reach the CLI,
+  // and mutating the shared process environment around a query construction
+  // races every other run starting at the same moment. An explicit host value
+  // wins — the operator asked for it.
+  if (!sdkOptions.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT) {
+    sdkOptions.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT = String(STREAM_CLOSE_TIMEOUT_MS);
+  }
 
   // Redirect the Claude CLI at this profile's isolated config directory
   // (CLAUDE_CONFIG_DIR) so parallel sessions on different accounts never share
@@ -692,10 +708,6 @@ async function queryClaudeSDK(command, options = {}, ws) {
       return { behavior: 'deny', message: decision.message ?? 'User denied tool use' };
     };
 
-    // Query constructor reads this synchronously.
-    const prevStreamTimeout = process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT;
-    process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT = '300000';
-
     let queryInstance;
     try {
       queryInstance = query({
@@ -711,13 +723,6 @@ async function queryClaudeSDK(command, options = {}, ws) {
         prompt: await createPrompt(),
         options: sdkOptions
       });
-    }
-
-    // Restore immediately — Query constructor already captured the value
-    if (prevStreamTimeout !== undefined) {
-      process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT = prevStreamTimeout;
-    } else {
-      delete process.env.CLAUDE_CODE_STREAM_CLOSE_TIMEOUT;
     }
 
     // Track the query instance for abort capability

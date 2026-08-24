@@ -16,7 +16,7 @@ import Database from 'better-sqlite3';
 
 import { AppError, WORKSPACES_ROOT, getOpenCodeDatabasePath, validateWorkspacePath } from '@/shared/utils.js';
 import { closeSessionsWatcher, initializeSessionsWatcher } from '@/modules/providers/index.js';
-import { createWebSocketServer } from '@/modules/websocket/index.js';
+import { chatRunRegistry, createWebSocketServer } from '@/modules/websocket/index.js';
 
 import { getConnectableHost } from '../shared/networkHosts.js';
 
@@ -80,7 +80,7 @@ import { assetsRoutes } from './modules/assets/index.js';
 import browserUseMcpRoutes from './modules/browser-use/browser-use-mcp.routes.js';
 import { browserUseService } from './modules/browser-use/browser-use.service.js';
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
-import { initializeDatabase, projectsDb, sessionsDb } from './modules/database/index.js';
+import { initializeDatabase, projectsDb, sessionRunFailuresDb, sessionsDb } from './modules/database/index.js';
 import { configureWebPush } from './services/vapid-keys.js';
 import { validateApiKey, authenticateToken, authenticateWebSocket, assertTrustedModeBindIsSafe, seedTrustedModeUser } from './middleware/auth.js';
 import { IS_PLATFORM } from './constants/config.js';
@@ -1647,6 +1647,15 @@ async function startServer() {
             console.log(`[Collab] Closed ${orphanedCollaborations} collaboration(s) left running by a restart`);
         }
 
+        // An agent run is tracked in memory and dies with its process. A crash or
+        // a kill signal leaves no terminal event and no explanation, so the runs
+        // the last process was still serving are turned into recorded failures
+        // before any client can ask for that session's history.
+        const interruptedRuns = chatRunRegistry.recordRunsInterruptedByCrash();
+        if (interruptedRuns > 0) {
+            console.log(`[Sessions] Recorded ${interruptedRuns} run(s) cut off when the server went down`);
+        }
+
         // Sessions recorded before worktrees were a per-session concern are
         // still grouped under the worktree directory they ran in, which hides
         // them from the repository they belong to. One-shot pass, guarded by
@@ -1721,7 +1730,30 @@ async function startServer() {
 
         await closeSessionsWatcher();
         // Clean up plugin processes on shutdown
+        let runtimeShutdownStarted = false;
         const shutdownRuntimeServices = async () => {
+            // A second SIGINT/SIGTERM while the first shutdown awaits would
+            // re-enter and record duplicate failure rows.
+            if (runtimeShutdownStarted) {
+                return;
+            }
+            runtimeShutdownStarted = true;
+
+            // In-flight agent runs die with this process (their child processes
+            // share the service cgroup), and no terminal `complete` will ever be
+            // emitted for them. Record why each one stopped so the session's
+            // history can explain it instead of the run just looking abandoned.
+            for (const run of chatRunRegistry.listRunningRuns()) {
+                try {
+                    sessionRunFailuresDb.recordFailure({
+                        sessionId: run.sessionId,
+                        provider: run.provider,
+                        errorMessage: 'The server was stopped while this run was in progress.',
+                    });
+                } catch (err) {
+                    console.error(`[Sessions] Error recording interrupted run ${run.sessionId} during shutdown:`, err?.message || err);
+                }
+            }
             try {
                 await browserUseService.stopAllSessions();
             } catch (err) {
@@ -1741,6 +1773,14 @@ async function startServer() {
         };
         process.on('SIGTERM', () => void shutdownRuntimeServices());
         process.on('SIGINT', () => void shutdownRuntimeServices());
+
+        // Node's default since v15 turns any unhandled rejection into a crash,
+        // which takes every in-flight agent run down with the process. Each
+        // run already has its own error handling; one stray background promise
+        // must not kill unrelated sessions.
+        process.on('unhandledRejection', (reason) => {
+            console.error('[ERROR] Unhandled promise rejection:', reason);
+        });
     } catch (error) {
         console.error('[ERROR] Failed to start server:', error);
         process.exit(1);

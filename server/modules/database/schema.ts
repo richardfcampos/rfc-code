@@ -249,6 +249,18 @@ CREATE TABLE IF NOT EXISTS session_run_failures (
 );
 `;
 
+export const ACTIVE_SESSION_RUNS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS active_session_runs (
+    -- One row per session: a session can only have one run in flight at a time.
+    session_id TEXT PRIMARY KEY,
+    provider TEXT NOT NULL,
+    -- ISO timestamp, written when the run starts. The boot sweep compares it
+    -- against the session's recorded failures to tell a run that was already
+    -- explained (a graceful shutdown wrote its row) from one that was not.
+    started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
 export const LAST_SCANNED_AT_SQL = `
 CREATE TABLE IF NOT EXISTS scan_state (
   id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -426,6 +438,7 @@ ${SESSION_RUN_FAILURES_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_session_run_failures_session
   ON session_run_failures(session_id, failed_at);
 
+${ACTIVE_SESSION_RUNS_TABLE_SCHEMA_SQL}
 ${LAST_SCANNED_AT_SQL}
 
 ${APP_CONFIG_TABLE_SCHEMA_SQL}

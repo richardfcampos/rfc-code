@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { Database } from 'better-sqlite3';
 
 import {
+  ACTIVE_SESSION_RUNS_TABLE_SCHEMA_SQL,
   APP_CONFIG_TABLE_SCHEMA_SQL,
   COLLABORATIONS_TABLE_SCHEMA_SQL,
   COLLABORATION_TURNS_TABLE_SCHEMA_SQL,
@@ -843,6 +844,8 @@ export const runMigrations = (db: Database) => {
       CREATE INDEX IF NOT EXISTS idx_session_run_failures_session
       ON session_run_failures(session_id, failed_at)
     `);
+
+    db.exec(ACTIVE_SESSION_RUNS_TABLE_SCHEMA_SQL);
 
     db.exec(LAST_SCANNED_AT_SQL);
 
