@@ -239,6 +239,31 @@ test('listReady walks the chain as subtasks finish', async () => {
   });
 });
 
+test('listBlockers names the unfinished tasks a subtask waits on', async () => {
+  await withService((service) => {
+    const parent = createParent();
+    const { subtasks } = service.decompose(parent.id, {
+      subtasks: [{ title: 'First' }, { title: 'Second', dependsOn: [0] }],
+    });
+
+    assert.deepEqual(service.listBlockers(subtasks[0].id), []);
+    assert.deepEqual(
+      service.listBlockers(subtasks[1].id).map((task) => task.id),
+      [subtasks[0].id],
+    );
+
+    tasksDb.update(subtasks[0].id, { stage: 'done' });
+    assert.deepEqual(service.listBlockers(subtasks[1].id), []);
+  });
+});
+
+test('listBlockers on a task with no dependencies at all is empty, not an error', async () => {
+  await withService((service) => {
+    const parent = createParent();
+    assert.deepEqual(service.listBlockers(parent.id), []);
+  });
+});
+
 test('listReady on an unknown parent is a 404, not an empty list', async () => {
   await withService((service) => {
     const error = expectAppError(() => service.listReady('missing-task'));

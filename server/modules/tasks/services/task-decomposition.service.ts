@@ -36,18 +36,20 @@ export type TaskDecompositionService = {
   decompose(parentTaskId: unknown, body: DecomposeRequestBody): TaskDecomposition;
   getDecomposition(parentTaskId: unknown): TaskDecomposition;
   listReady(parentTaskId: unknown): SubtaskRow[];
+  /** Unfinished tasks this one waits on; empty means it is safe to hand out. */
+  listBlockers(taskId: unknown): SubtaskRow[];
 };
 
-function requireParent(rawParentTaskId: unknown): SubtaskRow {
-  const parentTaskId = requireTaskId(rawParentTaskId);
+function requireTask(rawTaskId: unknown): SubtaskRow {
+  const taskId = requireTaskId(rawTaskId);
   // Read through the decomposition repository rather than the plain task one:
   // the parent link is what tells a nested decomposition apart from a top-level
   // task, and it is not part of the flat task projection.
-  const parent = taskDependenciesDb.get(parentTaskId);
-  if (!parent) {
-    throw new TaskNotFoundError(parentTaskId);
+  const task = taskDependenciesDb.get(taskId);
+  if (!task) {
+    throw new TaskNotFoundError(taskId);
   }
-  return parent;
+  return task;
 }
 
 /**
@@ -156,7 +158,7 @@ function decompose(
   rawParentTaskId: unknown,
   body: DecomposeRequestBody,
 ): TaskDecomposition {
-  const parent = requireParent(rawParentTaskId);
+  const parent = requireTask(rawParentTaskId);
   if (parent.parent_task_id) {
     // One level only: a subtask of a subtask has no owner in the board's model,
     // and a maestro that nests loses track of what "all subtasks done" means.
@@ -191,7 +193,10 @@ function readDecomposition(parent: SubtaskRow): TaskDecomposition {
 export function createTaskDecompositionService(): TaskDecompositionService {
   return {
     decompose: (parentTaskId, body) => decompose(parentTaskId, body),
-    getDecomposition: (parentTaskId) => readDecomposition(requireParent(parentTaskId)),
-    listReady: (parentTaskId) => taskDependenciesDb.listReady(requireParent(parentTaskId).id),
+    getDecomposition: (parentTaskId) => readDecomposition(requireTask(parentTaskId)),
+    listReady: (parentTaskId) => taskDependenciesDb.listReady(requireTask(parentTaskId).id),
+    // `requireTask` here only asserts the task exists — a task with no
+    // subtasks of its own is a perfectly valid thing to ask about.
+    listBlockers: (taskId) => taskDependenciesDb.listBlockers(requireTask(taskId).id),
   };
 }

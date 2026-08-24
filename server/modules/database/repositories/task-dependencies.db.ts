@@ -165,6 +165,24 @@ export const taskDependenciesDb = {
       .all(parentTaskId) as SubtaskRow[];
   },
 
+  /**
+   * The tasks this one waits on that are not done yet.
+   *
+   * Empty for a task with no dependencies, which is what makes it a safe check
+   * to run before handing any task to somebody.
+   */
+  listBlockers(taskId: string): SubtaskRow[] {
+    return getConnection()
+      .prepare(
+        `SELECT ${qualify('blocker', SUBTASK_COLUMNS)}
+         FROM task_dependencies d
+         JOIN tasks blocker ON blocker.id = d.depends_on_task_id
+         WHERE d.task_id = ? AND blocker.stage <> 'done'
+         ORDER BY datetime(blocker.created_at), blocker.rowid`,
+      )
+      .all(taskId) as SubtaskRow[];
+  },
+
   get(taskId: string): SubtaskRow | null {
     const row = getConnection()
       .prepare(`SELECT ${SUBTASK_COLUMNS} FROM tasks WHERE id = ?`)

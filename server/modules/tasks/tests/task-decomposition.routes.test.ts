@@ -67,6 +67,9 @@ function createFakeService(overrides: Partial<TaskDecompositionService> = {}): T
     listReady: () => {
       throw new Error('Unexpected listReady call');
     },
+    listBlockers: () => {
+      throw new Error('Unexpected listBlockers call');
+    },
     ...overrides,
   };
 }
