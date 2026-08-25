@@ -54,6 +54,13 @@ export type {
   CreateTaskAttachmentInput,
   TaskAttachmentRow,
 } from '@/modules/database/repositories/task-attachments.db.js';
+export { taskDependenciesDb } from '@/modules/database/repositories/task-dependencies.db.js';
+export type {
+  CreateDecompositionInput,
+  SubtaskDraft,
+  SubtaskRow,
+  TaskDependencyRow,
+} from '@/modules/database/repositories/task-dependencies.db.js';
 export { taskEvidenceDb } from '@/modules/database/repositories/task-evidence.db.js';
 export type {
   CreateTaskEvidenceInput,

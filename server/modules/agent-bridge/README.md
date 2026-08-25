@@ -21,6 +21,9 @@ agent process ──stdio──▶ server/agent-bridge-mcp.ts ──HTTP──�
 | `task_update_description` | `taskId`, `description` | Sets a task's markdown description |
 | `task_assign` | `taskId`, `profileId` | Assigns an account profile, refused (403) when org policy denies it |
 | `task_evidence_add` | `taskId`, `kind` (`note`\|`link`), `content` | Appends a work-log entry to the task. Attachment upload is out of scope for the bridge — an agent that wants to reference a file logs `kind: 'link'` with the file path as `content` instead |
+| `task_decompose` | `parentTaskId`, `subtasks: [{ title, description?, skill?, dependsOn?: number[] }]` | Creates the whole plan under a parent atomically. `dependsOn` holds positions in the same array; out-of-range indices, self-references and cycles are refused, and a rejected plan writes nothing |
+| `task_ready_list` | `parentTaskId` | Subtasks that can start now: still in `backlog`, every dependency `done` |
+| `task_delegate` | `taskId`, `toSessionId?`, `profileId?` | Assigns the task and queues a handoff describing it. An omitted `profileId` comes from `profile_recommend`'s engine and the choice is logged as evidence; a named one is checked against org policy first. Refused while the task still has unfinished dependencies |
 | `message_send` | `toSessionId`, `subject`, `body`, `replyToMessageId?` | Queues a handoff message in another session's inbox |
 | `message_list` | `box?` (`inbox`\|`outbox`, default `inbox`), `state?` | Lists the caller's mailbox. **Listing the inbox is the delivery event** — the `queued` messages it returns come back `delivered` |
 | `message_ack` | `messageId` | Marks a delivered message `acknowledged`: "I have this, I am working on it" |
@@ -41,6 +44,20 @@ refused (`AGENT_MESSAGE_RECIPIENT_UNKNOWN`) instead of queued forever.
 
 See `server/modules/agent-messages/README.md` for the message state machine and
 the reasoning behind pull-based delivery.
+
+## Maestro loop
+
+`task_decompose` → `task_ready_list` → `task_delegate` → `message_list` is one
+loop, and the three maestro tools exist so a leader session can run it without
+holding the plan in its own context: the board *is* the plan, and a leader that
+dies mid-flight can be replaced by one that reads the same three answers.
+
+`task_delegate` writes two things on purpose — the assignment and the handoff —
+because either alone goes unnoticed: an assignment nobody is told about, or a
+message about work that is formally nobody's. It settles the profile before it
+writes anything, so a policy refusal leaves the board untouched; if the *message*
+fails (a worker that has since died), the assignment stands and delegating the
+same task to somebody else is the recovery, with no cleanup first.
 
 ## Token
 

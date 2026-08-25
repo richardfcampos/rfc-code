@@ -14,21 +14,23 @@
  */
 
 import type { AgentMessageAnswer } from '@/modules/agent-messages/index.js';
-import type { AgentMessageRow, TaskEvidenceRow, TaskRow, TaskStage } from '@/modules/database/index.js';
-import type { LLMProvider } from '@/shared/types.js';
+import type { AgentMessageRow, TaskEvidenceRow, TaskRow } from '@/modules/database/index.js';
 
+import { AgentBridgeUnknownToolError, AgentBridgeValidationError } from './agent-bridge.errors.js';
 import {
-  AgentBridgeTaskNotFoundError,
-  AgentBridgeUnknownToolError,
-  AgentBridgeValidationError,
-} from './agent-bridge.errors.js';
+  isMaestroToolName,
+  MAESTRO_TOOL_NAMES,
+  runMaestroTool,
+} from './agent-bridge.maestro.tools.js';
+import {
+  readEvidenceKind,
+  readOptionalProvider,
+  readOptionalString,
+  readRequiredString,
+  readStage,
+  requireTaskInScope,
+} from './agent-bridge.tool-input.js';
 import type { AgentBridgeSessionScope, AgentBridgeToolDeps } from './agent-bridge.types.js';
-
-const TASK_STAGES: readonly TaskStage[] = ['backlog', 'in_progress', 'review', 'done'];
-const PROVIDERS: readonly LLMProvider[] = ['claude', 'codex', 'cursor', 'opencode'];
-/** Attachment upload is out of scope for the bridge; agents log a file path as a link instead. */
-const AGENT_EVIDENCE_KINDS = ['note', 'link'] as const;
-type AgentEvidenceKind = (typeof AGENT_EVIDENCE_KINDS)[number];
 
 /** Which side of its mailbox a session is asking for. */
 const MESSAGE_BOXES = ['inbox', 'outbox'] as const;
@@ -41,77 +43,13 @@ export const AGENT_BRIDGE_TOOL_NAMES = [
   'task_update_description',
   'task_assign',
   'task_evidence_add',
+  ...MAESTRO_TOOL_NAMES,
   'message_send',
   'message_list',
   'message_ack',
   'message_answer',
   'profile_recommend',
 ] as const;
-
-function readRequiredString(value: unknown, field: string): string {
-  const text = typeof value === 'string' ? value.trim() : '';
-  if (!text) {
-    throw new AgentBridgeValidationError(`${field} is required.`);
-  }
-  return text;
-}
-
-function readOptionalString(value: unknown, field: string): string | undefined {
-  if (value === undefined || value === null) {
-    return undefined;
-  }
-  if (typeof value !== 'string') {
-    throw new AgentBridgeValidationError(`${field} must be a string.`);
-  }
-  const text = value.trim();
-  return text.length > 0 ? text : undefined;
-}
-
-function readStage(value: unknown, field: string): TaskStage {
-  const stage = readRequiredString(value, field);
-  if (!TASK_STAGES.includes(stage as TaskStage)) {
-    throw new AgentBridgeValidationError(`${field} must be one of: ${TASK_STAGES.join(', ')}`);
-  }
-  return stage as TaskStage;
-}
-
-function readEvidenceKind(value: unknown, field: string): AgentEvidenceKind {
-  const kind = readRequiredString(value, field);
-  if (!AGENT_EVIDENCE_KINDS.includes(kind as AgentEvidenceKind)) {
-    throw new AgentBridgeValidationError(`${field} must be one of: ${AGENT_EVIDENCE_KINDS.join(', ')}`);
-  }
-  return kind as AgentEvidenceKind;
-}
-
-function readOptionalProvider(value: unknown): LLMProvider | undefined {
-  const provider = readOptionalString(value, 'provider');
-  if (provider === undefined) {
-    return undefined;
-  }
-  if (!PROVIDERS.includes(provider as LLMProvider)) {
-    throw new AgentBridgeValidationError(`provider must be one of: ${PROVIDERS.join(', ')}`);
-  }
-  return provider as LLMProvider;
-}
-
-/**
- * Resolves a task id inside the caller's project.
- *
- * The board is listed per project, so this doubles as the authorization check
- * that keeps one session's token from moving or assigning another project's
- * tasks: an id outside the scope is reported as "not found".
- */
-function requireTaskInScope(
-  deps: AgentBridgeToolDeps,
-  scope: AgentBridgeSessionScope,
-  taskId: string,
-): TaskRow {
-  const task = deps.tasks.listTasks(scope.projectName).find((row) => row.id === taskId);
-  if (!task) {
-    throw new AgentBridgeTaskNotFoundError(taskId);
-  }
-  return task;
-}
 
 async function taskCreate(
   input: Record<string, unknown>,
@@ -300,6 +238,12 @@ export async function runAgentBridgeTool(
   scope: AgentBridgeSessionScope,
   deps: AgentBridgeToolDeps,
 ): Promise<unknown> {
+  // The maestro tools live in their own dispatch: they are one loop of their
+  // own (plan → what is ready → hand it out) rather than more single-task CRUD.
+  if (isMaestroToolName(toolName)) {
+    return runMaestroTool(toolName, input, scope, deps);
+  }
+
   switch (toolName) {
     case 'task_create':
       return taskCreate(input, scope, deps);

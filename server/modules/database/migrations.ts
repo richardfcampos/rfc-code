@@ -24,6 +24,7 @@ import {
   SESSION_RUN_FAILURES_TABLE_SCHEMA_SQL,
   SESSIONS_TABLE_SCHEMA_SQL,
   TASK_ATTACHMENTS_TABLE_SCHEMA_SQL,
+  TASK_DEPENDENCIES_TABLE_SCHEMA_SQL,
   TASK_EVIDENCE_TABLE_SCHEMA_SQL,
   TASK_REVIEWS_TABLE_SCHEMA_SQL,
   TASKS_TABLE_SCHEMA_SQL,
@@ -776,6 +777,38 @@ const createAgentMessagesInbox = (db: Database): void => {
   db.exec('CREATE INDEX IF NOT EXISTS idx_agent_messages_outbox ON agent_messages(from_session_id, state)');
 };
 
+/**
+ * Task decomposition: `tasks.parent_task_id` plus the `task_dependencies` edges.
+ *
+ * Self-contained and idempotent — the column is added only when missing, the
+ * table and both indexes are created with IF NOT EXISTS, and no existing row is
+ * rewritten, so re-running this on an installation that already decomposes
+ * tasks is a no-op. SQLite accepts a REFERENCES clause on ADD COLUMN as long as
+ * the new column defaults to NULL, which every pre-existing task keeps: a task
+ * nobody broke down is simply a task with no parent.
+ */
+const createTaskDecomposition = (db: Database): void => {
+  const taskColumns = (db.prepare('PRAGMA table_info(tasks)').all() as { name: string }[]).map(
+    (column) => column.name,
+  );
+  addColumnToTableIfNotExists(
+    db,
+    'tasks',
+    taskColumns,
+    'parent_task_id',
+    'TEXT REFERENCES tasks(id) ON DELETE CASCADE',
+  );
+  db.exec('CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id)');
+
+  db.exec(TASK_DEPENDENCIES_TABLE_SCHEMA_SQL);
+  // The pair primary key already indexes lookups by dependent task; this covers
+  // the other direction, which is what the "is everything I wait on done?"
+  // query walks.
+  db.exec(
+    'CREATE INDEX IF NOT EXISTS idx_task_dependencies_depends_on ON task_dependencies(depends_on_task_id)',
+  );
+};
+
 export const runMigrations = (db: Database) => {
   try {
     const usersTableInfo = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
@@ -900,6 +933,7 @@ export const runMigrations = (db: Database) => {
     `);
 
     createAgentMessagesInbox(db);
+    createTaskDecomposition(db);
 
     db.exec(TASK_REVIEWS_TABLE_SCHEMA_SQL);
     // At most one live review per task, enforced by the database so a racing
