@@ -9,6 +9,8 @@ import { Badge } from '../../../../shared/view/ui';
 import { Markdown } from '../../../chat/view/subcomponents/Markdown';
 import type { CollaborationTurn } from '../../types';
 
+import CollabTurnContract from './CollabTurnContract';
+
 function ConsensusBadge({ consensus }: { consensus: boolean | null }) {
   const { t } = useTranslation('collab');
 
@@ -72,6 +74,12 @@ export default function CollabTurnCard({ turn }: { turn: CollaborationTurn }) {
       <Markdown className="prose prose-sm max-w-none font-serif dark:prose-invert">
         {turn.content}
       </Markdown>
+
+      {/* Council turns only; every other mode leaves `contract` null and reads
+          exactly as it did before councils existed. */}
+      {turn.contract && (
+        <CollabTurnContract contract={turn.contract} contractError={turn.contractError} />
+      )}
     </div>
   );
 }

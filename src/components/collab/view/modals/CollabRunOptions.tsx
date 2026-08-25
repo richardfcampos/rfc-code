@@ -12,6 +12,7 @@ const MODE_HINTS: Record<CollabMode, string> = {
   debate: 'Both accounts see the whole transcript and argue until they agree.',
   review: 'One account writes, the other critiques — exactly two participants.',
   vote: 'Everyone answers the same question blind; a single round, then a verdict.',
+  council: 'Every answer must state its evidence, risks, tests and confidence; the run ends with a summary of what was agreed and what is still disputed.',
 };
 
 type CollabRunOptionsProps = {

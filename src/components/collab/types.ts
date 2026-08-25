@@ -5,7 +5,13 @@
 import { DEFAULT_EFFORT_VALUE } from '../chat/constants/providerEffort';
 import type { LLMProvider } from '../../types/app';
 
-export const COLLAB_MODES = ['debate', 'review', 'vote'] as const;
+import type { CouncilContract, CouncilSummary } from './council-types';
+
+// `council` is the generalized mode: participants answer under the
+// evidence/risk/test/disagreement/confidence contract, and the run ends with a
+// computed summary. The other three predate it and keep their own
+// prose-and-consensus protocol untouched.
+export const COLLAB_MODES = ['debate', 'review', 'vote', 'council'] as const;
 export type CollabMode = (typeof COLLAB_MODES)[number];
 
 export const COLLAB_STATUSES = ['running', 'converged', 'exhausted', 'stopped', 'failed'] as const;
@@ -39,6 +45,9 @@ export interface CollaborationSummary {
   participants: CollabParticipant[];
   verdict: string | null;
   error: string | null;
+  // Computed from the stored council contracts when the run ends; null while it
+  // is still going, and on every run of the three modes that carry no contract.
+  summary: CouncilSummary | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -54,6 +63,12 @@ export interface CollaborationTurn {
   // null means the turn carried no parsable consensus signal, which is not the
   // same as an explicit "no".
   consensus: boolean | null;
+  // The council contract this turn stated. null on every non-council turn and
+  // on a council turn that answered with nothing parsable — `content` always
+  // holds the raw answer either way.
+  contract: CouncilContract | null;
+  // Why the contract could not be read in full, when it could not.
+  contractError: string | null;
   error: string | null;
   createdAt: string;
 }

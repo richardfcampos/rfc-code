@@ -12,6 +12,7 @@ import { useCollaborationDetail } from '../hooks/useCollaborations';
 import type { CollaborationTurn } from '../types';
 
 import StartSessionModal from './modals/StartSessionModal';
+import CollabCouncilSummary from './subcomponents/CollabCouncilSummary';
 import CollabStatusBadge from './subcomponents/CollabStatusBadge';
 import CollabTurnCard from './subcomponents/CollabTurnCard';
 
@@ -138,6 +139,10 @@ export default function CollabDetail({ collaborationId, onBack }: CollabDetailPr
             </Button>
           </div>
         )}
+
+        {/* Council runs only, and only once they end: the summary is computed
+            from the stored contracts when the round loop closes. */}
+        {collaboration?.summary && <CollabCouncilSummary summary={collaboration.summary} />}
 
         {rounds.map(({ round, turns }) => (
           <div key={round} className="space-y-2">
