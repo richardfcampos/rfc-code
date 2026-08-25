@@ -628,6 +628,5 @@ ${REVIEW_COMMENTS_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_review_comments_review ON review_comments(review_id, file_path);
 
 ${TASK_DEPENDENCIES_TABLE_SCHEMA_SQL}
-CREATE INDEX IF NOT EXISTS idx_tasks_parent ON tasks(parent_task_id);
 CREATE INDEX IF NOT EXISTS idx_task_dependencies_depends_on ON task_dependencies(depends_on_task_id);
 `;
