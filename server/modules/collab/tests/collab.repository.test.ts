@@ -241,3 +241,172 @@ test('failOrphanedRuns closes running rows and leaves finished ones untouched', 
     assert.equal(collabRepository.failOrphanedRuns(), 0);
   });
 });
+
+test('a budget survives the round trip, and its absence resolves to the run defaults', async () => {
+  await withIsolatedDatabase(() => {
+    collabRepository.insert(
+      collaborationInput({ budget: { totalTokens: 50_000, maxTurns: 4, turnTimeoutMs: 60_000 } }),
+    );
+    assert.deepEqual(mapCollaborationRow(collabRepository.getById('collab-1')!).budget, {
+      totalTokens: 50_000,
+      maxTurns: 4,
+      turnTimeoutMs: 60_000,
+    });
+
+    // No budget stores NULL rather than a serialized copy of the defaults, so
+    // there is one representation of "whatever this run's shape implies".
+    collabRepository.insert(collaborationInput({ id: 'collab-2' }));
+    const row = collabRepository.getById('collab-2')!;
+    assert.equal(row.budget, null);
+    assert.deepEqual(mapCollaborationRow(row).budget, {
+      totalTokens: 200_000,
+      maxTurns: 7,
+      turnTimeoutMs: 300_000,
+    });
+  });
+});
+
+test('a council summary is written by updateStatus and read back as an object', async () => {
+  await withIsolatedDatabase(() => {
+    collabRepository.insert(collaborationInput());
+    const summary = {
+      contractsParsed: 2,
+      contractsFailed: 0,
+      agreements: [{ point: 'the lock is held too long', agreedBy: ['profile-a', 'profile-b'] }],
+      disputes: [],
+      risks: [{ risk: 'stranded jobs', severity: 'high' as const, raisedBy: ['profile-b'] }],
+      confidence: {
+        min: 40,
+        median: 60,
+        max: 80,
+        byParticipant: [
+          { profileId: 'profile-a', value: 40 },
+          { profileId: 'profile-b', value: 80 },
+        ],
+      },
+      budget: {
+        totalTokens: 200_000,
+        maxTurns: 7,
+        tokensUsed: 12_000,
+        turnsUsed: 5,
+        stoppedBy: null,
+      },
+    };
+
+    collabRepository.updateStatus('collab-1', { status: 'converged', summary });
+
+    const stored = mapCollaborationRow(collabRepository.getById('collab-1')!);
+    assert.deepEqual(stored.summary, summary);
+
+    // A later patch that says nothing about the summary must not erase it.
+    collabRepository.updateStatus('collab-1', { status: 'converged', verdict: 'Done.' });
+    assert.deepEqual(mapCollaborationRow(collabRepository.getById('collab-1')!).summary, summary);
+  });
+});
+
+test('a turn keeps its contract, its parse error and what it cost', async () => {
+  await withIsolatedDatabase(() => {
+    collabRepository.insert(collaborationInput());
+    const contract = {
+      evidence: [{ observation: 'the index is missing', source: 'schema.ts:12' }],
+      risks: [],
+      tests: [],
+      disagreements: [{ with: 'premise', point: 'this assumes one writer' }],
+      confidence: { value: 70, rationale: 'read the schema' },
+    };
+
+    collabRepository.appendTurn(
+      turnInput({ id: 'turn-1', contract, usage: { inputTokens: 900, outputTokens: 100 } }),
+    );
+    collabRepository.appendTurn(
+      turnInput({ id: 'turn-2', turnIndex: 1, contractError: 'missing: confidence' }),
+    );
+
+    const [first, second] = collabRepository.listTurns('collab-1').map(mapTurnRow);
+    assert.deepEqual(first.contract, contract);
+    assert.equal(first.contractError, null);
+    assert.deepEqual(first.usage, { inputTokens: 900, outputTokens: 100 });
+
+    // A turn nobody could read is still a turn, with its raw content intact.
+    assert.equal(second.contract, null);
+    assert.equal(second.contractError, 'missing: confidence');
+    assert.equal(second.content, 'position');
+    assert.equal(second.usage, null);
+  });
+});
+
+test('a contract column corrupted by hand degrades to absent instead of throwing', async () => {
+  await withIsolatedDatabase(() => {
+    collabRepository.insert(collaborationInput());
+    collabRepository.appendTurn(turnInput({ id: 'turn-1' }));
+    getConnection()
+      .prepare('UPDATE collaboration_turns SET contract = ? WHERE id = ?')
+      .run('{ not json', 'turn-1');
+    getConnection()
+      .prepare('UPDATE collaborations SET summary = ?, budget = ? WHERE id = ?')
+      .run(']]', 'nonsense', 'collab-1');
+
+    const turn = mapTurnRow(collabRepository.listTurns('collab-1')[0]);
+    assert.equal(turn.contract, null);
+    assert.equal(turn.content, 'position');
+
+    const collaboration = mapCollaborationRow(collabRepository.getById('collab-1')!);
+    assert.equal(collaboration.summary, null);
+    assert.equal(collaboration.budget.maxTurns, 7, 'an unreadable budget falls back to the shape');
+  });
+});
+
+test('a row written before the council contract reads back as the run it was', async () => {
+  await withIsolatedDatabase(() => {
+    // Exactly what an older build left behind: every council column NULL.
+    getConnection()
+      .prepare(
+        `INSERT INTO collaborations
+           (id, topic, mode, project_path, status, max_rounds, current_round, participants, verdict)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        'legacy-1',
+        'Should we keep SQLite?',
+        'debate',
+        '/workspace/demo',
+        'exhausted',
+        3,
+        3,
+        JSON.stringify(collaborationInput().participants),
+        'We kept it.',
+      );
+    getConnection()
+      .prepare(
+        `INSERT INTO collaboration_turns
+           (id, collaboration_id, round, turn_index, profile_id, role, content, consensus)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run('legacy-turn-1', 'legacy-1', 1, 0, 'profile-a', 'participant', 'A position.', 1);
+
+    const collaboration = mapCollaborationRow(collabRepository.getById('legacy-1')!);
+    assert.equal(collaboration.verdict, 'We kept it.');
+    assert.equal(collaboration.participants.length, 2);
+    assert.equal(collaboration.summary, null, 'none was computed, so none is invented');
+    // The ceiling it reports is the one it actually ran under: two seats over
+    // three rounds, plus the synthesis.
+    assert.deepEqual(collaboration.budget, {
+      totalTokens: 200_000,
+      maxTurns: 7,
+      turnTimeoutMs: 300_000,
+    });
+
+    const [turn] = collabRepository.listTurns('legacy-1').map(mapTurnRow);
+    assert.equal(turn.content, 'A position.');
+    assert.equal(turn.consensus, true);
+    assert.equal(turn.contract, null);
+    assert.equal(turn.contractError, null);
+    assert.equal(turn.usage, null);
+
+    // And it stays a normal row: listable, patchable, deletable.
+    assert.equal(collabRepository.list('/workspace/demo').length, 1);
+    assert.ok(collabRepository.updateStatus('legacy-1', { status: 'stopped' }));
+    assert.equal(collabRepository.deleteById('legacy-1'), true);
+    assert.equal(collabRepository.listTurns('legacy-1').length, 0);
+  });
+});

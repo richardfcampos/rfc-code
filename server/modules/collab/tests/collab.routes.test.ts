@@ -22,6 +22,8 @@ import express from 'express';
 
 import { configureCollabModelCatalog } from '@/modules/collab/collab-model-catalog.service.js';
 import { collabRepository } from '@/modules/collab/collab.repository.js';
+import type { CouncilContract } from '@/modules/collab/council-contract.js';
+import type { CouncilSummary } from '@/modules/collab/council-summary.js';
 import { createCollabRouter } from '@/modules/collab/collab.routes.js';
 import { createCollabService } from '@/modules/collab/collab.service.js';
 import type { CollabProfileGateway, CollabProfileSummary } from '@/modules/collab/collab.service.js';
@@ -508,5 +510,127 @@ test('DELETE /api/collaborations/:id removes the collaboration', async () => {
     const missing = await request(baseUrl, `/api/collaborations/${id}`, { method: 'DELETE' });
     assert.equal(missing.status, 404);
     assert.equal(missing.json.error.code, 'COLLABORATION_NOT_FOUND');
+  });
+});
+
+test('POST /api/collaborations starts a council and echoes the budget it will run under', async () => {
+  await withServer(async (baseUrl) => {
+    const { status, json } = await post(
+      baseUrl,
+      createBody({ mode: 'council', maxRounds: 2, budget: { totalTokens: 40_000 } }),
+    );
+    const collaboration = json.data.collaboration;
+
+    assert.equal(status, 201);
+    assert.equal(collaboration.mode, 'council');
+    assert.deepEqual(collaboration.budget, {
+      totalTokens: 40_000,
+      // Untouched fields keep the defaults for this shape: two seats, two
+      // rounds, plus the synthesis.
+      maxTurns: 5,
+      turnTimeoutMs: 300_000,
+    });
+    // No run has finished, so there is nothing to summarize yet.
+    assert.equal(collaboration.summary, null);
+    assert.deepEqual(startedRuns, [collaboration.id]);
+  });
+});
+
+test('POST /api/collaborations refuses an impossible budget before anything runs', async () => {
+  await withServer(async (baseUrl) => {
+    await assertRejected(baseUrl, createBody({ budget: { maxTurns: 0 } }), 'INVALID_BUDGET');
+    await assertRejected(baseUrl, createBody({ budget: { totalTokens: 12 } }), 'INVALID_BUDGET');
+    await assertRejected(baseUrl, createBody({ budget: 'unlimited' }), 'INVALID_BUDGET');
+  });
+});
+
+test('GET /api/collaborations/:id exposes the contract, the cost and the council summary', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await post(baseUrl, createBody({ mode: 'council', maxRounds: 1 }));
+    const { id } = created.json.data.collaboration;
+
+    const contract: CouncilContract = {
+      evidence: [{ observation: 'the scheduler holds one lock', source: 'a.ts:1' }],
+      risks: [{ risk: 'stranded jobs', severity: 'high' }],
+      tests: [{ test: 'replay the queue', status: 'proposed', result: null }],
+      disagreements: [{ with: 'Linus', point: 'the lock is not the bottleneck' }],
+      confidence: { value: 65, rationale: 'read it, did not profile it' },
+    };
+    const summary: CouncilSummary = {
+      contractsParsed: 1,
+      contractsFailed: 1,
+      agreements: [],
+      disputes: [{ point: 'the lock is not the bottleneck', raisedBy: ['profile-a'], against: ['Linus'] }],
+      risks: [{ risk: 'stranded jobs', severity: 'high', raisedBy: ['profile-a'] }],
+      confidence: { min: 65, median: 65, max: 65, byParticipant: [{ profileId: 'profile-a', value: 65 }] },
+      budget: { totalTokens: 200_000, maxTurns: 3, tokensUsed: 4_200, turnsUsed: 3, stoppedBy: 'turns' },
+    };
+
+    collabRepository.appendTurn({
+      id: 'turn-1',
+      collaborationId: id,
+      round: 1,
+      turnIndex: 0,
+      profileId: 'profile-a',
+      role: 'participant',
+      content: 'Prose plus a contract.',
+      consensus: false,
+      contract,
+      usage: { inputTokens: 3_000, outputTokens: 1_200 },
+    });
+    collabRepository.appendTurn({
+      id: 'turn-2',
+      collaborationId: id,
+      round: 1,
+      turnIndex: 1,
+      profileId: 'profile-b',
+      role: 'participant',
+      content: 'No JSON here.',
+      contractError: 'No council contract JSON object was found in this answer.',
+    });
+    collabRepository.updateStatus(id, { status: 'exhausted', verdict: 'Synthesis.', summary });
+
+    const { status, json } = await request(baseUrl, `/api/collaborations/${id}`);
+    const collaboration = json.data.collaboration;
+
+    assert.equal(status, 200);
+    assert.deepEqual(collaboration.summary, summary);
+    assert.deepEqual(collaboration.turns[0].contract, contract);
+    assert.deepEqual(collaboration.turns[0].usage, { inputTokens: 3_000, outputTokens: 1_200 });
+    assert.equal(collaboration.turns[0].profileName, 'Ada');
+
+    // The unreadable answer keeps its prose and carries the reason next to it.
+    assert.equal(collaboration.turns[1].contract, null);
+    assert.match(collaboration.turns[1].contractError, /No council contract JSON object/);
+    assert.equal(collaboration.turns[1].content, 'No JSON here.');
+  });
+});
+
+test('a debate answered before councils existed is served with empty council fields', async () => {
+  await withServer(async (baseUrl) => {
+    const created = await post(baseUrl, createBody());
+    const { id } = created.json.data.collaboration;
+
+    collabRepository.appendTurn({
+      id: 'turn-1',
+      collaborationId: id,
+      round: 1,
+      turnIndex: 0,
+      profileId: 'profile-a',
+      role: 'participant',
+      content: 'A position.\nCONSENSUS: NO — not yet',
+      consensus: false,
+    });
+
+    const { json } = await request(baseUrl, `/api/collaborations/${id}`);
+    const collaboration = json.data.collaboration;
+
+    assert.equal(collaboration.summary, null);
+    assert.equal(collaboration.turns[0].contract, null);
+    assert.equal(collaboration.turns[0].contractError, null);
+    assert.equal(collaboration.turns[0].usage, null);
+    // The fields the panel already renders are untouched.
+    assert.equal(collaboration.turns[0].consensus, false);
+    assert.equal(collaboration.turns[0].content, 'A position.\nCONSENSUS: NO — not yet');
   });
 });
