@@ -16,6 +16,7 @@
 
 import { randomUUID } from 'node:crypto';
 
+import { AUXILIARY_SESSION_DISPLAY_NAME } from '@/shared/utils.js';
 import type { LLMProvider, RealtimeClientConnection } from '@/shared/types.js';
 
 import type { PromptAgentInput, PromptAgentResult } from '../automations.types.js';
@@ -55,6 +56,20 @@ export interface AutomationRunRegistryGateway {
   completeRunIfCurrent(run: AutomationRunHandle, options: { exitCode: number }): void;
 }
 
+/**
+ * The stdio MCP registration shape the automation spawn path needs.
+ *
+ * Declared locally rather than imported from the bridge module: the module
+ * boundary lint keeps automations off other modules' internals, and this file
+ * otherwise imports only types.
+ */
+export interface AgentBridgeMcpRegistrationLike {
+  name: string;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+}
+
 export interface AutomationSpawnDeps {
   policy: AutomationPolicyGateway;
   registry: AutomationRunRegistryGateway;
@@ -65,7 +80,17 @@ export interface AutomationSpawnDeps {
     profileId: string | null;
     worktreePath: string | null;
     worktreeBranch: string | null;
+    /** See `PromptAgentInput.isAuthoringRun` — null for the ticket's own author. */
+    customName: string | null;
   }): void;
+  /**
+   * The agent's own tool surface. Null when the session cannot be resolved —
+   * the run is refused rather than dispatched blind, because every prompt this
+   * server writes tells the agent to use tools it would not have.
+   */
+  bridge: {
+    describeRegistrationForSession(sessionId: string): AgentBridgeMcpRegistrationLike | null;
+  };
   spawnFns: Partial<Record<LLMProvider, ProviderSpawnFn>>;
 }
 
@@ -142,7 +167,15 @@ export function createAutomationSpawnGateway(deps: AutomationSpawnDeps) {
         profileId,
         worktreePath: input.worktreePath,
         worktreeBranch: input.worktreeBranch,
+        customName: input.isAuthoringRun === false ? AUXILIARY_SESSION_DISPLAY_NAME : null,
       });
+
+      // Must run after createSession: the registration's token is minted
+      // against the session row, and every bridge call re-checks that row.
+      const registration = deps.bridge.describeRegistrationForSession(sessionId);
+      if (!registration) {
+        throw new Error(`Could not mint agent-bridge access for session "${sessionId}"`);
+      }
 
       const run = deps.registry.startRun({
         appSessionId: sessionId,
@@ -161,6 +194,14 @@ export function createAutomationSpawnGateway(deps: AutomationSpawnDeps) {
         cwd: input.worktreePath ?? input.projectPath,
         projectPath: input.projectPath,
         profileId,
+        mcpServers: {
+          [registration.name]: {
+            type: 'stdio',
+            command: registration.command,
+            args: registration.args,
+            env: registration.env,
+          },
+        },
       };
 
       void spawnFn(input.prompt, options, run.writer)

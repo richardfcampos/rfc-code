@@ -11,7 +11,11 @@
  *   with a growing pause, then left failed. No unbounded loop ever forms.
  * - **recorded**: every attempt, successful or not, appends a row to the
  *   automation's history, so "did my rule run, and what happened" is answerable
- *   without reading a log file.
+ *   without reading a log file — except an `AutomationUnrecordedSkip`, which by
+ *   construction never happened: the action recognised a guard whose cause
+ *   will not still be true the next time this event is observed, and a row
+ *   under this exact dedupe key would keep that guard from ever being
+ *   re-checked.
  */
 
 import type { AutomationRow, AutomationRunRow } from '@/modules/database/index.js';
@@ -150,7 +154,20 @@ export function createAutomationFiringService(deps: AutomationServiceDeps): Auto
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
       try {
-        const detail = truncate(await executeAutomationAction(deps, automation, context));
+        const outcome = await executeAutomationAction(deps, automation, context);
+        if (typeof outcome !== 'string') {
+          // A guard whose cause is not durable (a live session already on the
+          // target branch, a card that moved on before the action re-checked
+          // it) must not consume the dedupe key: recording it here would
+          // block that guard from ever being re-checked again, and this
+          // event's next natural re-fire — the next stage change, the next
+          // tick — is what deserves another look, not a retry of this
+          // attempt.
+          const detail = truncate(outcome.detail);
+          return { automationId: automation.automation_id, status: 'skipped', detail, attempts: attempt };
+        }
+
+        const detail = truncate(outcome);
         record(automation, context, 'success', detail, attempt);
         return { automationId: automation.automation_id, status: 'success', detail, attempts: attempt };
       } catch (error) {

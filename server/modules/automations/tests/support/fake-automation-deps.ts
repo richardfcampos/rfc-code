@@ -143,12 +143,13 @@ export function createFakeRepository(): FakeRepository {
 }
 
 /**
- * A backlog task seeded for election, with its blockers named by id.
+ * A backlog task seeded for election, with its blockers and parent named by id.
  *
- * `dependsOn` is fake-board bookkeeping only — the real board resolves
- * readiness through the `task_dependencies` table, not a field on `TaskRow`.
+ * `dependsOn` and `parentTaskId` are fake-board bookkeeping only — the real
+ * board resolves both through the `task_dependencies` table and the
+ * `parent_task_id` column, not a field on `TaskRow`.
  */
-export type FakeBoardTaskSeed = Partial<TaskRow> & { dependsOn?: string[] };
+export type FakeBoardTaskSeed = Partial<TaskRow> & { dependsOn?: string[]; parentTaskId?: string };
 
 export interface FakeBoard extends AutomationBoardGateway {
   tasks: TaskRow[];
@@ -161,8 +162,14 @@ export interface FakeBoard extends AutomationBoardGateway {
 export function createFakeBoard(): FakeBoard {
   const tasks: TaskRow[] = [];
   const dependencies = new Map<string, string[]>();
+  const parents = new Map<string, string>();
   const moved: { taskId: string; worktreeBranch: string }[] = [];
   const reverted: string[] = [];
+
+  const children = (parentId: string): TaskRow[] =>
+    tasks
+      .filter((task) => parents.get(task.id) === parentId)
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
   return {
     tasks,
@@ -170,7 +177,7 @@ export function createFakeBoard(): FakeBoard {
     reverted,
 
     seed(overrides: FakeBoardTaskSeed = {}): TaskRow {
-      const { dependsOn, ...taskOverrides } = overrides;
+      const { dependsOn, parentTaskId, ...taskOverrides } = overrides;
       const task: TaskRow = {
         id: randomUUID(),
         project_name: 'my-app',
@@ -188,6 +195,7 @@ export function createFakeBoard(): FakeBoard {
       };
       tasks.push(task);
       if (dependsOn) dependencies.set(task.id, dependsOn);
+      if (parentTaskId) parents.set(task.id, parentTaskId);
       return task;
     },
 
@@ -202,8 +210,41 @@ export function createFakeBoard(): FakeBoard {
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     },
 
-    countInProgress(project) {
-      return tasks.filter((task) => task.project_name === project && task.stage === 'in_progress').length;
+    // Mirrors the SQL: an in-progress task with no child that is not `done`
+    // counts, whether that means "no children at all" or "every child done".
+    countActiveInProgress(project) {
+      return tasks.filter(
+        (task) =>
+          task.project_name === project &&
+          task.stage === 'in_progress' &&
+          children(task.id).every((child) => child.stage === 'done'),
+      ).length;
+    },
+
+    listParentsAwaitingIntegration(project) {
+      return tasks
+        .filter((task) => {
+          if (task.project_name !== project || task.stage !== 'in_progress') return false;
+          const kids = children(task.id);
+          return kids.length > 0 && kids.every((child) => child.stage === 'done');
+        })
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    },
+
+    listSubtasks(parentTaskId) {
+      return children(parentTaskId);
+    },
+
+    getParentTask(taskId) {
+      const parentId = parents.get(taskId);
+      return parentId ? (tasks.find((task) => task.id === parentId) ?? null) : null;
+    },
+
+    listUpstreamTasks(taskId) {
+      return (dependencies.get(taskId) ?? [])
+        .map((upstreamId) => tasks.find((task) => task.id === upstreamId))
+        .filter((task): task is TaskRow => task !== undefined)
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
     },
 
     getTask(taskId) {

@@ -4,7 +4,7 @@
 // task-stage subscription that opens a review when a card reaches Review.
 export { configureReviewsRuntime, reviewsRoutes, reviewsService } from './reviews.module.js';
 
-export type { ReviewsService } from './reviews.service.js';
+export type { ReviewCommentResult, ReviewsService } from './reviews.service.js';
 export {
   ReviewFileNotInDiffError,
   ReviewNotFoundError,

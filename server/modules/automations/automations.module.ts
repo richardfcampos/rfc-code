@@ -15,6 +15,7 @@
 
 import { access } from 'node:fs/promises';
 
+import { describeAgentBridgeRegistrationForSession } from '@/modules/agent-bridge/index.js';
 import { automationsDb, sessionsDb, taskDependenciesDb, tasksDb, userDb } from '@/modules/database/index.js';
 import { createNotificationEvent, notifyUserIfEnabled } from '@/modules/notifications/index.js';
 import { orgPolicyService } from '@/modules/orgs/index.js';
@@ -52,9 +53,10 @@ export function configureAutomationRuntimes(fns: Partial<Record<string, Provider
 const spawnGateway = createAutomationSpawnGateway({
   policy: orgPolicyService,
   registry: chatRunRegistry,
-  createSession: ({ sessionId, provider, projectPath, profileId, worktreePath, worktreeBranch }) => {
-    sessionsDb.createAppSession(sessionId, provider, projectPath, profileId, worktreePath, worktreeBranch);
+  createSession: ({ sessionId, provider, projectPath, profileId, worktreePath, worktreeBranch, customName }) => {
+    sessionsDb.createAppSession(sessionId, provider, projectPath, profileId, worktreePath, worktreeBranch, customName);
   },
+  bridge: { describeRegistrationForSession: describeAgentBridgeRegistrationForSession },
   // Read through a getter so the entrypoint can configure the runtimes after
   // this module graph has already been imported.
   get spawnFns() {
@@ -113,7 +115,14 @@ const deps: AutomationServiceDeps = {
   },
   board: {
     listReadyBacklog: (project) => taskDependenciesDb.listReadyBacklogByProject(project),
-    countInProgress: (project) => tasksDb.countByStage(project, 'in_progress'),
+    countActiveInProgress: (project) => taskDependenciesDb.countActiveInProgressByProject(project),
+    listParentsAwaitingIntegration: (project) => taskDependenciesDb.listParentsAwaitingIntegration(project),
+    listSubtasks: (parentTaskId) => taskDependenciesDb.listSubtasks(parentTaskId),
+    getParentTask: (taskId) => {
+      const parentId = taskDependenciesDb.get(taskId)?.parent_task_id ?? null;
+      return parentId ? tasksDb.get(parentId) : null;
+    },
+    listUpstreamTasks: (taskId) => taskDependenciesDb.listUpstream(taskId),
     getTask: (taskId) => tasksDb.get(taskId),
     // Same reason `createTask` broadcasts: a card the server moves has to reach
     // open boards exactly like one moved through the REST API.

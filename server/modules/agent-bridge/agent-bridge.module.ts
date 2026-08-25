@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import { agentMessagesService } from '@/modules/agent-messages/index.js';
 import { appConfigDb, projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { orgPolicyService, orgRecommendService } from '@/modules/orgs/index.js';
+import { reviewsService } from '@/modules/reviews/index.js';
 import { broadcastTaskUpdate, taskDecompositionService, tasksService } from '@/modules/tasks/index.js';
 import { getModuleDir } from '@/utils/runtime-paths.js';
 
@@ -144,6 +145,7 @@ export const agentBridgeRoutes = createAgentBridgeRouter({
   messages: agentMessagesService,
   policy: orgPolicyService,
   recommend: orgRecommendService,
+  reviews: { addCommentForTask: (taskId, body) => reviewsService.addCommentForTask(taskId, body) },
   broadcast: broadcastTaskUpdate,
   verifyToken: (token) => verifyAgentBridgeToken(token, getSecret()),
   resolveSessionScope,
@@ -158,3 +160,18 @@ export const agentBridgeSessionTokenRoutes = createAgentBridgeSessionTokenRouter
   mintToken: mintAgentBridgeToken,
   describeRegistration,
 });
+
+/**
+ * Registration for a session the server started itself.
+ *
+ * The UI mints its own through `/session-token`; a server-spawned run has no
+ * browser to do that, and handing it the block directly is what keeps the
+ * token out of any file.
+ */
+export function describeAgentBridgeRegistrationForSession(
+  sessionId: string,
+): AgentBridgeMcpRegistration | null {
+  const scope = resolveSessionScope(sessionId);
+  if (!scope) return null;
+  return describeRegistration(scope, mintAgentBridgeToken(scope));
+}

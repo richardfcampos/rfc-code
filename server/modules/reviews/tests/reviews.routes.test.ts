@@ -53,6 +53,9 @@ function createFakeService(overrides: Partial<ReviewsService> = {}): ReviewsServ
     addComment: async () => {
       throw new Error('Unexpected addComment call');
     },
+    addCommentForTask: async () => {
+      throw new Error('Unexpected addCommentForTask call');
+    },
     approve: async () => {
       throw new Error('Unexpected approve call');
     },

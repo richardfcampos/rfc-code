@@ -149,6 +149,61 @@ export function createAutomationTriggerService(
   }
 
   /**
+   * Re-wakes at most one finished plan per enabled `task_backlog` rule per
+   * tick: a parent that decomposed, is still `in_progress`, and whose every
+   * subtask has reached `done`.
+   *
+   * Deliberately **not** gated by `maxConcurrent`. The moment a parent's last
+   * child reaches `done`, `countActiveInProgress` stops excluding it — it is
+   * once again a task with no unfinished children, so it counts against the
+   * ceiling exactly like a fresh pickup would. Gating integration on that same
+   * ceiling would let the parent's own slot block the integration that frees
+   * it: at `maxConcurrent: 1` that is a guaranteed deadlock. Do not add the
+   * gate back.
+   */
+  async function runParentIntegrations(at: Date): Promise<AutomationFireResult[]> {
+    const results: AutomationFireResult[] = [];
+
+    for (const automation of deps.repository.listEnabledByTrigger('task_backlog')) {
+      const config = parseStoredConfig(automation.trigger_config) as unknown as TaskBacklogTriggerConfig;
+      if (typeof config.project !== 'string' || config.project.trim().length === 0) continue;
+
+      let elected: TaskRow | undefined;
+      let dedupeKey = '';
+      for (const parent of deps.board.listParentsAwaitingIntegration(config.project)) {
+        const children = deps.board.listSubtasks(parent.id);
+        // The fingerprint of "this exact completed set": unchanged while
+        // nothing changes (fires once), bumped by a reopen-and-refinish (the
+        // reopened child's updated_at moves) or by a plan that grew a child
+        // (childCount changes) — so the rule fires again exactly when the plan
+        // actually has new work to integrate.
+        const newest = children.reduce(
+          (latest, child) => (child.updated_at > latest ? child.updated_at : latest),
+          '',
+        );
+        const key = `integrate:${parent.id}:${children.length}:${newest}`;
+        if (!deps.repository.runs.existsForDedupeKey(automation.automation_id, key)) {
+          elected = parent;
+          dedupeKey = key;
+          break;
+        }
+      }
+      if (!elected) continue;
+
+      results.push(
+        await fireSafely(automation, {
+          dedupeKey,
+          variables: { ...baseVariables(automation, at), ...taskVariables(elected, null) },
+          task: elected,
+          intent: 'integrate',
+        }),
+      );
+    }
+
+    return results;
+  }
+
+  /**
    * Drains at most one ready ticket per enabled `task_backlog` rule per tick.
    *
    * The concurrency gate runs before election so a project already at its
@@ -167,7 +222,7 @@ export function createAutomationTriggerService(
 
       const maxConcurrent =
         typeof config.maxConcurrent === 'number' ? config.maxConcurrent : DEFAULT_BACKLOG_MAX_CONCURRENT;
-      if (deps.board.countInProgress(config.project) >= maxConcurrent) continue;
+      if (deps.board.countActiveInProgress(config.project) >= maxConcurrent) continue;
 
       let elected: TaskRow | undefined;
       let dedupeKey = '';
@@ -224,8 +279,11 @@ export function createAutomationTriggerService(
     async runTick(at: Date = now()): Promise<AutomationFireResult[]> {
       const cron = await runCronAutomations(at);
       const quota = await runQuotaAutomations(at);
+      // Integrations run before the backlog election so a finished plan is
+      // never starved by a tick that spent its election on a fresh ticket.
+      const integrations = await runParentIntegrations(at);
       const backlog = await runBacklogAutomations(at);
-      return [...cron, ...quota, ...backlog];
+      return [...cron, ...quota, ...integrations, ...backlog];
     },
 
     fireWebhook(automation, payload, idempotencyKey) {

@@ -3,11 +3,13 @@ import test from 'node:test';
 
 import {
   createAutomationSpawnGateway,
+  type AgentBridgeMcpRegistrationLike,
   type AutomationPolicyGateway,
   type AutomationSpawnDeps,
 } from '@/modules/automations/services/automation-agent-spawn.service.js';
 import { OrgPolicyError } from '@/modules/orgs/index.js';
 import type { PromptAgentInput } from '@/modules/automations/automations.types.js';
+import { AUXILIARY_SESSION_DISPLAY_NAME } from '@/shared/utils.js';
 
 const INPUT: PromptAgentInput = {
   projectPath: '/home/dev/my-app',
@@ -18,10 +20,18 @@ const INPUT: PromptAgentInput = {
   worktreeBranch: null,
 };
 
+const FAKE_REGISTRATION: AgentBridgeMcpRegistrationLike = {
+  name: 'cloudcli-agent-bridge',
+  command: 'cloudcli',
+  args: ['agent-bridge-mcp'],
+  env: { CLOUDCLI_AGENT_BRIDGE_TOKEN: 'fake-token' },
+};
+
 interface Harness {
   gateway: ReturnType<typeof createAutomationSpawnGateway>;
   sessions: Parameters<AutomationSpawnDeps['createSession']>[0][];
   spawns: { prompt: string; options: Record<string, unknown> }[];
+  bridgeCalls: string[];
   completed: number;
   started: number;
 }
@@ -31,10 +41,12 @@ function build(overrides: {
   spawn?: (prompt: string, options: Record<string, unknown>) => Promise<unknown>;
   startRun?: AutomationSpawnDeps['registry']['startRun'];
   spawnFns?: AutomationSpawnDeps['spawnFns'];
+  bridge?: AutomationSpawnDeps['bridge'];
 } = {}): Harness {
   const sessions: Parameters<AutomationSpawnDeps['createSession']>[0][] = [];
   const spawns: { prompt: string; options: Record<string, unknown> }[] = [];
-  const harness = { sessions, spawns, completed: 0, started: 0 } as Harness;
+  const bridgeCalls: string[] = [];
+  const harness = { sessions, spawns, bridgeCalls, completed: 0, started: 0 } as Harness;
 
   const policy: AutomationPolicyGateway = {
     assertProfileAllowed: () => {},
@@ -58,6 +70,12 @@ function build(overrides: {
     },
     createSession: (input) => {
       sessions.push(input);
+    },
+    bridge: overrides.bridge ?? {
+      describeRegistrationForSession: (sessionId) => {
+        bridgeCalls.push(sessionId);
+        return FAKE_REGISTRATION;
+      },
     },
     spawnFns: overrides.spawnFns ?? {
       claude: async (prompt, options) => {
@@ -86,6 +104,30 @@ test('a run gets its own session, the resolved account and the project as cwd', 
   assert.equal(harness.spawns[0].options.cwd, '/home/dev/my-app');
   assert.equal(harness.spawns[0].options.profileId, 'profile-resolved');
   assert.equal(harness.spawns[0].options.resume, false);
+});
+
+test('a run with no isAuthoringRun opinion is created with no display name — it is the branch author', async () => {
+  const harness = build();
+
+  await harness.gateway.promptAgent(INPUT);
+
+  assert.equal(harness.sessions[0].customName, null);
+});
+
+test('isAuthoringRun: false tags the session as an auxiliary run, not the branch author', async () => {
+  const harness = build();
+
+  await harness.gateway.promptAgent({ ...INPUT, isAuthoringRun: false });
+
+  assert.equal(harness.sessions[0].customName, AUXILIARY_SESSION_DISPLAY_NAME);
+});
+
+test('isAuthoringRun: true is explicitly the same as omitting it', async () => {
+  const harness = build();
+
+  await harness.gateway.promptAgent({ ...INPUT, isAuthoringRun: true });
+
+  assert.equal(harness.sessions[0].customName, null);
 });
 
 test('a worktree pins both the session and the run to that directory', async () => {
@@ -195,4 +237,40 @@ test('a run that fails after dispatch is closed out instead of leaking', async (
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.equal(harness.completed, 1);
+});
+
+test('the dispatched options carry the agent-bridge server, keyed by its registered name', async () => {
+  const harness = build();
+
+  await harness.gateway.promptAgent(INPUT);
+
+  const mcpServers = harness.spawns[0].options.mcpServers as Record<string, unknown>;
+  assert.ok(mcpServers);
+  const server = mcpServers['cloudcli-agent-bridge'] as Record<string, unknown>;
+  assert.equal(server.type, 'stdio');
+  assert.equal(server.command, FAKE_REGISTRATION.command);
+  assert.deepEqual(server.args, FAKE_REGISTRATION.args);
+  assert.deepEqual(server.env, FAKE_REGISTRATION.env);
+});
+
+test('the bridge is asked for a registration only after the session row exists', async () => {
+  const harness = build();
+
+  const result = await harness.gateway.promptAgent(INPUT);
+
+  assert.deepEqual(harness.bridgeCalls, [result.sessionId]);
+  assert.equal(harness.sessions[0].sessionId, result.sessionId);
+});
+
+test('a session the bridge cannot resolve refuses the run before it starts', async () => {
+  const harness = build({
+    bridge: { describeRegistrationForSession: () => null },
+  });
+
+  await assert.rejects(
+    () => harness.gateway.promptAgent(INPUT),
+    /Could not mint agent-bridge access/,
+  );
+  assert.equal(harness.spawns.length, 0);
+  assert.equal(harness.started, 0);
 });

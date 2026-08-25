@@ -3,9 +3,11 @@ import test from 'node:test';
 
 import { AutomationNotFoundError } from '@/modules/automations/automations.errors.js';
 import { MAX_ATTEMPTS, createAutomationFiringService, toAutomationView } from '@/modules/automations/automations.service.js';
+import { taskVariables } from '@/modules/automations/services/automation-template.js';
 import type { AutomationTriggerContext } from '@/modules/automations/automations.types.js';
+import type { TaskRow } from '@/modules/database/index.js';
 
-import { createFakeDeps } from './support/fake-automation-deps.js';
+import { TASK, createFakeDeps } from './support/fake-automation-deps.js';
 
 const EVENT: AutomationTriggerContext = {
   dedupeKey: 'task:task-1:stage:in_progress',
@@ -173,6 +175,99 @@ test('long failure messages are truncated before they reach the history', async 
 
   assert.equal(result.detail.length, 500);
   assert.ok(result.detail.endsWith('…'));
+});
+
+test('an unrecorded skip leaves no run row, so the same once-ever dedupe key can fire again later', async () => {
+  // A `task_stage` dedupe key is the same string every time a task re-enters
+  // that stage — reused here across two firings to prove the first one (the
+  // author's own live run still owning the branch) did not burn it. Without
+  // this, the second firing (the branch free again) would be blocked by a
+  // "success" row that was never an actual review.
+  let branchIsLive = true;
+  const spawnedPrompts: unknown[] = [];
+  const deps = createFakeDeps({
+    agent: {
+      promptAgent: async (input) => {
+        spawnedPrompts.push(input);
+        return { sessionId: 'session-1', profileId: 'profile-a' };
+      },
+      hasLiveSessionForBranch: () => branchIsLive,
+    },
+  });
+  const service = createAutomationFiringService(deps);
+  const automation = deps.repository.seed({
+    trigger_kind: 'task_stage',
+    trigger_config: JSON.stringify({ toStage: 'review' }),
+    action_kind: 'prompt_agent',
+    action_config: JSON.stringify({
+      projectPath: '/home/dev/my-app',
+      promptTemplate: 'Review {{task.id}}.',
+      useTaskWorktree: true,
+    }),
+  });
+  const task: TaskRow = { ...TASK, worktree_branch: 'auto/task-1', stage: 'review' };
+  const context: AutomationTriggerContext = {
+    dedupeKey: `task:${task.id}:stage:review`,
+    variables: taskVariables(task, 'in_progress'),
+    task,
+  };
+
+  const first = await service.fire(automation, context);
+  assert.equal(first.status, 'skipped');
+  assert.match(first.detail, /already has a live agent session/);
+  assert.equal(first.attempts, 1);
+  assert.equal(deps.repository.history.length, 0, 'an unrecorded skip must append no run row');
+  assert.equal(spawnedPrompts.length, 0);
+
+  // The reviewer's own run has since ended, freeing the branch; the task's
+  // next entry into review carries the identical dedupe key.
+  branchIsLive = false;
+  const second = await service.fire(automation, context);
+
+  assert.equal(second.status, 'success');
+  assert.equal(deps.repository.history.length, 1);
+  assert.equal(spawnedPrompts.length, 1);
+});
+
+test('an integration skip on a live branch is unrecorded too, not just the useTaskWorktree pickup path', async () => {
+  let branchIsLive = true;
+  const deps = createFakeDeps({
+    agent: {
+      promptAgent: async () => ({ sessionId: 'session-1', profileId: 'profile-a' }),
+      hasLiveSessionForBranch: () => branchIsLive,
+    },
+  });
+  const service = createAutomationFiringService(deps);
+  const automation = deps.repository.seed({
+    trigger_kind: 'task_backlog',
+    trigger_config: JSON.stringify({ project: 'my-app' }),
+    action_kind: 'pickup_task',
+    action_config: JSON.stringify({ projectPath: '/home/dev/my-app' }),
+  });
+  const parent = deps.board.seed({
+    stage: 'in_progress',
+    title: 'Ship the board',
+    worktree_branch: 'auto/task-parent-1',
+  });
+  deps.board.seed({ stage: 'done', title: 'Schema', worktree_branch: 'auto/task-child-1', parentTaskId: parent.id });
+
+  const context: AutomationTriggerContext = {
+    dedupeKey: `integrate:${parent.id}:1:child-updated`,
+    variables: {},
+    task: parent,
+    intent: 'integrate',
+  };
+
+  const first = await service.fire(automation, context);
+  assert.equal(first.status, 'skipped');
+  assert.match(first.detail, /already has a live agent session/);
+  assert.equal(deps.repository.history.length, 0, 'an unrecorded skip must append no run row');
+
+  branchIsLive = false;
+  const second = await service.fire(automation, context);
+
+  assert.equal(second.status, 'success');
+  assert.equal(deps.repository.history.length, 1);
 });
 
 test('history and lookups are scoped to one automation', async () => {

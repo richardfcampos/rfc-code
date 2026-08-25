@@ -15,6 +15,7 @@
 
 import type { AgentMessageAnswer } from '@/modules/agent-messages/index.js';
 import type { AgentMessageRow, TaskEvidenceRow, TaskRow } from '@/modules/database/index.js';
+import type { ReviewCommentResult } from '@/modules/reviews/index.js';
 
 import { AgentBridgeUnknownToolError, AgentBridgeValidationError } from './agent-bridge.errors.js';
 import {
@@ -24,6 +25,7 @@ import {
 } from './agent-bridge.maestro.tools.js';
 import {
   readEvidenceKind,
+  readOptionalInteger,
   readOptionalProvider,
   readOptionalString,
   readRequiredString,
@@ -49,6 +51,7 @@ export const AGENT_BRIDGE_TOOL_NAMES = [
   'message_ack',
   'message_answer',
   'profile_recommend',
+  'review_comment_add',
 ] as const;
 
 async function taskCreate(
@@ -215,6 +218,31 @@ function messageAnswer(
   return deps.messages.answer(scope.sessionId, input.messageId, input);
 }
 
+/**
+ * Posts one review comment on the task's live review.
+ *
+ * There is no companion tool that approves or requests changes: this is the
+ * only review-state write the bridge exposes, and it never touches state at
+ * all — approval stays a human action taken through the UI's JWT-protected
+ * route, never something an agent can reach.
+ */
+function reviewCommentAdd(
+  input: Record<string, unknown>,
+  scope: AgentBridgeSessionScope,
+  deps: AgentBridgeToolDeps,
+): Promise<ReviewCommentResult> {
+  const taskId = readRequiredString(input.taskId, 'taskId');
+  requireTaskInScope(deps, scope, taskId);
+
+  return deps.reviews.addCommentForTask(taskId, {
+    // Omitted entirely, an empty file path is a review-wide comment — the
+    // reviews module decides that, not this layer.
+    filePath: readOptionalString(input.filePath, 'filePath'),
+    lineNo: readOptionalInteger(input.lineNo, 'lineNo'),
+    body: readRequiredString(input.body, 'body'),
+  });
+}
+
 async function profileRecommend(
   input: Record<string, unknown>,
   scope: AgentBridgeSessionScope,
@@ -267,6 +295,8 @@ export async function runAgentBridgeTool(
       return messageAnswer(input, scope, deps);
     case 'profile_recommend':
       return profileRecommend(input, scope, deps);
+    case 'review_comment_add':
+      return reviewCommentAdd(input, scope, deps);
     default:
       throw new AgentBridgeUnknownToolError(toolName);
   }

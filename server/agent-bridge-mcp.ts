@@ -303,6 +303,23 @@ const tools: ToolDefinition[] = [
       },
     },
   },
+  {
+    name: 'review_comment_add',
+    description: 'Post a comment on the task\'s live review. This is the only review tool: there is no way to approve a review or request changes through the bridge — a human decides that in the Review Center.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'Id of a task on this project\'s board with a review waiting on it.' },
+        filePath: {
+          type: 'string',
+          description: 'Repository-relative path the comment is about. Omit to comment on the review as a whole.',
+        },
+        lineNo: { type: 'integer', description: 'Optional line number within filePath.' },
+        body: { type: 'string', description: 'What is wrong (or right) and what to do about it.' },
+      },
+      required: ['taskId', 'body'],
+    },
+  },
 ];
 
 async function callTool(name: string, args: Record<string, unknown>) {
@@ -385,6 +402,13 @@ async function callTool(name: string, args: Record<string, unknown>) {
     case 'profile_recommend':
       return jsonResponse(await callBridgeApi(name, {
         provider: readOptionalString(args.provider),
+      }));
+    case 'review_comment_add':
+      return jsonResponse(await callBridgeApi(name, {
+        taskId: readString(args.taskId, 'taskId'),
+        filePath: readOptionalString(args.filePath),
+        lineNo: typeof args.lineNo === 'number' ? args.lineNo : undefined,
+        body: readString(args.body, 'body'),
       }));
     default:
       throw new Error(`Unknown tool: ${name}`);

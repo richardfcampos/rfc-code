@@ -278,3 +278,113 @@ test('pickup_task throws when fired with no elected task in context', async () =
     /no elected task/,
   );
 });
+
+test('a top-level ticket prompt names the maestro skill, carries task_decompose, and forbids task_delegate', async () => {
+  const deps = createFakeDeps();
+  const elected = seedElected(deps);
+
+  await pickupTask(deps, actionConfig(), contextFor(elected));
+
+  const prompt = deps.prompts[0].prompt;
+  assert.match(prompt, /maestro/);
+  assert.match(prompt, /task_decompose/);
+  assert.match(prompt, /Do NOT call task_delegate/);
+  assert.match(prompt, /END YOUR RUN/);
+});
+
+test('a subtask prompt does not offer decomposition, and finishes on done, not review', async () => {
+  const deps = createFakeDeps();
+  const parent = deps.board.seed({ stage: 'in_progress', worktree_branch: 'auto/task-parent-1' });
+  const elected = seedElected(deps, { parentTaskId: parent.id });
+
+  await pickupTask(deps, actionConfig(), contextFor(elected));
+
+  const prompt = deps.prompts[0].prompt;
+  assert.doesNotMatch(prompt, /task_decompose/);
+  assert.doesNotMatch(prompt, /maestro/);
+  assert.match(prompt, /move the card to done with the task_update_stage tool/);
+  assert.match(prompt, /Do NOT move it to review/);
+  assert.doesNotMatch(prompt, /move the card to review/);
+});
+
+test("a subtask's worktree is cut from its parent's branch", async () => {
+  const deps = createFakeDeps();
+  const parent = deps.board.seed({ stage: 'in_progress', worktree_branch: 'auto/task-parent-1' });
+  const elected = seedElected(deps, { parentTaskId: parent.id });
+
+  await pickupTask(deps, actionConfig(), contextFor(elected));
+
+  assert.equal(deps.worktrees.ensured[0].baseBranch, 'auto/task-parent-1');
+  assert.match(deps.prompts[0].prompt, /cut from auto\/task-parent-1/);
+});
+
+test('a subtask whose parent has a null worktree_branch falls back to auto/task-{parentId}', async () => {
+  const deps = createFakeDeps();
+  const parent = deps.board.seed({ stage: 'in_progress', worktree_branch: null });
+  const elected = seedElected(deps, { parentTaskId: parent.id });
+
+  await pickupTask(deps, actionConfig(), contextFor(elected));
+
+  assert.equal(deps.worktrees.ensured[0].baseBranch, `auto/task-${parent.id}`);
+});
+
+test('a subtask with upstream tasks lists their branches and titles in the prompt', async () => {
+  const deps = createFakeDeps();
+  const parent = deps.board.seed({ stage: 'in_progress', worktree_branch: 'auto/task-parent-1' });
+  const upstream = deps.board.seed({
+    stage: 'done',
+    title: 'Add the imports table',
+    worktree_branch: 'auto/task-upstream-1',
+    parentTaskId: parent.id,
+  });
+  const elected = seedElected(deps, { parentTaskId: parent.id, dependsOn: [upstream.id] });
+
+  await pickupTask(deps, actionConfig(), contextFor(elected));
+
+  const prompt = deps.prompts[0].prompt;
+  assert.match(prompt, /Merge them into your branch before you start/);
+  assert.match(prompt, /auto\/task-upstream-1/);
+  assert.match(prompt, /Add the imports table/);
+
+  // The upstream task's title is untrusted text authored by whoever created
+  // that other task, not an instruction for this agent — it must land inside
+  // the fenced data block, not the branch list in the instruction section.
+  const branchListLine = prompt.split('\n').find((line) => line.trim() === '- auto/task-upstream-1');
+  assert.ok(branchListLine, 'the instruction section should list the bare branch, not "branch — title"');
+  const fenceStart = prompt.indexOf('--- BEGIN BRANCH TASK DATA ---');
+  const fenceEnd = prompt.indexOf('--- END BRANCH TASK DATA ---');
+  assert.ok(fenceStart >= 0 && fenceEnd > fenceStart, 'expected a fenced branch-title data block');
+  assert.ok(
+    prompt.indexOf('Add the imports table') > fenceStart,
+    'the untrusted title must land after the fence opens',
+  );
+  assert.ok(
+    prompt.indexOf('Add the imports table') < fenceEnd,
+    'the untrusted title must land before the fence closes',
+  );
+});
+
+test('a subtask with no upstream tasks gets no merge-your-blockers paragraph', async () => {
+  const deps = createFakeDeps();
+  const parent = deps.board.seed({ stage: 'in_progress', worktree_branch: 'auto/task-parent-1' });
+  const elected = seedElected(deps, { parentTaskId: parent.id });
+
+  await pickupTask(deps, actionConfig(), contextFor(elected));
+
+  assert.doesNotMatch(deps.prompts[0].prompt, /Merge them into your branch before you start/);
+});
+
+test("config.baseBranch is ignored for a subtask and honoured for a top-level ticket", async () => {
+  const config = { projectPath: '/home/dev/my-app', baseBranch: 'main' };
+
+  const subtaskDeps = createFakeDeps();
+  const parent = subtaskDeps.board.seed({ stage: 'in_progress', worktree_branch: 'auto/task-parent-1' });
+  const subtask = seedElected(subtaskDeps, { parentTaskId: parent.id });
+  await pickupTask(subtaskDeps, config, contextFor(subtask));
+  assert.equal(subtaskDeps.worktrees.ensured[0].baseBranch, 'auto/task-parent-1');
+
+  const ticketDeps = createFakeDeps();
+  const ticket = seedElected(ticketDeps);
+  await pickupTask(ticketDeps, config, contextFor(ticket));
+  assert.equal(ticketDeps.worktrees.ensured[0].baseBranch, 'main');
+});

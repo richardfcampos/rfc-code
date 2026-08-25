@@ -8,7 +8,8 @@ agent process ──stdio──▶ server/agent-bridge-mcp.ts ──HTTP──�
                                 (bearer: session token)              │
                                                                      ├─▶ modules/tasks
                                                                      ├─▶ modules/agent-messages (handoff inbox)
-                                                                     └─▶ modules/orgs (policy + recommend)
+                                                                     ├─▶ modules/orgs (policy + recommend)
+                                                                     └─▶ modules/reviews (comments only)
 ```
 
 ## Tools
@@ -29,12 +30,18 @@ agent process ──stdio──▶ server/agent-bridge-mcp.ts ──HTTP──�
 | `message_ack` | `messageId` | Marks a delivered message `acknowledged`: "I have this, I am working on it" |
 | `message_answer` | `messageId`, `body`, `subject?` | Marks the message `answered` and queues a linked reply back to its sender |
 | `profile_recommend` | `provider?` | Returns the profile the project should use next, quota aware |
+| `review_comment_add` | `taskId`, `filePath?`, `lineNo?`, `body` | Posts a comment on the task's live review (resolved server-side, `taskReviewsDb.getLiveByTask`); a task with none answers 404. An omitted `filePath` is a review-wide comment |
 
 Every tool is scoped by the token: the agent never names a project, and a task
 id from another project answers 404. The `message_*` tools take the acting
 session from the token too, so an agent cannot post a handoff as somebody else,
 nor read or acknowledge a message it is not a party to (those answer 404 rather
 than 403, so a mailbox cannot be probed for ids).
+
+There is no `review_approve` or `review_request_changes` — no tool this bridge
+dispatches can move a review's state. `review_comment_add` only ever writes a
+comment; approval stays behind the Review Center's UI, a human action taken
+through a JWT-protected route the bridge's token cannot reach.
 
 `toSessionId` is deliberately *not* restricted to the caller's own project: the
 common handoff is a lead session delegating to a worker running in a worktree,
@@ -99,3 +106,21 @@ Inside a packaged install the command resolves to
 the form that works for the running install.
 
 Optional: `CLOUDCLI_AGENT_BRIDGE_API_TIMEOUT_MS` (default 30000).
+
+### Server-spawned sessions
+
+A session a person starts registers through the flow above — the UI hits
+`/session-token` and writes the block into the provider's MCP config itself.
+A session an automation starts has no browser to do that, so the spawn path
+mints and hands over the registration directly:
+`describeAgentBridgeRegistrationForSession(sessionId)`
+(`agent-bridge.module.ts`), called by
+`server/modules/automations/services/automation-agent-spawn.service.ts` after
+the session row is created, and merged into the runtime's own MCP config in
+memory by `server/claude-sdk.js` — never written to a file. A session that
+cannot be resolved (the row vanished between creation and dispatch) refuses
+the run instead of dispatching an agent that would have no tools.
+
+Only the Claude runtime honours the injected config today; a rule that names
+another provider gets a session with no bridge tools, visible in the session
+transcript as a tool the agent asked for and does not have.

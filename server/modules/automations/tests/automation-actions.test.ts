@@ -160,6 +160,7 @@ test('pickup_task reaches the pickup service with the parsed config, not notify_
   assert.equal(deps.pushes.length, 0);
   assert.equal(deps.prompts.length, 1);
   assert.equal(deps.prompts[0].projectPath, '/home/dev/my-app');
+  assert.ok(typeof detail === 'string', 'expected a recorded detail, not an unrecorded skip');
   assert.match(detail, /Picked up task/);
 });
 

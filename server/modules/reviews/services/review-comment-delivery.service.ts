@@ -8,6 +8,7 @@
  */
 
 import type { ReviewCommentRow, SessionRow, TaskRow } from '@/modules/database/index.js';
+import { isAuxiliarySessionName } from '@/shared/utils.js';
 
 export type ReviewCommentRoutingStatus =
   | 'delivered'
@@ -45,6 +46,14 @@ export type ReviewCommentDeliveryDeps = {
  * remaining ties, and recency breaks the rest. Returns null rather than
  * guessing when nothing matches the branch — paging the wrong agent is worse
  * than paging nobody.
+ *
+ * An auxiliary session — one dispatched to work alongside the branch rather
+ * than to continue its authorship, tagged at spawn (see
+ * `AUXILIARY_SESSION_DISPLAY_NAME`) — is excluded before recency ever comes
+ * into it. Without this, a rule that reacts to the card reaching review and
+ * runs on the same branch would routinely be the *newest* session there and
+ * win the recency tie-break, paging itself instead of the session that
+ * actually wrote the code under review.
  */
 export function selectAuthorSession(
   sessions: SessionRow[],
@@ -52,7 +61,10 @@ export function selectAuthorSession(
   branch: string,
 ): SessionRow | null {
   const candidates = sessions.filter(
-    (session) => session.isArchived !== 1 && session.worktree_branch === branch,
+    (session) =>
+      session.isArchived !== 1 &&
+      session.worktree_branch === branch &&
+      !isAuxiliarySessionName(session.custom_name),
   );
   if (candidates.length === 0) {
     return null;

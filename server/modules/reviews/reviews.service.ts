@@ -10,6 +10,7 @@
 import {
   reviewCommentsDb,
   taskReviewsDb,
+  type ReviewCommentAuthor,
   type ReviewCommentRow,
   type TaskReviewRow,
   type TaskReviewState,
@@ -17,6 +18,7 @@ import {
   type TaskRow,
 } from '@/modules/database/index.js';
 import type { GitCommandRunner, MergeWorktreeInput, MergeWorktreeResult } from '@/shared/types.js';
+import { AppError } from '@/shared/utils.js';
 
 import type { ReviewUpdateAction } from './review-update-broadcast.js';
 import { ReviewNotFoundError, ReviewStateError } from './reviews.errors.js';
@@ -75,6 +77,11 @@ export type ReviewsService = {
   getDetail(rawId: unknown): Promise<ReviewDetail>;
   getFileDiff(rawId: unknown, rawFile: unknown): Promise<{ file: ReviewDiffFile; diff: string }>;
   addComment(rawId: unknown, body: Record<string, unknown>): Promise<ReviewCommentResult>;
+  /**
+   * The bridge's write path: an agent knows its task, not the review's
+   * internal id, so the live review is resolved server-side.
+   */
+  addCommentForTask(taskId: string, body: Record<string, unknown>): Promise<ReviewCommentResult>;
   approve(rawId: unknown, body: Record<string, unknown>): Promise<ReviewApprovalResult>;
   requestChanges(
     rawId: unknown,
@@ -185,24 +192,41 @@ async function getFileDiff(
 }
 
 /**
+ * A comment's file path is optional: empty is a review-wide comment, the same
+ * shape `requestChanges` already writes (`reviewCommentsDb` stores `''`).
+ * `validateDiffFilePath` stays strict for the one caller that must always
+ * name a real file (`getFileDiff`), so the "optional" reading lives here
+ * instead of loosening that check for every caller.
+ */
+function normalizeCommentFilePath(rawFilePath: unknown): string {
+  if (rawFilePath === undefined || rawFilePath === null || rawFilePath === '') {
+    return '';
+  }
+  return validateDiffFilePath(rawFilePath);
+}
+
+/**
  * Persists a comment and then tries to page the author's session with it.
  *
  * The write happens first and unconditionally: routing is best effort and its
- * outcome is reported, never thrown.
+ * outcome is reported, never thrown. `author` defaults to `user` — the human
+ * REST route never passes one — and is the only thing that separates this
+ * from the bridge's write path below.
  */
 async function addComment(
   deps: ReviewsServiceDeps,
   rawId: unknown,
   body: Record<string, unknown>,
+  author: ReviewCommentAuthor = 'user',
 ): Promise<ReviewCommentResult> {
   const reviewId = requireReviewId(rawId);
   const review = requireLiveReview(reviewId);
-  const filePath = validateDiffFilePath(body.filePath);
+  const filePath = normalizeCommentFilePath(body.filePath);
   const lineNo = validateLineNumber(body.lineNo);
   const commentBody = validateCommentBody(body.body);
 
   const context = await loadContext(deps, review);
-  const comment = reviewCommentsDb.create({ reviewId, filePath, lineNo, body: commentBody });
+  const comment = reviewCommentsDb.create({ reviewId, filePath, lineNo, body: commentBody, author });
   taskReviewsDb.touch(reviewId);
   deps.broadcast(requireJoinedReview(reviewId), 'commented');
 
@@ -215,12 +239,83 @@ async function addComment(
 }
 
 /**
+ * The bridge's write path, keyed by task rather than review id: the live
+ * review is the same lookup `openReviewForTask` uses, so a task with no
+ * review right now — never opened, or already closed — answers 404 instead
+ * of writing a comment nobody is waiting on.
+ */
+async function addCommentForTask(
+  deps: ReviewsServiceDeps,
+  taskId: string,
+  body: Record<string, unknown>,
+): Promise<ReviewCommentResult> {
+  const review = taskReviewsDb.getLiveByTask(taskId);
+  if (!review) {
+    throw new ReviewNotFoundError(taskId);
+  }
+  return addComment(deps, review.review_id, body, 'agent');
+}
+
+/**
+ * Names a merge failure the way the thread should read it: the error's own
+ * message, plus the conflicted paths when the failure carried any (only
+ * `WORKTREE_MERGE_CONFLICT` does — other merge failures show just the message).
+ */
+function describeMergeFailure(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const conflictedPaths =
+    error instanceof AppError && Array.isArray(error.details)
+      ? error.details.filter((entry): entry is string => typeof entry === 'string')
+      : [];
+
+  if (conflictedPaths.length === 0) {
+    return message;
+  }
+  return [message, 'Conflicted files:', ...conflictedPaths.map((filePath) => `- ${filePath}`)].join('\n');
+}
+
+/**
+ * Writes a merge failure into the thread and pages the author, so the reason
+ * a conflict aborted survives a dismissed dialog instead of existing only in
+ * the HTTP response.
+ *
+ * Best effort and swallowed on failure by contract: this reports a merge
+ * error, so it must never throw one of its own and mask the original.
+ */
+async function recordMergeFailure(
+  deps: ReviewsServiceDeps,
+  context: ReviewContext,
+  reviewId: string,
+  error: unknown,
+): Promise<void> {
+  try {
+    // Review-wide comment: empty path, the same shape `requestChanges` writes.
+    const comment = reviewCommentsDb.create({
+      reviewId,
+      filePath: '',
+      lineNo: null,
+      body: `The merge could not be completed:\n\n${describeMergeFailure(error)}`,
+    });
+    taskReviewsDb.touch(reviewId);
+    deps.broadcast(requireJoinedReview(reviewId), 'commented');
+    await routeCommentToAuthorSession(
+      { comment, task: context.task, repositoryRoot: context.repositoryRoot, branch: context.branch },
+      deps.delivery,
+    );
+  } catch (recordError) {
+    console.error('[reviews] could not record a merge failure on the review:', recordError);
+  }
+}
+
+/**
  * Merges the review's branch into the base branch, then closes the loop.
  *
  * The merge runs first and decides everything: on conflict the worktree merge
  * service aborts and rolls the base worktree back, its typed error propagates,
  * and the review stays exactly where it was so the same button can be pressed
- * again after the conflict is resolved.
+ * again after the conflict is resolved. A failed merge is also recorded as a
+ * comment before the error propagates, so the reason is not lost with the
+ * HTTP response that carried it.
  */
 async function approve(
   deps: ReviewsServiceDeps,
@@ -230,13 +325,19 @@ async function approve(
   const reviewId = requireReviewId(rawId);
   const context = await loadContext(deps, requireLiveReview(reviewId));
 
-  const merge = await deps.mergeWorktree({
-    projectPath: context.repositoryRoot,
-    worktreePath: context.worktreePath,
-    squash: body.squash === true,
-    message: typeof body.message === 'string' ? body.message : null,
-    removeAfterMerge: body.removeWorktree === true,
-  });
+  let merge: MergeWorktreeResult;
+  try {
+    merge = await deps.mergeWorktree({
+      projectPath: context.repositoryRoot,
+      worktreePath: context.worktreePath,
+      squash: body.squash === true,
+      message: typeof body.message === 'string' ? body.message : null,
+      removeAfterMerge: body.removeWorktree === true,
+    });
+  } catch (error) {
+    await recordMergeFailure(deps, context, reviewId, error);
+    throw error;
+  }
 
   taskReviewsDb.setState(reviewId, 'approved');
   reviewCommentsDb.resolveAllOpen(reviewId);
@@ -302,6 +403,7 @@ export function createReviewsService(deps: ReviewsServiceDeps): ReviewsService {
     getDetail: (id) => getDetail(deps, id),
     getFileDiff: (id, file) => getFileDiff(deps, id, file),
     addComment: (id, body) => addComment(deps, id, body),
+    addCommentForTask: (taskId, body) => addCommentForTask(deps, taskId, body),
     approve: (id, body) => approve(deps, id, body),
     requestChanges: (id, body) => requestChanges(deps, id, body),
   };

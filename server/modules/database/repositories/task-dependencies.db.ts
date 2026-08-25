@@ -211,6 +211,70 @@ export const taskDependenciesDb = {
       .all(taskId) as SubtaskRow[];
   },
 
+  /**
+   * The tasks this one depends on, whatever their stage — unlike `listBlockers`,
+   * done ones are included. By the time a task is elected its blockers are all
+   * done, and those are exactly the branches its work has to build on.
+   */
+  listUpstream(taskId: string): SubtaskRow[] {
+    return getConnection()
+      .prepare(
+        `SELECT ${qualify('upstream', SUBTASK_COLUMNS)}
+         FROM task_dependencies d
+         JOIN tasks upstream ON upstream.id = d.depends_on_task_id
+         WHERE d.task_id = ?
+         ORDER BY datetime(upstream.created_at), upstream.rowid`,
+      )
+      .all(taskId) as SubtaskRow[];
+  },
+
+  /**
+   * Tasks in a project that occupy a concurrency slot right now.
+   *
+   * A parent that decomposed sits in `in_progress` with no agent attached: its
+   * subtasks are the work, and counting the parent as well would let one
+   * decomposition eat the ceiling and, at `maxConcurrent: 1`, deadlock its own
+   * children. `NOT EXISTS(unfinished child)` is true for a task with no
+   * children at all, so an ordinary solo ticket keeps counting exactly as
+   * before — and a parent whose children are all done counts again, because it
+   * is about to be handed back an agent for the integration.
+   */
+  countActiveInProgressByProject(projectName: string): number {
+    const row = getConnection()
+      .prepare(
+        `SELECT COUNT(*) AS count FROM tasks t
+         WHERE t.project_name = ? AND t.stage = 'in_progress'
+           AND NOT EXISTS (
+             SELECT 1 FROM tasks child
+             WHERE child.parent_task_id = t.id AND child.stage <> 'done'
+           )`,
+      )
+      .get(projectName) as { count: number } | undefined;
+    return Number(row?.count ?? 0);
+  },
+
+  /**
+   * Decomposed parents ready to be integrated: still `in_progress`, at least
+   * one subtask, and every subtask `done`. Oldest first.
+   *
+   * The `EXISTS` clause is what keeps a plain solo ticket out of the
+   * integration queue — without it every ordinary `in_progress` card would be
+   * re-dispatched.
+   */
+  listParentsAwaitingIntegration(projectName: string): TaskRow[] {
+    return getConnection()
+      .prepare(
+        `SELECT ${qualify('t', TASK_COLUMNS)} FROM tasks t
+         WHERE t.project_name = ? AND t.stage = 'in_progress'
+           AND EXISTS (SELECT 1 FROM tasks c WHERE c.parent_task_id = t.id)
+           AND NOT EXISTS (
+             SELECT 1 FROM tasks c WHERE c.parent_task_id = t.id AND c.stage <> 'done'
+           )
+         ORDER BY datetime(t.created_at), t.rowid`,
+      )
+      .all(projectName) as TaskRow[];
+  },
+
   get(taskId: string): SubtaskRow | null {
     const row = getConnection()
       .prepare(`SELECT ${SUBTASK_COLUMNS} FROM tasks WHERE id = ?`)

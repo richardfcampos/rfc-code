@@ -17,6 +17,7 @@ import type {
   TaskRow,
 } from '@/modules/database/index.js';
 import type { ProfileRecommendation } from '@/modules/orgs/index.js';
+import type { ReviewCommentResult } from '@/modules/reviews/index.js';
 import type { TaskDecomposition, TaskUpdateAction } from '@/modules/tasks/index.js';
 import type { LLMProvider } from '@/shared/types.js';
 
@@ -62,6 +63,18 @@ export interface AgentBridgePolicyPort {
 }
 
 /**
+ * The slice of the Reviews service the bridge uses.
+ *
+ * Keyed by task, not review id: an agent knows the task it is reviewing, and
+ * the live review for it is resolved server-side the same way
+ * `openReviewForTask` resolves one. There is deliberately no approve-like
+ * method here — no tool the bridge dispatches can change a review's state.
+ */
+export interface AgentBridgeReviewsPort {
+  addCommentForTask(taskId: string, body: Record<string, unknown>): Promise<ReviewCommentResult>;
+}
+
+/**
  * The slice of the handoff inbox the bridge uses.
  *
  * Every method takes the acting session id first, and the bridge always passes
@@ -97,6 +110,7 @@ export interface AgentBridgeToolDeps {
   messages: AgentBridgeMessagesPort;
   policy: AgentBridgePolicyPort;
   recommend: AgentBridgeRecommendPort;
+  reviews: AgentBridgeReviewsPort;
   broadcast: AgentBridgeBroadcast;
 }
 

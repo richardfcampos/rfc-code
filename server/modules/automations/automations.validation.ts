@@ -99,6 +99,15 @@ function optionalString(source: Record<string, unknown>, key: string, field: str
   return value.trim();
 }
 
+function optionalBoolean(source: Record<string, unknown>, key: string, field: string): boolean | undefined {
+  const value = source[key];
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== 'boolean') {
+    throw new AutomationValidationError(`${field}.${key} must be a boolean`);
+  }
+  return value;
+}
+
 function optionalStage(source: Record<string, unknown>, key: string): TaskStage | undefined {
   const value = source[key];
   if (value === undefined || value === null || value === '') return undefined;
@@ -228,6 +237,10 @@ export function validateActionConfig(
       const value = optionalString(config, key, 'action_config');
       if (value) normalized[key] = value;
     }
+
+    const useTaskWorktree = optionalBoolean(config, 'useTaskWorktree', 'action_config');
+    if (useTaskWorktree !== undefined) normalized.useTaskWorktree = useTaskWorktree;
+
     return normalized;
   }
 

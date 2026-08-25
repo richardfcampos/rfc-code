@@ -207,6 +207,11 @@ export const sessionsDb = {
    * `worktreePath`/`worktreeBranch` are the resolved pair for the `cwd` the
    * session was started with; `projectPath` must already be the repo root,
    * never the worktree directory, so no project row is created for it.
+   *
+   * `customName` is almost always omitted (the disk synchronizer fills a
+   * title in later); a caller passes one only when the name itself carries
+   * meaning at creation time, such as tagging a server-spawned auxiliary run
+   * — see `AUXILIARY_SESSION_DISPLAY_NAME`.
    */
   createAppSession(
     sessionId: string,
@@ -214,7 +219,8 @@ export const sessionsDb = {
     projectPath: string,
     profileId?: string | null,
     worktreePath?: string | null,
-    worktreeBranch?: string | null
+    worktreeBranch?: string | null,
+    customName?: string | null
   ): string {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPathForProvider(provider, projectPath);
@@ -223,10 +229,11 @@ export const sessionsDb = {
 
     db.prepare(
       `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, profile_id, worktree_path, worktree_branch, isArchived, created_at, updated_at)
-       VALUES (?, ?, NULL, NULL, ?, NULL, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+       VALUES (?, ?, NULL, ?, ?, NULL, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
     ).run(
       sessionId,
       provider,
+      customName ?? null,
       normalizedProjectPath,
       profileId ?? null,
       worktreePath ?? null,

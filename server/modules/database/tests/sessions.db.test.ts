@@ -191,5 +191,27 @@ test('createAppSession without worktree args keeps existing NULL behavior', asyn
     const row = sessionsDb.getSessionById('app-wt-2');
     assert.equal(row?.worktree_path, null);
     assert.equal(row?.worktree_branch, null);
+    assert.equal(row?.custom_name, null);
+  });
+});
+
+test('createAppSession stamps an explicit custom name at creation', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-named-1', 'claude', '/repo', null, null, null, 'Automated follow-up');
+
+    const row = sessionsDb.getSessionById('app-named-1');
+    assert.equal(row?.custom_name, 'Automated follow-up');
+  });
+});
+
+test('createAppSession omitting the trailing custom name still persists NULL', async () => {
+  await withIsolatedDatabase(() => {
+    sessionsDb.createAppSession('app-named-2', 'claude', '/repo', null, '/repo-wt', 'feature-x');
+
+    const row = sessionsDb.getSessionById('app-named-2');
+    assert.equal(row?.custom_name, null);
+    // The worktree pair before it is unaffected by the new trailing parameter.
+    assert.equal(row?.worktree_path, '/repo-wt');
+    assert.equal(row?.worktree_branch, 'feature-x');
   });
 });

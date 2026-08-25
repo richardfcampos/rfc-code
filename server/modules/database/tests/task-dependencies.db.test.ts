@@ -253,3 +253,102 @@ test('get reads a task with its parent link, and null for an unknown id', async 
     assert.equal(taskDependenciesDb.get('missing-task'), null);
   });
 });
+
+test('countActiveInProgressByProject excludes a decomposed parent until every child is done', async () => {
+  await withIsolatedDatabase(() => {
+    const solo = createParent('Solo ticket');
+    tasksDb.update(solo.id, { stage: 'in_progress' });
+
+    const parent = createParent('Decomposed ticket');
+    tasksDb.update(parent.id, { stage: 'in_progress' });
+    const subtasks = createChain(parent.id);
+
+    // Subtasks still in `backlog`: the parent is doing nothing, so it must not count.
+    assert.equal(taskDependenciesDb.countActiveInProgressByProject('my-app'), 1);
+
+    for (const subtask of subtasks) {
+      tasksDb.update(subtask.id, { stage: 'done' });
+    }
+
+    // Every child done: the parent counts again, ready to be handed back an agent.
+    assert.equal(taskDependenciesDb.countActiveInProgressByProject('my-app'), 2);
+  });
+});
+
+test('listParentsAwaitingIntegration returns only a decomposed parent whose children are all done', async () => {
+  await withIsolatedDatabase(() => {
+    const solo = createParent('Solo ticket');
+    tasksDb.update(solo.id, { stage: 'in_progress' });
+
+    const parent = createParent('Decomposed ticket');
+    tasksDb.update(parent.id, { stage: 'in_progress' });
+    const subtasks = createChain(parent.id);
+
+    // A childless in_progress ticket is never a candidate.
+    assert.deepEqual(taskDependenciesDb.listParentsAwaitingIntegration('my-app'), []);
+
+    tasksDb.update(subtasks[0].id, { stage: 'done' });
+    tasksDb.update(subtasks[1].id, { stage: 'done' });
+    assert.deepEqual(taskDependenciesDb.listParentsAwaitingIntegration('my-app'), []);
+
+    tasksDb.update(subtasks[2].id, { stage: 'done' });
+    assert.deepEqual(
+      taskDependenciesDb.listParentsAwaitingIntegration('my-app').map((task) => task.id),
+      [parent.id],
+    );
+  });
+});
+
+test('listUpstream includes done dependencies that listBlockers excludes once they land', async () => {
+  await withIsolatedDatabase(() => {
+    const parent = createParent();
+    const [first, second] = createChain(parent.id);
+
+    assert.deepEqual(
+      taskDependenciesDb.listBlockers(second.id).map((task) => task.id),
+      [first.id],
+    );
+    assert.deepEqual(
+      taskDependenciesDb.listUpstream(second.id).map((task) => task.id),
+      [first.id],
+    );
+
+    tasksDb.update(first.id, { stage: 'done' });
+
+    // Done dependencies drop out of listBlockers but stay in listUpstream.
+    assert.deepEqual(taskDependenciesDb.listBlockers(second.id), []);
+    assert.deepEqual(
+      taskDependenciesDb.listUpstream(second.id).map((task) => task.id),
+      [first.id],
+    );
+  });
+});
+
+test('listReadyBacklogByProject returns backlog tickets project-wide, top-level and subtasks alike', async () => {
+  await withIsolatedDatabase(() => {
+    const soloTicket = tasksDb.create({ title: 'Solo ticket', projectName: 'my-app' });
+    const parent = createParent();
+    // A decomposed parent leaves `backlog` for `in_progress` before its plan is
+    // written, same as the real pickup flow — otherwise it would show up as its
+    // own ready backlog candidate alongside its subtasks.
+    tasksDb.update(parent.id, { stage: 'in_progress' });
+    const [first, second] = createChain(parent.id);
+    const otherProjectTicket = tasksDb.create({ title: 'Other project ticket', projectName: 'other-app' });
+
+    assert.deepEqual(
+      taskDependenciesDb.listReadyBacklogByProject('my-app').map((task) => task.id),
+      [soloTicket.id, first.id],
+    );
+
+    tasksDb.update(first.id, { stage: 'done' });
+    assert.deepEqual(
+      taskDependenciesDb.listReadyBacklogByProject('my-app').map((task) => task.id),
+      [soloTicket.id, second.id],
+    );
+
+    assert.deepEqual(
+      taskDependenciesDb.listReadyBacklogByProject('other-app').map((task) => task.id),
+      [otherProjectTicket.id],
+    );
+  });
+});

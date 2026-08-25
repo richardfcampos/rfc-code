@@ -4,12 +4,15 @@
  * Two routers (agent-facing tools, UI-facing token minting) are mounted by the
  * server entrypoint. `mintAgentBridgeToken` is exported for the spawn path: a
  * session that registers the MCP server for itself needs the same credential
- * the REST endpoint hands to the UI.
+ * the REST endpoint hands to the UI. `describeAgentBridgeRegistrationForSession`
+ * is the whole registration in one call, for a session with no browser to hit
+ * `/session-token` itself.
  */
 
 export {
   agentBridgeRoutes,
   agentBridgeSessionTokenRoutes,
+  describeAgentBridgeRegistrationForSession,
   mintAgentBridgeToken,
 } from './agent-bridge.module.js';
 

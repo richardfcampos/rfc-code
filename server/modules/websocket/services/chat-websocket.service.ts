@@ -35,6 +35,24 @@ import { parseIncomingJsonObject } from '@/shared/utils.js';
  *
  * Exported for tests; `assetsRootOverride` exists only for them.
  */
+/**
+ * Trust boundary for client-supplied run options: only server code may
+ * register a stdio MCP server for a run. The provider runtime honours
+ * `options.mcpServers` from whichever caller passed it — that is exactly what
+ * lets a server-spawned automation hand its own session the agent-bridge
+ * tool without writing a token to disk — so an `mcpServers` entry surviving
+ * from `chat.send` would let an authenticated browser client register an
+ * arbitrary stdio command (transport, args, env — the works) the same way.
+ * Stripped here, before the client's options are spread into what the
+ * runtime receives, so injection stays a server-only capability.
+ *
+ * Exported for tests.
+ */
+export function stripClientSpawnOptions(options: AnyRecord): AnyRecord {
+  const { mcpServers: _mcpServers, ...rest } = options;
+  return rest;
+}
+
 export function filterImagesToUploadStore(images: unknown, assetsRootOverride?: string): AnyRecord[] {
   const assetsRoot = path.resolve(assetsRootOverride ?? getGlobalImageAssetsDir());
 
@@ -316,7 +334,7 @@ async function handleChatSend(
     return;
   }
 
-  const clientOptions = (data.options ?? {}) as AnyRecord;
+  const clientOptions = stripClientSpawnOptions((data.options ?? {}) as AnyRecord);
 
   // The owning account profile is a property of the session, so it is read from
   // the session row rather than trusted from the per-message options; the

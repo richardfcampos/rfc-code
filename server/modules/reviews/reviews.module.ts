@@ -8,6 +8,7 @@
  * agent, which arrives at boot the same way the collab runtime does.
  */
 
+import { describeAgentBridgeRegistrationForSession } from '@/modules/agent-bridge/index.js';
 import { projectsDb, sessionsDb, tasksDb } from '@/modules/database/index.js';
 import {
   broadcastTaskUpdate,
@@ -91,8 +92,15 @@ let unsubscribeStageListener: (() => void) | null = null;
  * Idempotent: calling it twice replaces the runtime and keeps exactly one
  * stage subscription, so a restarted boot sequence cannot double-open reviews.
  */
-export function configureReviewsRuntime(deps: SessionMessageSenderDeps): void {
-  sessionMessageSender = createSessionMessageSender(deps);
+export function configureReviewsRuntime(deps: { spawnFns: SessionMessageSenderDeps['spawnFns'] }): void {
+  sessionMessageSender = createSessionMessageSender({
+    ...deps,
+    // Wired here rather than required from the caller: the entrypoint already
+    // hands the automations module its bridge access the same way, and a
+    // routed turn needs the identical port — resolve a session's stdio MCP
+    // registration, minted fresh per call.
+    bridge: { describeRegistrationForSession: describeAgentBridgeRegistrationForSession },
+  });
   unsubscribeStageListener?.();
   unsubscribeStageListener = registerTaskStageListener(onTaskStageChanged);
 }

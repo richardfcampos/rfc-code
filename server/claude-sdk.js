@@ -581,9 +581,15 @@ async function queryClaudeSDK(command, options = {}, ws) {
       effortModels,
     });
 
-    const mcpServers = await loadMcpConfig(options.cwd);
-    if (mcpServers) {
-      sdkOptions.mcpServers = mcpServers;
+    // The caller's servers win over the loaded config, and apply even when the
+    // config file has none: a per-session server (e.g. the agent bridge a
+    // server-spawned run injects) must not be shadowed by a stale same-named
+    // entry in the user's own ~/.claude.json.
+    const loadedMcpServers = await loadMcpConfig(options.cwd);
+    const injectedMcpServers =
+      options.mcpServers && typeof options.mcpServers === 'object' ? options.mcpServers : null;
+    if (loadedMcpServers || injectedMcpServers) {
+      sdkOptions.mcpServers = { ...(loadedMcpServers ?? {}), ...(injectedMcpServers ?? {}) };
     }
 
     // Turns with image attachments switch to streaming input so the images

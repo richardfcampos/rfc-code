@@ -1303,6 +1303,28 @@ export async function extractFirstValidJsonlData<T>(
 }
 
 // ---------------------------
+//----------------- SESSION AUTHORSHIP TAGGING UTILITIES ------------
+/**
+ * Display name stamped on a session spawned to work alongside a branch
+ * rather than to continue that branch's own authorship — for instance an
+ * agent invited to look at a ticket already being (or already) worked,
+ * dispatched onto the same branch as the ticket's own session.
+ *
+ * `custom_name` is the one session column already under server control at
+ * creation and durable across a restart, so it doubles as the signal a
+ * reader uses to tell "the branch's author" apart from an auxiliary run that
+ * merely shares its branch — without guessing from which session happens to
+ * be newest, which an auxiliary run dispatched after the author's own often
+ * is.
+ */
+export const AUXILIARY_SESSION_DISPLAY_NAME = 'Automated follow-up (not the branch author)';
+
+/** True when a session's display name marks it as an auxiliary run — see `AUXILIARY_SESSION_DISPLAY_NAME`. */
+export function isAuxiliarySessionName(customName: string | null | undefined): boolean {
+  return customName === AUXILIARY_SESSION_DISPLAY_NAME;
+}
+
+// ---------------------------
 //----------------- CLI PROMPT ARGUMENT UTILITIES ------------
 /**
  * Makes a prompt safe to pass as one CLI argument to `.cmd`-shimmed tools on

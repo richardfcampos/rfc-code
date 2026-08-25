@@ -29,8 +29,34 @@ type ProviderSpawnFn = (
   writer: unknown,
 ) => Promise<unknown>;
 
+/**
+ * The stdio MCP registration shape a routed turn needs to inject.
+ *
+ * Declared locally rather than imported from the bridge module: the module
+ * boundary lint keeps this module off other modules' internals, and this file
+ * otherwise imports only types.
+ */
+export interface AgentBridgeMcpRegistrationLike {
+  name: string;
+  command: string;
+  args: string[];
+  env: Record<string, string>;
+}
+
 export type SessionMessageSenderDeps = {
   spawnFns: Record<string, ProviderSpawnFn>;
+  /**
+   * The agent's own tool surface, resolved fresh for every routed turn — the
+   * same call the automation spawn path makes when it first starts a
+   * session. A resume with no `mcpServers` in its options loses the bridge
+   * silently: the runtime just starts the agent with fewer tools than the
+   * comment it is reading asks it to use, nothing throws. Null when the
+   * session's scope cannot be resolved; the turn still sends, just without
+   * the bridge, the same as it always has.
+   */
+  bridge: {
+    describeRegistrationForSession(sessionId: string): AgentBridgeMcpRegistrationLike | null;
+  };
 };
 
 /**
@@ -106,6 +132,22 @@ export function createSessionMessageSender(deps: SessionMessageSenderDeps): Sess
       return false;
     }
 
+    // Resolved fresh on every routed turn, the same call the automation spawn
+    // path makes when it first starts a session — a resume with no
+    // `mcpServers` in its options silently loses the bridge instead of
+    // failing loudly, so this is best-effort rather than a refusal: a
+    // session the bridge cannot resolve still gets its comment, just without
+    // the tool surface.
+    let registration: AgentBridgeMcpRegistrationLike | null = null;
+    try {
+      registration = deps.bridge.describeRegistrationForSession(session.session_id);
+    } catch (error) {
+      console.error(
+        `[reviews] could not resolve agent-bridge access for a routed turn on ${session.session_id}:`,
+        error,
+      );
+    }
+
     const options: Record<string, unknown> = {
       sessionId: session.provider_session_id ?? undefined,
       resume: Boolean(session.provider_session_id),
@@ -113,6 +155,18 @@ export function createSessionMessageSender(deps: SessionMessageSenderDeps): Sess
       projectPath: session.project_path ?? undefined,
       profileId: session.profile_id,
       cavemanMode: session.caveman_mode ?? null,
+      ...(registration
+        ? {
+            mcpServers: {
+              [registration.name]: {
+                type: 'stdio',
+                command: registration.command,
+                args: registration.args,
+                env: registration.env,
+              },
+            },
+          }
+        : {}),
     };
 
     // The turn is not awaited: an agent addressing a review comment can run for

@@ -64,6 +64,25 @@ reason — the endpoint cannot be used to discover which rules exist.
 { "project": "my-app", "maxConcurrent": 2 }  // maxConcurrent: integer 1–10, defaults to 2
 ```
 
+A `task_backlog` rule is really two elections on the same minute tick, both
+capped at one dispatch per rule:
+
+1. **Integration first.** Any decomposed parent — still `in_progress`, at
+   least one subtask, every subtask `done` — is re-woken with
+   `intent: 'integrate'`, oldest first. Not gated by `maxConcurrent`: the
+   moment a plan finishes, the parent counts against the ceiling again (see
+   below), so gating its own re-wake on that ceiling would deadlock a project
+   running at `maxConcurrent: 1`. The dedupe key
+   (`integrate:{parentId}:{childCount}:{newest child updated_at}`) fires once
+   per completed set and fires again if a child is reopened and re-finished.
+2. **Backlog pickup second,** exactly as before, gated by `maxConcurrent`.
+
+The concurrency count itself excludes a decomposed parent while any of its
+children is unfinished — it is the children doing the work, not the parent —
+so one decomposition does not permanently spend a slot on a card with no agent
+attached. A parent whose children are all done counts again, which is what
+makes it eligible for step 1's re-wake.
+
 ## Action configs
 
 ```jsonc

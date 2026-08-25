@@ -7,10 +7,12 @@
 
 import type {
   AgentMessageRow,
+  ReviewCommentRow,
   SubtaskRow,
   TaskEvidenceRow,
   TaskRow,
 } from '@/modules/database/index.js';
+import type { ReviewCommentResult } from '@/modules/reviews/index.js';
 import type { TaskDecomposition, TaskUpdateAction } from '@/modules/tasks/index.js';
 
 import type {
@@ -66,6 +68,17 @@ export const DECOMPOSITION: TaskDecomposition = {
   ],
 };
 
+export const REVIEW_COMMENT: ReviewCommentRow = {
+  comment_id: 'review-comment-1',
+  review_id: 'review-1',
+  file_path: 'src/app.ts',
+  line_no: 12,
+  body: 'Looks fine.',
+  author: 'agent',
+  state: 'open',
+  created_at: '2026-08-20T00:00:00.000Z',
+};
+
 export const MESSAGE: AgentMessageRow = {
   message_id: 'message-1',
   from_session_id: 'session-2',
@@ -89,6 +102,7 @@ export interface BridgeTestDeps extends AgentBridgeToolDeps {
   evidenceCalls: Array<[unknown, Record<string, unknown>]>;
   decomposeCalls: Array<[unknown, Record<string, unknown>]>;
   messageCalls: Record<'send' | 'list' | 'pullInbox' | 'acknowledge' | 'answer', MessageCall[]>;
+  reviewCommentCalls: Array<[string, Record<string, unknown>]>;
 }
 
 export function createBridgeDeps(overrides: Partial<AgentBridgeToolDeps> = {}): BridgeTestDeps {
@@ -104,6 +118,7 @@ export function createBridgeDeps(overrides: Partial<AgentBridgeToolDeps> = {}): 
     acknowledge: [],
     answer: [],
   };
+  const reviewCommentCalls: Array<[string, Record<string, unknown>]> = [];
 
   const deps: AgentBridgeToolDeps = {
     tasks: {
@@ -191,6 +206,20 @@ export function createBridgeDeps(overrides: Partial<AgentBridgeToolDeps> = {}): 
         reason: 'primary account below threshold',
       }),
     },
+    reviews: overrides.reviews ?? {
+      addCommentForTask: async (taskId, body) => {
+        reviewCommentCalls.push([taskId, body]);
+        return {
+          comment: {
+            ...REVIEW_COMMENT,
+            file_path: typeof body.filePath === 'string' ? body.filePath : '',
+            line_no: typeof body.lineNo === 'number' ? body.lineNo : null,
+            body: String(body.body ?? REVIEW_COMMENT.body),
+          },
+          routing: { routed: false, status: 'no_session', sessionId: null },
+        } satisfies ReviewCommentResult;
+      },
+    },
     broadcast: overrides.broadcast ?? ((task, action) => {
       broadcasts.push([task, action]);
     }),
@@ -204,5 +233,6 @@ export function createBridgeDeps(overrides: Partial<AgentBridgeToolDeps> = {}): 
     evidenceCalls,
     decomposeCalls,
     messageCalls,
+    reviewCommentCalls,
   };
 }

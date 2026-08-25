@@ -24,6 +24,8 @@ type Harness = {
   sentMessages: Array<{ sessionId: string; text: string }>;
   sessions: SessionRow[];
   setSender(sender: SessionMessageSender | null): void;
+  /** Makes the next broadcast throw — for asserting a best-effort write is swallowed. */
+  setBroadcastError(error: Error | null): void;
 };
 
 function buildSession(overrides: Partial<SessionRow>): SessionRow {
@@ -70,6 +72,7 @@ async function withHarness(runTest: (harness: Harness) => Promise<void>): Promis
   const sentMessages: Array<{ sessionId: string; text: string }> = [];
   const sessions: SessionRow[] = [];
   let sender: SessionMessageSender | null = null;
+  let broadcastError: Error | null = null;
 
   const task = tasksDb.create({
     title: 'Employee form',
@@ -104,6 +107,9 @@ async function withHarness(runTest: (harness: Harness) => Promise<void>): Promis
       },
     },
     broadcast: (_review, action) => {
+      if (broadcastError) {
+        throw broadcastError;
+      }
       broadcasts.push(action);
     },
   });
@@ -118,6 +124,9 @@ async function withHarness(runTest: (harness: Harness) => Promise<void>): Promis
       sessions,
       setSender: (next) => {
         sender = next;
+      },
+      setBroadcastError: (next) => {
+        broadcastError = next;
       },
     });
   } finally {
@@ -398,5 +407,108 @@ test('an unknown review id is a 404', async () => {
       () => service.getDetail('missing'),
       (error: AppError) => error.code === 'REVIEW_NOT_FOUND' && error.statusCode === 404,
     );
+  });
+});
+
+test('addCommentForTask resolves the live review by task id and marks the comment agent-authored', async () => {
+  await withHarness(async ({ service, task }) => {
+    service.openReviewForTask({ ...task, stage: 'review' });
+
+    const { comment } = await service.addCommentForTask(task.id, {
+      filePath: 'employee-form.ts',
+      body: 'Missing a null check',
+    });
+
+    assert.equal(comment.author, 'agent');
+    assert.equal(comment.file_path, 'employee-form.ts');
+  });
+});
+
+test('addCommentForTask accepts an empty file path as a review-wide comment', async () => {
+  await withHarness(async ({ service, task }) => {
+    service.openReviewForTask({ ...task, stage: 'review' });
+
+    const { comment } = await service.addCommentForTask(task.id, { body: 'Change looks sound.' });
+
+    assert.equal(comment.file_path, '');
+    assert.equal(comment.author, 'agent');
+  });
+});
+
+test('addCommentForTask is a 404 for a task with no live review', async () => {
+  await withHarness(async ({ service, task }) => {
+    await assert.rejects(
+      () => service.addCommentForTask(task.id, { body: 'Nothing to comment on' }),
+      (error: AppError) => error.code === 'REVIEW_NOT_FOUND' && error.statusCode === 404,
+    );
+  });
+});
+
+test('a conflicting merge writes a review-wide comment, routes it, and leaves the review live', async () => {
+  await withHarness(async ({ service, task, repository, sessions, sentMessages, setSender }) => {
+    sessions.push(buildSession({ session_id: 'author', worktree_branch: repository.branch }));
+    setSender(recordingSender(sentMessages));
+
+    // Both branches touch the same file with different content.
+    await repository.commitFile(
+      repository.worktreePath,
+      'conflict.txt',
+      'from the branch\n',
+      'feat: branch line',
+    );
+    await repository.commitFile(
+      repository.root,
+      'conflict.txt',
+      'from the base\n',
+      'feat: base line',
+    );
+
+    const review = service.openReviewForTask({ ...task, stage: 'review' })!;
+
+    await assert.rejects(
+      () => service.approve(review.review_id, {}),
+      (error: AppError) => error.code === 'WORKTREE_MERGE_CONFLICT',
+    );
+
+    assert.equal(taskReviewsDb.get(review.review_id)?.state, 'open');
+    assert.equal(tasksDb.get(task.id)?.stage, 'backlog');
+
+    const detail = await service.getDetail(review.review_id);
+    assert.equal(detail.comments.length, 1);
+    assert.equal(detail.comments[0].file_path, '');
+    assert.match(detail.comments[0].body, /conflict\.txt/);
+
+    assert.equal(sentMessages.length, 1);
+    assert.match(sentMessages[0].text, /conflict\.txt/);
+  });
+});
+
+test('a merge failure that cannot be recorded never masks the merge error', async () => {
+  await withHarness(async ({ service, task, repository, setBroadcastError }) => {
+    await repository.commitFile(
+      repository.worktreePath,
+      'conflict.txt',
+      'from the branch\n',
+      'feat: branch line',
+    );
+    await repository.commitFile(
+      repository.root,
+      'conflict.txt',
+      'from the base\n',
+      'feat: base line',
+    );
+
+    const review = service.openReviewForTask({ ...task, stage: 'review' })!;
+    // Writing the failure comment itself fails (a broken broadcast channel
+    // here stands in for any of it: the insert, the routing, the fan-out).
+    // The merge conflict must still be what propagates.
+    setBroadcastError(new Error('broadcast channel down'));
+
+    await assert.rejects(
+      () => service.approve(review.review_id, {}),
+      (error: AppError) => error.code === 'WORKTREE_MERGE_CONFLICT',
+    );
+
+    assert.equal(taskReviewsDb.get(review.review_id)?.state, 'open');
   });
 });

@@ -54,6 +54,16 @@ export function readEvidenceKind(value: unknown, field: string): AgentEvidenceKi
   return kind as AgentEvidenceKind;
 }
 
+export function readOptionalInteger(value: unknown, field: string): number | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (typeof value !== 'number' || !Number.isInteger(value)) {
+    throw new AgentBridgeValidationError(`${field} must be an integer.`);
+  }
+  return value;
+}
+
 export function readOptionalProvider(value: unknown): LLMProvider | undefined {
   const provider = readOptionalString(value, 'provider');
   if (provider === undefined) {

@@ -82,6 +82,13 @@ export interface PromptAgentActionConfig {
   /** Pins the run to a worktree instead of the repository root. */
   worktreePath?: string;
   worktreeBranch?: string;
+  /**
+   * Run in the worktree of the task that triggered the rule, rather than in
+   * `projectPath`. One rule serves every task on a board, so the worktree
+   * cannot be named in config — it is whatever the firing task is checked out
+   * in. Ignored when the firing carries no task, or the task has no branch.
+   */
+  useTaskWorktree?: boolean;
 }
 
 export interface CreateTaskActionConfig {
@@ -142,7 +149,39 @@ export interface AutomationTriggerContext {
   variables: Record<string, string>;
   /** Present for task-stage firings; lets an action reference the task itself. */
   task?: TaskRow;
+  /**
+   * Which half of the backlog loop a `pickup_task` firing is.
+   *
+   * Absent (the default) means "claim a ready ticket". `integrate` means the
+   * elected task is a decomposed parent whose subtasks are all done and whose
+   * card must not be claimed again — the two paths meet the same task row in
+   * two different stages, so the intent cannot be inferred from the row.
+   */
+  intent?: 'pickup' | 'integrate';
 }
+
+/**
+ * A skip whose cause is not durable: a live session already on the target
+ * branch, a card that moved on before the action re-checked it. The same
+ * guard can look identical the next time the same event is observed, so an
+ * action returns this instead of a plain detail string to tell the firing
+ * service the attempt must leave no run row behind — a row under this
+ * event's dedupe key would block the guard from ever being re-checked, and
+ * the event's next natural re-fire (the next stage change, the next tick) is
+ * what gives it another chance, not a retry of this attempt.
+ */
+export interface AutomationUnrecordedSkip {
+  readonly unrecorded: true;
+  readonly detail: string;
+}
+
+/** Builds the one skip shape every action uses for a guard that must not burn its dedupe key. */
+export function unrecordedSkip(detail: string): AutomationUnrecordedSkip {
+  return { unrecorded: true, detail };
+}
+
+/** What one action attempt actually produces: a detail to record, or a skip that must not be. */
+export type AutomationActionResult = string | AutomationUnrecordedSkip;
 
 export interface PromptAgentInput {
   projectPath: string;
@@ -151,6 +190,16 @@ export interface PromptAgentInput {
   requestedProfileId: string | null;
   worktreePath: string | null;
   worktreeBranch: string | null;
+  /**
+   * False marks a run dispatched to work alongside a branch rather than to
+   * continue that branch's own authorship — a `prompt_agent` rule invited to
+   * look at a ticket already being (or already) worked, for instance.
+   * Defaults to true: a `pickup_task` claim and its later integration are
+   * both the ticket's own authorship continuing. Threaded through to the
+   * spawned session's row so a later reader can tell the two apart without
+   * guessing from recency — see `AUXILIARY_SESSION_DISPLAY_NAME`.
+   */
+  isAuthoringRun?: boolean;
 }
 
 export interface PromptAgentResult {
@@ -209,8 +258,35 @@ export interface AutomationRepositoryGateway {
 export interface AutomationBoardGateway {
   /** Backlog tasks in the project whose dependencies are all done, oldest first. */
   listReadyBacklog(project: string): TaskRow[];
-  /** Tasks currently `in_progress` in the project — every one of them, whoever started it. */
-  countInProgress(project: string): number;
+  /**
+   * Tasks in the project that occupy a concurrency slot right now.
+   *
+   * A parent that decomposed sits in `in_progress` with no agent attached: its
+   * subtasks are the work, and counting the parent as well would let one
+   * decomposition eat the ceiling and, at `maxConcurrent: 1`, deadlock its own
+   * children. A parent whose children are all done counts again — it is about
+   * to be handed back an agent for the integration.
+   */
+  countActiveInProgress(project: string): number;
+  /**
+   * Decomposed parents ready to be integrated: still `in_progress`, at least
+   * one subtask, and every subtask `done`. Oldest first.
+   */
+  listParentsAwaitingIntegration(project: string): TaskRow[];
+  /** A parent's subtasks in plan order — the branches an integration merges. */
+  listSubtasks(parentTaskId: string): TaskRow[];
+  /**
+   * The parent ticket of a subtask, or null for a top-level one. A separate
+   * read because `TaskRow` does not carry `parent_task_id`.
+   */
+  getParentTask(taskId: string): TaskRow | null;
+  /**
+   * The tasks this one depends on, whatever their stage — their branches carry
+   * work it has to build on. Unlike `listBlockers`, done ones are included:
+   * by the time a task is elected its blockers are all done, and those are
+   * exactly the branches that matter.
+   */
+  listUpstreamTasks(taskId: string): TaskRow[];
   /** Re-reads a task; null when it no longer exists. Used for the claim re-check. */
   getTask(taskId: string): TaskRow | null;
   /**
