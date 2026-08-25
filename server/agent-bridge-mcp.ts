@@ -127,6 +127,18 @@ const tools: ToolDefinition[] = [
     },
   },
   {
+    name: 'task_update_description',
+    description: 'Replace a task\'s description. Use it to write down what you found, what you decided, or what is left, so the next run starts from your notes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'Id of a task on this project\'s board.' },
+        description: { type: 'string', description: 'The new description, in markdown. Replaces the previous one.' },
+      },
+      required: ['taskId', 'description'],
+    },
+  },
+  {
     name: 'task_assign',
     description: 'Assign a task to an account profile. The organization policy decides which profiles this project allows; a refusal explains why.',
     inputSchema: {
@@ -136,6 +148,145 @@ const tools: ToolDefinition[] = [
         profileId: { type: 'string', description: 'Account profile id, as returned by profile_recommend.' },
       },
       required: ['taskId', 'profileId'],
+    },
+  },
+  {
+    name: 'task_evidence_add',
+    description: 'Append a work-log entry to a task: what you ran, what you read, what it proved. Uploading a file is not possible here — log its path as a link instead.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'Id of a task on this project\'s board.' },
+        kind: {
+          type: 'string',
+          enum: ['note', 'link'],
+          description: 'note for prose, link for a URL or a file path.',
+        },
+        content: { type: 'string', description: 'The note text, or the URL / file path when kind is link.' },
+      },
+      required: ['taskId', 'kind', 'content'],
+    },
+  },
+  {
+    name: 'task_decompose',
+    description: 'Split a task on this project\'s board into subtasks with dependencies, in one plan. Only a top-level task can be decomposed, and a plan that references a missing subtask or forms a cycle is refused whole.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        parentTaskId: { type: 'string', description: 'Id of the task to break up; it must not already be a subtask.' },
+        subtasks: {
+          type: 'array',
+          description: 'The plan, in order. At most 50 entries.',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string', description: 'Short imperative title, 500 characters max.' },
+              description: { type: 'string', description: 'Optional detail: context, acceptance criteria, links.' },
+              skill: { type: 'string', description: 'Optional skill or agent that should pick this subtask up.' },
+              dependsOn: {
+                type: 'array',
+                items: { type: 'integer' },
+                description: 'Positions in this same array that must finish first. Subtasks have no ids yet, so dependencies are indices.',
+              },
+            },
+            required: ['title'],
+          },
+        },
+      },
+      required: ['parentTaskId', 'subtasks'],
+    },
+  },
+  {
+    name: 'task_ready_list',
+    description: 'List the subtasks of a plan that can start right now: still in backlog, with every dependency done. Call it before task_delegate so you hand out work that is actually unblocked.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        parentTaskId: { type: 'string', description: 'Id of the decomposed parent task.' },
+      },
+      required: ['parentTaskId'],
+    },
+  },
+  {
+    name: 'task_delegate',
+    description: 'Hand a task to a worker: it is assigned on the board and a handoff message describing it is queued in the worker\'s inbox. Refused while the task still waits on unfinished dependencies.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskId: { type: 'string', description: 'Id of a task on this project\'s board.' },
+        toSessionId: {
+          type: 'string',
+          description: 'Session that should receive the handoff. Omit to assign the task without telling anyone.',
+        },
+        profileId: {
+          type: 'string',
+          description: 'Account profile to assign. Omit to let the quota-aware recommender pick one; a named one is checked against org policy first.',
+        },
+      },
+      required: ['taskId'],
+    },
+  },
+  {
+    name: 'message_send',
+    description: 'Queue a handoff message in another session\'s inbox. The sender is always you — it comes from your token, not from this call.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        toSessionId: { type: 'string', description: 'Session id of the recipient. It must still be alive.' },
+        subject: { type: 'string', description: 'One-line summary, 200 characters max.' },
+        body: { type: 'string', description: 'The handoff itself: context, what you did, what the recipient should do.' },
+        replyToMessageId: {
+          type: 'string',
+          description: 'Optional id of a message in your own mailbox that this one threads onto.',
+        },
+      },
+      required: ['toSessionId', 'subject', 'body'],
+    },
+  },
+  {
+    name: 'message_list',
+    description: 'Read your mailbox. Reading the inbox is the delivery event: the queued messages it returns come back marked delivered, so poll it to pick up handoffs.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        box: {
+          type: 'string',
+          enum: ['inbox', 'outbox'],
+          description: 'Which side to read. Defaults to inbox — the messages waiting on you.',
+        },
+        state: {
+          type: 'string',
+          enum: ['queued', 'delivered', 'acknowledged', 'answered', 'failed'],
+          description: 'Optional state filter. Omit to list the whole box.',
+        },
+      },
+    },
+  },
+  {
+    name: 'message_ack',
+    description: 'Acknowledge a message you received: "I have this, I am working on it". Only a message delivered to you can be acknowledged.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        messageId: { type: 'string', description: 'Id of a message in your inbox.' },
+      },
+      required: ['messageId'],
+    },
+  },
+  {
+    name: 'message_answer',
+    description: 'Answer a message you received: it is marked answered and your reply is queued back to its sender, linked to the original.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        messageId: { type: 'string', description: 'Id of a message in your inbox.' },
+        body: { type: 'string', description: 'The answer itself.' },
+        subject: {
+          type: 'string',
+          description: 'Optional subject for the reply. Omitted, it becomes "Re: " plus the original subject.',
+        },
+      },
+      required: ['messageId', 'body'],
     },
   },
   {
@@ -171,10 +322,65 @@ async function callTool(name: string, args: Record<string, unknown>) {
         taskId: readString(args.taskId, 'taskId'),
         stage: readString(args.stage, 'stage'),
       }));
+    case 'task_update_description':
+      return jsonResponse(await callBridgeApi(name, {
+        taskId: readString(args.taskId, 'taskId'),
+        description: readString(args.description, 'description'),
+      }));
     case 'task_assign':
       return jsonResponse(await callBridgeApi(name, {
         taskId: readString(args.taskId, 'taskId'),
         profileId: readString(args.profileId, 'profileId'),
+      }));
+    case 'task_evidence_add':
+      return jsonResponse(await callBridgeApi(name, {
+        taskId: readString(args.taskId, 'taskId'),
+        kind: readString(args.kind, 'kind'),
+        content: readString(args.content, 'content'),
+      }));
+    // `subtasks` is a nested plan whose indices, cycles and per-entry fields are
+    // all checked together server-side; re-reading it here could only disagree
+    // with that check, so it travels as sent.
+    case 'task_decompose':
+      return jsonResponse(await callBridgeApi(name, {
+        parentTaskId: readString(args.parentTaskId, 'parentTaskId'),
+        subtasks: args.subtasks,
+      }));
+    case 'task_ready_list':
+      return jsonResponse(await callBridgeApi(name, {
+        parentTaskId: readString(args.parentTaskId, 'parentTaskId'),
+      }));
+    case 'task_delegate':
+      return jsonResponse(await callBridgeApi(name, {
+        taskId: readString(args.taskId, 'taskId'),
+        toSessionId: readOptionalString(args.toSessionId),
+        profileId: readOptionalString(args.profileId),
+      }));
+    // The message tools forward what they were given: the Agent Messages module
+    // validates every field of a handoff — lengths, state machine, who may touch
+    // what — and repeating half of those rules here is how the two copies start
+    // disagreeing about which handoff is valid.
+    case 'message_send':
+      return jsonResponse(await callBridgeApi(name, {
+        toSessionId: args.toSessionId,
+        subject: args.subject,
+        body: args.body,
+        replyToMessageId: args.replyToMessageId,
+      }));
+    case 'message_list':
+      return jsonResponse(await callBridgeApi(name, {
+        box: args.box,
+        state: args.state,
+      }));
+    case 'message_ack':
+      return jsonResponse(await callBridgeApi(name, {
+        messageId: args.messageId,
+      }));
+    case 'message_answer':
+      return jsonResponse(await callBridgeApi(name, {
+        messageId: args.messageId,
+        body: args.body,
+        subject: args.subject,
       }));
     case 'profile_recommend':
       return jsonResponse(await callBridgeApi(name, {
