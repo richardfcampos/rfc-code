@@ -26,6 +26,7 @@
 import { sessionsDb } from '@/modules/database/index.js';
 import { sessionSynchronizerService } from '@/modules/providers/index.js';
 
+import { readUsage, readWriterMessage } from './collab-claude-messages.js';
 import type { CollabRuntime } from './collab-runtime.js';
 import type { CollabTurnUsage } from './collab.types.js';
 
@@ -79,47 +80,6 @@ let claudeDeps: CollabClaudeRuntimeDeps | null = null;
 /** Called once at boot by the server entrypoint, which owns the SDK import. */
 export function configureCollabClaudeRuntime(deps: CollabClaudeRuntimeDeps): void {
   claudeDeps = deps;
-}
-
-type WriterMessage = {
-  kind?: unknown;
-  role?: unknown;
-  content?: unknown;
-  requestId?: unknown;
-  text?: unknown;
-  tokenBudget?: unknown;
-};
-
-/**
- * The SDK announces token accounting as a status frame carrying the running
- * totals for the whole query, so the last one seen is the turn's cost. It is
- * read here — after years of being discarded as transcript noise — because a
- * council enforces a token budget, and a ceiling nobody measures is a wish.
- */
-function readUsage(message: WriterMessage): CollabTurnUsage | null {
-  if (message.kind !== 'status' || message.text !== 'token_budget') return null;
-
-  const budget = message.tokenBudget as Record<string, unknown> | undefined;
-  if (typeof budget !== 'object' || budget === null) return null;
-
-  const inputTokens = Number(budget.inputTokens);
-  const outputTokens = Number(budget.outputTokens);
-  if (!Number.isFinite(inputTokens) && !Number.isFinite(outputTokens)) return null;
-
-  return {
-    inputTokens: Number.isFinite(inputTokens) ? inputTokens : 0,
-    outputTokens: Number.isFinite(outputTokens) ? outputTokens : 0,
-  };
-}
-
-/** The writer receives normalized message objects; older callers send strings. */
-function readWriterMessage(data: unknown): WriterMessage | null {
-  try {
-    const parsed: unknown = typeof data === 'string' ? JSON.parse(data) : data;
-    return typeof parsed === 'object' && parsed !== null ? (parsed as WriterMessage) : null;
-  } catch {
-    return null;
-  }
 }
 
 /**
