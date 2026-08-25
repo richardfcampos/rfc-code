@@ -97,6 +97,18 @@ subtasks have no ids until they are written. `[0, 1]` on the third entry means
    parent to `review` (a human decides it is really finished) and log a short
    evidence note pointing at what was produced.
 
+## Backlog Auto-Pickup Sessions
+
+If this session was started by rfc-code's backlog auto-pickup, only step 1
+(`task_decompose`) of the loop above applies. Steps 3–5 — delegating to worker
+sessions, tracking acks, and repeating — do not: there are no worker sessions
+to delegate to. The server elects and dispatches each ready subtask itself, in
+dependency order, as soon as nothing blocks it, and calls this same ticket
+back once every subtask lands `done`, with a prompt asking it to merge the
+child branches and move the card to `review`. After `task_decompose`, log the
+plan with `task_evidence_add` and end the run — do not call `task_delegate`,
+do not move the card, and do not wait for the subtasks yourself.
+
 ## Rules That Are Enforced For You
 
 - **Blocked work cannot be delegated.** A subtask whose dependencies are not all
