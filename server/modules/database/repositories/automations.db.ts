@@ -10,8 +10,8 @@ import { randomUUID } from 'node:crypto';
 
 import { getConnection } from '@/modules/database/connection.js';
 
-export type AutomationTriggerKind = 'cron' | 'task_stage' | 'webhook' | 'quota_threshold';
-export type AutomationActionKind = 'prompt_agent' | 'create_task' | 'notify_push';
+export type AutomationTriggerKind = 'cron' | 'task_stage' | 'webhook' | 'quota_threshold' | 'task_backlog';
+export type AutomationActionKind = 'prompt_agent' | 'create_task' | 'notify_push' | 'pickup_task';
 export type AutomationRunStatus = 'success' | 'failed' | 'skipped';
 
 export type AutomationRow = {

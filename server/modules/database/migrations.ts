@@ -841,6 +841,75 @@ const createTaskDecomposition = (db: Database): void => {
   );
 };
 
+/**
+ * Widens the `automations` table's `trigger_kind`/`action_kind` CHECK lists to
+ * accept `task_backlog` and `pickup_task`.
+ *
+ * `CREATE TABLE IF NOT EXISTS` means a fresh install always gets the widened
+ * schema straight from `AUTOMATIONS_TABLE_SCHEMA_SQL`, but an existing
+ * installation keeps whatever CHECK it was created with — inserting a
+ * `task_backlog` rule there fails at the database, not at validation. There is
+ * no schema-version table anywhere in this file, so idempotency is detected by
+ * reading the table's own creation SQL back from `sqlite_master`: once it
+ * mentions `task_backlog`, the CHECK is already wide and this is a no-op.
+ */
+const rebuildAutomationsTableWithWidenedKinds = (db: Database): void => {
+  if (!tableExists(db, 'automations')) {
+    // The schema SQL below (called earlier in runMigrations) already created
+    // the table with the wide CHECK.
+    return;
+  }
+
+  const automationsTableSql = db
+    .prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'automations'")
+    .get() as { sql: string } | undefined;
+
+  if (automationsTableSql?.sql.includes('task_backlog')) {
+    return;
+  }
+
+  console.log('Running migration: Widening automations trigger_kind/action_kind CHECK lists');
+
+  db.exec('PRAGMA foreign_keys = OFF');
+  try {
+    db.exec('BEGIN TRANSACTION');
+    db.exec('DROP TABLE IF EXISTS automations__new');
+    db.exec(`
+      CREATE TABLE automations__new (
+        automation_id TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        trigger_kind TEXT NOT NULL
+          CHECK (trigger_kind IN ('cron', 'task_stage', 'webhook', 'quota_threshold', 'task_backlog')),
+        trigger_config TEXT NOT NULL DEFAULT '{}',
+        action_kind TEXT NOT NULL
+          CHECK (action_kind IN ('prompt_agent', 'create_task', 'notify_push', 'pickup_task')),
+        action_config TEXT NOT NULL DEFAULT '{}',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    db.exec(`
+      INSERT INTO automations__new (
+        automation_id, name, enabled, trigger_kind, trigger_config,
+        action_kind, action_config, created_at, updated_at
+      )
+      SELECT
+        automation_id, name, enabled, trigger_kind, trigger_config,
+        action_kind, action_config, created_at, updated_at
+      FROM automations
+    `);
+    db.exec('DROP TABLE automations');
+    db.exec('ALTER TABLE automations__new RENAME TO automations');
+    db.exec('COMMIT');
+  } catch (migrationError) {
+    db.exec('ROLLBACK');
+    throw migrationError;
+  } finally {
+    db.exec('PRAGMA foreign_keys = ON');
+  }
+};
+
 export const runMigrations = (db: Database) => {
   try {
     const usersTableInfo = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
@@ -952,6 +1021,7 @@ export const runMigrations = (db: Database) => {
     seedDefaultOrg(db);
 
     db.exec(AUTOMATIONS_TABLE_SCHEMA_SQL);
+    rebuildAutomationsTableWithWidenedKinds(db);
     db.exec('CREATE INDEX IF NOT EXISTS idx_automations_trigger ON automations(trigger_kind, enabled)');
     db.exec(AUTOMATION_RUNS_TABLE_SCHEMA_SQL);
     db.exec(

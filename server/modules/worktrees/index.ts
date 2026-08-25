@@ -10,6 +10,7 @@ export {
   listWorktreePorcelainEntries,
   validateWorktreeBranchName,
 } from './services/worktree-git.service.js';
+export { createWorktree } from './services/worktree-create.service.js';
 export { mergeWorktree } from './services/worktree-merge.service.js';
 export { removeWorktree } from './services/worktree-remove.service.js';
 

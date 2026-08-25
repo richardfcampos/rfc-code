@@ -51,7 +51,8 @@ export type ProfileFallbackAuditRow = {
   created_at: string;
 };
 
-const TASK_COLUMNS =
+/** Exported so sibling repositories (e.g. the backlog election query) project the same shape without duplicating it. */
+export const TASK_COLUMNS =
   'id, project_name, title, description, stage, origin, origin_detail, assignee_profile_id, suggested_skill, worktree_branch, created_at, updated_at';
 
 const AUDIT_COLUMNS = 'id, org_id, profile_id, project_name, session_id, reason, primary_usage_pct, created_at';
@@ -104,6 +105,15 @@ export const tasksDb = {
            rowid DESC`,
       )
       .all(projectName) as TaskRow[];
+  },
+
+  /** How many tasks in a project currently sit on one stage — the backlog election's concurrency gate. */
+  countByStage(projectName: string, stage: TaskStage): number {
+    const db = getConnection();
+    const row = db
+      .prepare('SELECT COUNT(*) AS count FROM tasks WHERE project_name = ? AND stage = ?')
+      .get(projectName, stage) as { count: number } | undefined;
+    return Number(row?.count ?? 0);
   },
 
   get(id: string): TaskRow | null {

@@ -51,11 +51,20 @@ export interface QuotaThresholdTriggerConfig {
   cooldownMinutes?: number;
 }
 
+/** Drains a project's backlog on the minute tick. */
+export interface TaskBacklogTriggerConfig {
+  /** The board's project id, matched against `TaskRow.project_name`. Required. */
+  project: string;
+  /** Ceiling on concurrently running tickets in the project. Integer 1–10, defaults to 2. */
+  maxConcurrent: number;
+}
+
 export type AutomationTriggerConfig =
   | CronTriggerConfig
   | TaskStageTriggerConfig
   | WebhookTriggerConfig
-  | QuotaThresholdTriggerConfig;
+  | QuotaThresholdTriggerConfig
+  | TaskBacklogTriggerConfig;
 
 export interface PromptAgentActionConfig {
   /** Repository the agent runs in; also what the org policy is resolved against. */
@@ -91,10 +100,21 @@ export interface NotifyPushActionConfig {
   userId?: number;
 }
 
+export interface PickupTaskActionConfig {
+  /** Repository the worktree is cut from; also what the org policy resolves against. */
+  projectPath: string;
+  provider?: LLMProvider;
+  /** Optional explicit account. Still checked against the org allow-list. */
+  profileId?: string;
+  /** Base for the ticket's new branch; defaults to the main worktree's branch. */
+  baseBranch?: string;
+}
+
 export type AutomationActionConfig =
   | PromptAgentActionConfig
   | CreateTaskActionConfig
-  | NotifyPushActionConfig;
+  | NotifyPushActionConfig
+  | PickupTaskActionConfig;
 
 /** An automation as the REST surface returns it: parsed, and free of secrets. */
 export interface AutomationView {
@@ -142,6 +162,15 @@ export interface PromptAgentResult {
 /** Spawns a server-initiated run. Resolves once the run is dispatched, not when it finishes. */
 export interface AutomationAgentGateway {
   promptAgent(input: PromptAgentInput): Promise<PromptAgentResult>;
+  /**
+   * True when a chat run is currently live on a session tied to this
+   * worktree branch. Checked before dispatch so a pickup never joins a
+   * second agent to a branch that already has one working — a task's own
+   * `worktree_branch` says the branch existed, not that anything is
+   * currently attached to it, which is why this reads the run registry
+   * rather than the task.
+   */
+  hasLiveSessionForBranch(branch: string): boolean;
 }
 
 export interface AutomationTasksGateway {
@@ -176,12 +205,54 @@ export interface AutomationRepositoryGateway {
   };
 }
 
+/** The board, as election and pickup need it. */
+export interface AutomationBoardGateway {
+  /** Backlog tasks in the project whose dependencies are all done, oldest first. */
+  listReadyBacklog(project: string): TaskRow[];
+  /** Tasks currently `in_progress` in the project — every one of them, whoever started it. */
+  countInProgress(project: string): number;
+  /** Re-reads a task; null when it no longer exists. Used for the claim re-check. */
+  getTask(taskId: string): TaskRow | null;
+  /**
+   * Moves a card to `in_progress` and stamps its branch in one write, then
+   * broadcasts — but only when the card's current stage still matches
+   * `expectedStage` (compare-and-swap). Worktree creation takes long enough
+   * for a person to drag the card elsewhere in the meantime, and a blind
+   * write would yank it back; this returns null (no write, no broadcast)
+   * instead, so the caller can treat it as the same clean abort as any other
+   * lost claim.
+   */
+  moveToInProgress(taskId: string, worktreeBranch: string, expectedStage: TaskStage): Promise<TaskRow | null>;
+  /**
+   * Best-effort revert to `backlog`, used when a dispatch fails after the
+   * card left backlog for this pickup attempt — whether this attempt moved it
+   * or a prior attempt did. Errors are the caller's to swallow and log: this
+   * must never mask the dispatch failure it is cleaning up after.
+   */
+  revertToBacklog(taskId: string): Promise<void>;
+}
+
+/** Creating the isolation a ticket is worked in. */
+export interface AutomationWorktreeGateway {
+  /**
+   * Returns the worktree for `branch`, creating it when it does not exist yet.
+   * Reuse rather than create is what makes a retried pickup safe.
+   */
+  ensureWorktree(input: {
+    projectPath: string;
+    branch: string;
+    baseBranch?: string | null;
+  }): Promise<{ worktreePath: string; branch: string }>;
+}
+
 export interface AutomationServiceDeps {
   repository: AutomationRepositoryGateway;
   agent: AutomationAgentGateway;
   tasks: AutomationTasksGateway;
   notify: AutomationNotifyGateway;
   usage: AutomationUsageGateway;
+  board: AutomationBoardGateway;
+  worktrees: AutomationWorktreeGateway;
   /** Overridable so retry tests do not spend real seconds sleeping. */
   sleep?: (milliseconds: number) => Promise<void>;
   /** Overridable clock, so cron and cooldown windows are testable. */

@@ -143,6 +143,40 @@ test('notify_push sends the interpolated message to the configured recipient', a
   assert.equal(detail, 'Sent a push notification');
 });
 
+test('pickup_task reaches the pickup service with the parsed config, not notify_push', async () => {
+  const deps = createFakeDeps();
+  const elected = deps.board.seed({ stage: 'backlog', title: 'Ship the thing' });
+  const automation = deps.repository.seed({
+    action_kind: 'pickup_task',
+    action_config: JSON.stringify({ projectPath: '/home/dev/my-app' }),
+  });
+
+  const detail = await executeAutomationAction(deps, automation, {
+    dedupeKey: null,
+    variables: {},
+    task: elected,
+  });
+
+  assert.equal(deps.pushes.length, 0);
+  assert.equal(deps.prompts.length, 1);
+  assert.equal(deps.prompts[0].projectPath, '/home/dev/my-app');
+  assert.match(detail, /Picked up task/);
+});
+
+test('regression: an unrecognised action kind fails loudly instead of silently sending a push', async () => {
+  const deps = createFakeDeps();
+  const automation = deps.repository.seed({
+    action_kind: 'not_a_real_kind' as never,
+    action_config: JSON.stringify({ message: 'should never be sent' }),
+  });
+
+  await assert.rejects(
+    () => executeAutomationAction(deps, automation, taskContext()),
+    /Unknown automation action kind/,
+  );
+  assert.equal(deps.pushes.length, 0);
+});
+
 test('an action failure propagates so the retry loop can see it', async () => {
   const deps = createFakeDeps({
     tasks: {

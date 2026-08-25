@@ -59,6 +59,9 @@ reason — the endpoint cannot be used to discover which rules exist.
 
 // quota_threshold — evaluated on the minute tick
 { "profileId": "…", "thresholdPct": 85, "cooldownMinutes": 60 }
+
+// task_backlog — evaluated on the minute tick; elects at most one task per rule per tick
+{ "project": "my-app", "maxConcurrent": 2 }  // maxConcurrent: integer 1–10, defaults to 2
 ```
 
 ## Action configs
@@ -81,6 +84,14 @@ reason — the endpoint cannot be used to discover which rules exist.
 
 // notify_push — recipient defaults to the installation's first active user
 { "message": "{{task}} reached {{task.stage}}", "userId": 1 }
+
+// pickup_task — claims the elected backlog task: worktree, move to in_progress, dispatch
+{
+  "projectPath": "/home/dev/my-app",
+  "provider": "claude",              // optional, defaults to claude
+  "profileId": "…",                  // optional, still checked by the org policy
+  "baseBranch": "main"               // optional, defaults to the main worktree's branch
+}
 ```
 
 ## Template placeholders
@@ -93,6 +104,7 @@ Unknown placeholders render as an empty string.
 | `task_stage` | `{{task}}` (title), `{{task.id}}`, `{{task.title}}`, `{{task.description}}`, `{{task.stage}}`, `{{task.previousStage}}`, `{{task.project}}`, `{{task.skill}}`, `{{task.assignee}}`, `{{task.worktreeBranch}}` |
 | `webhook` | `{{payload.<field>}}` for each scalar top-level field of the request body |
 | `quota_threshold` | `{{quota.profileId}}`, `{{quota.usagePct}}`, `{{quota.thresholdPct}}` |
+| `task_backlog` | Same `{{task.*}}` set as `task_stage`, with `{{task.previousStage}}` always empty |
 
 ## What `prompt_agent` does, precisely
 

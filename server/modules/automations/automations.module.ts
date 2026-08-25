@@ -13,12 +13,16 @@
  * `configureCollabClaudeRuntime`.
  */
 
-import { automationsDb, sessionsDb, userDb } from '@/modules/database/index.js';
+import { access } from 'node:fs/promises';
+
+import { automationsDb, sessionsDb, taskDependenciesDb, tasksDb, userDb } from '@/modules/database/index.js';
 import { createNotificationEvent, notifyUserIfEnabled } from '@/modules/notifications/index.js';
 import { orgPolicyService } from '@/modules/orgs/index.js';
 import { profileUsageService } from '@/modules/profiles/index.js';
 import { broadcastTaskUpdate, registerTaskStageListener, tasksService } from '@/modules/tasks/index.js';
 import { chatRunRegistry } from '@/modules/websocket/index.js';
+import { createWorktree, listWorktreePorcelainEntries } from '@/modules/worktrees/index.js';
+import { runGitCommand } from '@/shared/git-command.js';
 
 import { createAutomationAdminService } from './services/automation-admin.service.js';
 import {
@@ -45,7 +49,7 @@ export function configureAutomationRuntimes(fns: Partial<Record<string, Provider
   spawnFns = fns as AutomationSpawnDeps['spawnFns'];
 }
 
-const agent: AutomationAgentGateway = createAutomationSpawnGateway({
+const spawnGateway = createAutomationSpawnGateway({
   policy: orgPolicyService,
   registry: chatRunRegistry,
   createSession: ({ sessionId, provider, projectPath, profileId, worktreePath, worktreeBranch }) => {
@@ -57,6 +61,19 @@ const agent: AutomationAgentGateway = createAutomationSpawnGateway({
     return spawnFns;
   },
 });
+
+const agent: AutomationAgentGateway = {
+  promptAgent: (input) => spawnGateway.promptAgent(input),
+  // A session, not a task, is what a live agent is attached to — a task's own
+  // `worktree_branch` survives long after the agent that set it exits. Read
+  // every session pinned to the branch and ask the run registry (the single
+  // in-memory source of truth for "something is running") whether any of them
+  // is still live.
+  hasLiveSessionForBranch: (branch) =>
+    sessionsDb
+      .getAllSessions()
+      .some((session) => session.worktree_branch === branch && chatRunRegistry.isProcessing(session.session_id)),
+};
 
 const deps: AutomationServiceDeps = {
   repository: automationsDb,
@@ -93,6 +110,54 @@ const deps: AutomationServiceDeps = {
   },
   usage: {
     getUsage: (profileId) => profileUsageService.getUsage(profileId),
+  },
+  board: {
+    listReadyBacklog: (project) => taskDependenciesDb.listReadyBacklogByProject(project),
+    countInProgress: (project) => tasksDb.countByStage(project, 'in_progress'),
+    getTask: (taskId) => tasksDb.get(taskId),
+    // Same reason `createTask` broadcasts: a card the server moves has to reach
+    // open boards exactly like one moved through the REST API.
+    //
+    // Compare-and-swap, smallest-window form: the multi-second gap the guard
+    // exists for is the worktree creation the caller awaits before this runs,
+    // not the read-then-write below it. `tasksService.updateTask` has no
+    // conditional write of its own, so the check happens here, immediately
+    // before the write it gates.
+    moveToInProgress: async (taskId, worktreeBranch, expectedStage) => {
+      const current = tasksDb.get(taskId);
+      if (!current || current.stage !== expectedStage) {
+        return null;
+      }
+
+      const task = await tasksService.updateTask(taskId, {
+        stage: 'in_progress',
+        worktree_branch: worktreeBranch,
+      });
+      broadcastTaskUpdate(task, 'updated');
+      return task;
+    },
+    revertToBacklog: async (taskId) => {
+      const task = await tasksService.updateTask(taskId, { stage: 'backlog' });
+      broadcastTaskUpdate(task, 'updated');
+    },
+  },
+  worktrees: {
+    ensureWorktree: async ({ projectPath, branch, baseBranch }) => {
+      // Reuse before create: a retried pickup must not trip over the worktree
+      // its own previous attempt left behind.
+      const entries = await listWorktreePorcelainEntries(projectPath, runGitCommand);
+      const existing = entries.find((entry) => entry.branch === branch);
+      if (existing) return { worktreePath: existing.path, branch };
+
+      const created = await createWorktree(
+        { projectPath, branch, baseBranch },
+        {
+          runGit: runGitCommand,
+          fileSystem: { pathExists: async (p) => access(p).then(() => true, () => false) },
+        },
+      );
+      return { worktreePath: created.worktreePath, branch: created.branch };
+    },
   },
 };
 

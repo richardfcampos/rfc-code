@@ -12,8 +12,10 @@ import { randomUUID } from 'node:crypto';
 import type { AutomationRow, AutomationRunRow, TaskRow } from '@/modules/database/index.js';
 
 import type {
+  AutomationBoardGateway,
   AutomationRepositoryGateway,
   AutomationServiceDeps,
+  AutomationWorktreeGateway,
   PromptAgentInput,
 } from '../../automations.types.js';
 
@@ -140,8 +142,122 @@ export function createFakeRepository(): FakeRepository {
   };
 }
 
+/**
+ * A backlog task seeded for election, with its blockers named by id.
+ *
+ * `dependsOn` is fake-board bookkeeping only — the real board resolves
+ * readiness through the `task_dependencies` table, not a field on `TaskRow`.
+ */
+export type FakeBoardTaskSeed = Partial<TaskRow> & { dependsOn?: string[] };
+
+export interface FakeBoard extends AutomationBoardGateway {
+  tasks: TaskRow[];
+  moved: { taskId: string; worktreeBranch: string }[];
+  reverted: string[];
+  seed(overrides?: FakeBoardTaskSeed): TaskRow;
+}
+
+/** In-memory board a test seeds with backlog tickets (and their dependency edges) before electing. */
+export function createFakeBoard(): FakeBoard {
+  const tasks: TaskRow[] = [];
+  const dependencies = new Map<string, string[]>();
+  const moved: { taskId: string; worktreeBranch: string }[] = [];
+  const reverted: string[] = [];
+
+  return {
+    tasks,
+    moved,
+    reverted,
+
+    seed(overrides: FakeBoardTaskSeed = {}): TaskRow {
+      const { dependsOn, ...taskOverrides } = overrides;
+      const task: TaskRow = {
+        id: randomUUID(),
+        project_name: 'my-app',
+        title: 'Backlog ticket',
+        description: null,
+        stage: 'backlog',
+        origin: 'user',
+        origin_detail: null,
+        assignee_profile_id: null,
+        suggested_skill: null,
+        worktree_branch: null,
+        created_at: '2026-08-24T00:00:00.000Z',
+        updated_at: '2026-08-24T00:00:00.000Z',
+        ...taskOverrides,
+      };
+      tasks.push(task);
+      if (dependsOn) dependencies.set(task.id, dependsOn);
+      return task;
+    },
+
+    listReadyBacklog(project) {
+      return tasks
+        .filter((task) => task.project_name === project && task.stage === 'backlog')
+        .filter((task) =>
+          (dependencies.get(task.id) ?? []).every(
+            (blockerId) => tasks.find((blocker) => blocker.id === blockerId)?.stage === 'done',
+          ),
+        )
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    },
+
+    countInProgress(project) {
+      return tasks.filter((task) => task.project_name === project && task.stage === 'in_progress').length;
+    },
+
+    getTask(taskId) {
+      return tasks.find((task) => task.id === taskId) ?? null;
+    },
+
+    async moveToInProgress(taskId, worktreeBranch, expectedStage) {
+      const task = tasks.find((candidate) => candidate.id === taskId);
+      if (!task) {
+        throw new Error(`fake board: no task ${taskId}`);
+      }
+      if (task.stage !== expectedStage) {
+        return null;
+      }
+      task.stage = 'in_progress';
+      task.worktree_branch = worktreeBranch;
+      task.updated_at = new Date().toISOString();
+      moved.push({ taskId, worktreeBranch });
+      return task;
+    },
+
+    async revertToBacklog(taskId) {
+      const task = tasks.find((candidate) => candidate.id === taskId);
+      if (!task) {
+        throw new Error(`fake board: no task ${taskId}`);
+      }
+      task.stage = 'backlog';
+      task.updated_at = new Date().toISOString();
+      reverted.push(taskId);
+    },
+  };
+}
+
+export interface FakeWorktrees extends AutomationWorktreeGateway {
+  ensured: { projectPath: string; branch: string; baseBranch?: string | null }[];
+}
+
+/** Every branch reuses the same deterministic path — reuse-vs-create is not this fake's concern. */
+export function createFakeWorktrees(): FakeWorktrees {
+  const ensured: { projectPath: string; branch: string; baseBranch?: string | null }[] = [];
+
+  return {
+    ensured,
+    async ensureWorktree(input) {
+      ensured.push(input);
+      return { worktreePath: `/worktrees/${input.branch}`, branch: input.branch };
+    },
+  };
+}
+
 export interface FakeAutomationDeps extends AutomationServiceDeps {
   repository: FakeRepository;
+  board: FakeBoard;
+  worktrees: FakeWorktrees;
   prompts: PromptAgentInput[];
   createdTasks: Record<string, unknown>[];
   pushes: { userId?: number; message: string; automationName: string }[];
@@ -151,6 +267,8 @@ export interface FakeAutomationDeps extends AutomationServiceDeps {
 /** Every collaborator succeeds by default; a test overrides only what it is about. */
 export function createFakeDeps(overrides: Partial<AutomationServiceDeps> = {}): FakeAutomationDeps {
   const repository = (overrides.repository as FakeRepository) ?? createFakeRepository();
+  const board = (overrides.board as FakeBoard) ?? createFakeBoard();
+  const worktrees = (overrides.worktrees as FakeWorktrees) ?? createFakeWorktrees();
   const prompts: PromptAgentInput[] = [];
   const createdTasks: Record<string, unknown>[] = [];
   const pushes: { userId?: number; message: string; automationName: string }[] = [];
@@ -158,6 +276,8 @@ export function createFakeDeps(overrides: Partial<AutomationServiceDeps> = {}): 
 
   return {
     repository,
+    board,
+    worktrees,
     prompts,
     createdTasks,
     pushes,
@@ -167,6 +287,9 @@ export function createFakeDeps(overrides: Partial<AutomationServiceDeps> = {}): 
         prompts.push(input);
         return { sessionId: 'session-1', profileId: 'profile-a' };
       },
+      // No branch has a live session by default; tests about the duplicate-
+      // agent guard override this explicitly.
+      hasLiveSessionForBranch: () => false,
     },
     tasks: overrides.tasks ?? {
       createTask: async (body) => {

@@ -16,6 +16,7 @@ import type {
   AutomationServiceDeps,
   AutomationTriggerContext,
   QuotaThresholdTriggerConfig,
+  TaskBacklogTriggerConfig,
   TaskStageTriggerConfig,
 } from '../automations.types.js';
 import { parseStoredConfig } from '../automations.validation.js';
@@ -25,6 +26,7 @@ import { cronMatches, cronMinuteKey, parseCronExpression } from './cron-expressi
 
 const MINUTE_MS = 60_000;
 const DEFAULT_QUOTA_COOLDOWN_MINUTES = 60;
+const DEFAULT_BACKLOG_MAX_CONCURRENT = 2;
 
 export interface TaskStageChange {
   task: TaskRow;
@@ -146,6 +148,51 @@ export function createAutomationTriggerService(
     return results;
   }
 
+  /**
+   * Drains at most one ready ticket per enabled `task_backlog` rule per tick.
+   *
+   * The concurrency gate runs before election so a project already at its
+   * ceiling never even reads the candidate list. Among ready candidates
+   * (oldest first, already the query's order) the first one *without* run
+   * history for its current identity is taken — not blindly the head — so a
+   * ticket whose pickup already exhausted its retries cannot sit at the front
+   * of the queue forever and starve every ticket behind it.
+   */
+  async function runBacklogAutomations(at: Date): Promise<AutomationFireResult[]> {
+    const results: AutomationFireResult[] = [];
+
+    for (const automation of deps.repository.listEnabledByTrigger('task_backlog')) {
+      const config = parseStoredConfig(automation.trigger_config) as unknown as TaskBacklogTriggerConfig;
+      if (typeof config.project !== 'string' || config.project.trim().length === 0) continue;
+
+      const maxConcurrent =
+        typeof config.maxConcurrent === 'number' ? config.maxConcurrent : DEFAULT_BACKLOG_MAX_CONCURRENT;
+      if (deps.board.countInProgress(config.project) >= maxConcurrent) continue;
+
+      let elected: TaskRow | undefined;
+      let dedupeKey = '';
+      for (const candidate of deps.board.listReadyBacklog(config.project)) {
+        const key = `backlog:${candidate.id}:${candidate.updated_at}`;
+        if (!deps.repository.runs.existsForDedupeKey(automation.automation_id, key)) {
+          elected = candidate;
+          dedupeKey = key;
+          break;
+        }
+      }
+      if (!elected) continue;
+
+      results.push(
+        await fireSafely(automation, {
+          dedupeKey,
+          variables: { ...baseVariables(automation, at), ...taskVariables(elected, null) },
+          task: elected,
+        }),
+      );
+    }
+
+    return results;
+  }
+
   return {
     async onTaskStageChanged(change: TaskStageChange): Promise<AutomationFireResult[]> {
       const results: AutomationFireResult[] = [];
@@ -177,7 +224,8 @@ export function createAutomationTriggerService(
     async runTick(at: Date = now()): Promise<AutomationFireResult[]> {
       const cron = await runCronAutomations(at);
       const quota = await runQuotaAutomations(at);
-      return [...cron, ...quota];
+      const backlog = await runBacklogAutomations(at);
+      return [...cron, ...quota, ...backlog];
     },
 
     fireWebhook(automation, payload, idempotencyKey) {

@@ -430,13 +430,13 @@ CREATE TABLE IF NOT EXISTS automations (
     name TEXT NOT NULL,
     enabled INTEGER NOT NULL DEFAULT 1,
     trigger_kind TEXT NOT NULL
-      CHECK (trigger_kind IN ('cron', 'task_stage', 'webhook', 'quota_threshold')),
+      CHECK (trigger_kind IN ('cron', 'task_stage', 'webhook', 'quota_threshold', 'task_backlog')),
     -- Trigger and action parameters are JSON documents rather than columns:
     -- each kind carries a different shape, and the service validates them on
     -- the way in so nothing unparseable is ever stored.
     trigger_config TEXT NOT NULL DEFAULT '{}',
     action_kind TEXT NOT NULL
-      CHECK (action_kind IN ('prompt_agent', 'create_task', 'notify_push')),
+      CHECK (action_kind IN ('prompt_agent', 'create_task', 'notify_push', 'pickup_task')),
     action_config TEXT NOT NULL DEFAULT '{}',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP

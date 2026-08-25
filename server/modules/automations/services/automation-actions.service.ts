@@ -15,11 +15,13 @@ import type {
   AutomationTriggerContext,
   CreateTaskActionConfig,
   NotifyPushActionConfig,
+  PickupTaskActionConfig,
   PromptAgentActionConfig,
 } from '../automations.types.js';
 import { parseStoredConfig } from '../automations.validation.js';
 
 import { interpolate } from './automation-template.js';
+import { pickupTask } from './task-pickup.service.js';
 
 const DEFAULT_PROVIDER: LLMProvider = 'claude';
 
@@ -104,7 +106,15 @@ function runNotifyPush(
   return 'Sent a push notification';
 }
 
-/** Runs one attempt of an automation's action and returns its history detail. */
+/**
+ * Runs one attempt of an automation's action and returns its history detail.
+ *
+ * Every action kind gets an explicit branch — there is no trailing default
+ * that runs a different action for a kind it was not written for. A kind
+ * this dispatcher does not recognise is a data problem (a rule written by a
+ * newer version, a hand-edited row) and fails loudly instead of silently
+ * doing something else.
+ */
 export async function executeAutomationAction(
   deps: AutomationServiceDeps,
   automation: AutomationRow,
@@ -118,5 +128,12 @@ export async function executeAutomationAction(
   if (automation.action_kind === 'create_task') {
     return runCreateTask(deps, automation, config as unknown as CreateTaskActionConfig, context);
   }
-  return runNotifyPush(deps, automation, config as unknown as NotifyPushActionConfig, context);
+  if (automation.action_kind === 'pickup_task') {
+    return pickupTask(deps, config as unknown as PickupTaskActionConfig, context);
+  }
+  if (automation.action_kind === 'notify_push') {
+    return runNotifyPush(deps, automation, config as unknown as NotifyPushActionConfig, context);
+  }
+
+  throw new AutomationValidationError(`Unknown automation action kind: ${String(automation.action_kind)}`);
 }

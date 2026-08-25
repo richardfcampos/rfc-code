@@ -12,6 +12,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { getConnection } from '@/modules/database/connection.js';
+import { TASK_COLUMNS } from '@/modules/database/repositories/tasks.db.js';
 import type { TaskRow } from '@/modules/database/repositories/tasks.db.js';
 
 /** A task row read through the decomposition lens, so the parent link is visible. */
@@ -163,6 +164,33 @@ export const taskDependenciesDb = {
          ORDER BY datetime(t.created_at), t.rowid`,
       )
       .all(parentTaskId) as SubtaskRow[];
+  },
+
+  /**
+   * Backlog tasks anywhere in a project that can be picked up right now:
+   * still in `backlog`, with nothing they depend on left unfinished.
+   *
+   * Unlike `listReady`, this is not scoped to one decomposition's subtasks —
+   * it walks the whole project, top-level tickets and subtasks alike. A
+   * subtask with every dependency done is ready work exactly like a top-level
+   * ticket; excluding it would leave a decomposed plan's later steps stuck
+   * even once nothing blocks them.
+   */
+  listReadyBacklogByProject(projectName: string): TaskRow[] {
+    return getConnection()
+      .prepare(
+        `SELECT ${qualify('t', TASK_COLUMNS)}
+         FROM tasks t
+         WHERE t.project_name = ?
+           AND t.stage = 'backlog'
+           AND NOT EXISTS (
+             SELECT 1 FROM task_dependencies d
+             JOIN tasks blocker ON blocker.id = d.depends_on_task_id
+             WHERE d.task_id = t.id AND blocker.stage <> 'done'
+           )
+         ORDER BY datetime(t.created_at), t.rowid`,
+      )
+      .all(projectName) as TaskRow[];
   },
 
   /**

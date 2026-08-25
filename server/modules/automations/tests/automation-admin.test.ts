@@ -141,6 +141,32 @@ test('trigger configs are validated per kind', () => {
   });
 });
 
+test('task_backlog trigger configs require a project and bound maxConcurrent', () => {
+  assert.throws(() => validateTriggerConfig('task_backlog', {}), /project is required/);
+  assert.throws(
+    () => validateTriggerConfig('task_backlog', { project: 'my-app', maxConcurrent: 0 }),
+    /between 1 and 10/,
+  );
+  assert.throws(
+    () => validateTriggerConfig('task_backlog', { project: 'my-app', maxConcurrent: 11 }),
+    /between 1 and 10/,
+  );
+  assert.throws(
+    () => validateTriggerConfig('task_backlog', { project: 'my-app', maxConcurrent: 2.5 }),
+    /must be an integer/,
+  );
+
+  // No maxConcurrent supplied gets the documented default.
+  assert.deepEqual(validateTriggerConfig('task_backlog', { project: 'my-app' }), {
+    project: 'my-app',
+    maxConcurrent: 2,
+  });
+  assert.deepEqual(validateTriggerConfig('task_backlog', { project: 'my-app', maxConcurrent: 5 }), {
+    project: 'my-app',
+    maxConcurrent: 5,
+  });
+});
+
 test('action configs are validated per kind', () => {
   assert.throws(() => validateActionConfig('prompt_agent', { promptTemplate: 'x' }), /projectPath is required/);
   assert.throws(
@@ -155,6 +181,20 @@ test('action configs are validated per kind', () => {
     project: 'p',
     title: 't',
   });
+});
+
+test('pickup_task action configs require a projectPath and validate the provider', () => {
+  assert.throws(() => validateActionConfig('pickup_task', {}), /projectPath is required/);
+  assert.throws(
+    () => validateActionConfig('pickup_task', { projectPath: '/p', provider: 'gemini' }),
+    /provider must be one of/,
+  );
+
+  assert.deepEqual(validateActionConfig('pickup_task', { projectPath: '/p' }), { projectPath: '/p' });
+  assert.deepEqual(
+    validateActionConfig('pickup_task', { projectPath: '/p', provider: 'claude', baseBranch: 'main' }),
+    { projectPath: '/p', provider: 'claude', baseBranch: 'main' },
+  );
 });
 
 test('a secret only verifies against its own digest', () => {

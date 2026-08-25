@@ -13,14 +13,21 @@ import type { LLMProvider } from '@/shared/types.js';
 import { AutomationValidationError } from './automations.errors.js';
 import { parseCronExpression } from './services/cron-expression.js';
 
-const TRIGGER_KINDS: AutomationTriggerKind[] = ['cron', 'task_stage', 'webhook', 'quota_threshold'];
-const ACTION_KINDS: AutomationActionKind[] = ['prompt_agent', 'create_task', 'notify_push'];
+const TRIGGER_KINDS: AutomationTriggerKind[] = [
+  'cron',
+  'task_stage',
+  'webhook',
+  'quota_threshold',
+  'task_backlog',
+];
+const ACTION_KINDS: AutomationActionKind[] = ['prompt_agent', 'create_task', 'notify_push', 'pickup_task'];
 const TASK_STAGES: TaskStage[] = ['backlog', 'in_progress', 'review', 'done'];
 const PROVIDERS: LLMProvider[] = ['claude', 'cursor', 'codex', 'opencode'];
 
 const MAX_NAME_LENGTH = 200;
 const MAX_TEXT_LENGTH = 8000;
 const DEFAULT_QUOTA_COOLDOWN_MINUTES = 60;
+const DEFAULT_BACKLOG_MAX_CONCURRENT = 2;
 
 export function requireAutomationId(value: unknown): string {
   if (typeof value !== 'string' || value.trim().length === 0) {
@@ -105,11 +112,14 @@ function requireNumber(
   source: Record<string, unknown>,
   key: string,
   field: string,
-  bounds: { min: number; max: number },
+  bounds: { min: number; max: number; integer?: boolean },
 ): number {
   const value = source[key];
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     throw new AutomationValidationError(`${field}.${key} must be a number`);
+  }
+  if (bounds.integer && !Number.isInteger(value)) {
+    throw new AutomationValidationError(`${field}.${key} must be an integer`);
   }
   if (value < bounds.min || value > bounds.max) {
     throw new AutomationValidationError(`${field}.${key} must be between ${bounds.min} and ${bounds.max}`);
@@ -173,6 +183,22 @@ export function validateTriggerConfig(
     return normalized;
   }
 
+  if (kind === 'task_backlog') {
+    const normalized: Record<string, unknown> = {
+      project: requireString(config, 'project', 'trigger_config'),
+    };
+    if (config.maxConcurrent !== undefined && config.maxConcurrent !== null) {
+      normalized.maxConcurrent = requireNumber(config, 'maxConcurrent', 'trigger_config', {
+        min: 1,
+        max: 10,
+        integer: true,
+      });
+    } else {
+      normalized.maxConcurrent = DEFAULT_BACKLOG_MAX_CONCURRENT;
+    }
+    return normalized;
+  }
+
   // webhook: the only field is the credential digest, which the service owns.
   return typeof previous.secretHash === 'string' ? { secretHash: previous.secretHash } : {};
 }
@@ -211,6 +237,26 @@ export function validateActionConfig(
       title: requireString(config, 'title', 'action_config'),
     };
     for (const key of ['description', 'suggestedSkill', 'assigneeProfileId'] as const) {
+      const value = optionalString(config, key, 'action_config');
+      if (value) normalized[key] = value;
+    }
+    return normalized;
+  }
+
+  if (kind === 'pickup_task') {
+    const normalized: Record<string, unknown> = {
+      projectPath: requireString(config, 'projectPath', 'action_config'),
+    };
+
+    const provider = optionalString(config, 'provider', 'action_config');
+    if (provider) {
+      if (!PROVIDERS.includes(provider as LLMProvider)) {
+        throw new AutomationValidationError(`action_config.provider must be one of: ${PROVIDERS.join(', ')}`);
+      }
+      normalized.provider = provider;
+    }
+
+    for (const key of ['profileId', 'baseBranch'] as const) {
       const value = optionalString(config, key, 'action_config');
       if (value) normalized[key] = value;
     }
