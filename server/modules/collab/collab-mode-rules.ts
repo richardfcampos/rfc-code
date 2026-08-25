@@ -15,14 +15,14 @@ const MIN_ROUNDS = 1;
 const MAX_ROUNDS = 5;
 const DEFAULT_ROUNDS = 3;
 const REVIEW_ROLES = ['author', 'reviewer'];
-const MODES: readonly CollabMode[] = ['debate', 'review', 'vote'];
+const MODES: readonly CollabMode[] = ['debate', 'review', 'vote', 'council'];
 
 export function readMode(value: unknown): CollabMode {
   if (typeof value === 'string' && (MODES as readonly string[]).includes(value)) {
     return value as CollabMode;
   }
   throw badRequest(
-    `Unsupported collaboration mode "${String(value)}". Expected debate, review or vote.`,
+    `Unsupported collaboration mode "${String(value)}". Expected ${MODES.join(', ')}.`,
     'INVALID_MODE',
   );
 }

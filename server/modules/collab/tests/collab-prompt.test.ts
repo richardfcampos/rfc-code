@@ -32,7 +32,7 @@ function turnInput(overrides: Partial<TurnPromptInput> = {}): TurnPromptInput {
 // Shared framing: every participant must know the repo is readable but frozen,
 // and that a blunt answer beats a polite one.
 test('every mode states the read-only repo rule and the disagreement rule', () => {
-  for (const mode of ['debate', 'review', 'vote'] as CollabPromptMode[]) {
+  for (const mode of ['debate', 'review', 'vote', 'council'] as CollabPromptMode[]) {
     const prompt = buildTurnPrompt(turnInput({ mode }));
     assert.match(prompt, /read-only at your current working directory/, mode);
     assert.match(prompt, /Be concise and concrete/, mode);
@@ -217,4 +217,57 @@ test('vote never converges by signal', () => {
     hasConverged({ mode: 'vote', roundTurns: [{ role: 'participant', consensus: true }] }),
     false,
   );
+});
+
+test('council demands the five-part contract instead of the consensus line', () => {
+  const prompt = buildTurnPrompt(turnInput({ mode: 'council' }));
+
+  assert.match(prompt, /a member of a council examining the topic below/);
+  // The five keys are the contract; a prompt that stops naming one of them
+  // would quietly stop collecting it.
+  for (const key of ['evidence', 'risks', 'tests', 'disagreements', 'confidence']) {
+    assert.match(prompt, new RegExp(`"${key}"`), key);
+  }
+  assert.match(prompt, /fenced ```json block/);
+  assert.match(prompt, /An empty "disagreements" array means you accept everything said so far/);
+
+  // The one-line protocol would be a second, conflicting way to agree.
+  assert.doesNotMatch(prompt, /^CONSENSUS: /m);
+  // It is still a discussion: the transcript and the closing round still show.
+  assert.match(prompt, /Postgres scales better\./);
+});
+
+test('a council turn is told what it may spend, and the older modes are not', () => {
+  const budget = { totalTokens: 200_000, maxTurns: 7, tokenAllowance: 28_571 };
+
+  const council = buildTurnPrompt(turnInput({ mode: 'council', budget }));
+  assert.match(council, /may spend about 200,000 tokens across at most 7 turns/);
+  assert.match(council, /roughly 28,571 tokens for yours/);
+  assert.match(council, /The run stops when the budget is spent/);
+
+  // Enforcement does not depend on the sentence: a council with no budget block
+  // still runs, it just is not told the number.
+  assert.doesNotMatch(buildTurnPrompt(turnInput({ mode: 'council' })), /may spend about/);
+  assert.doesNotMatch(buildTurnPrompt(turnInput({ mode: 'debate', budget })), /may spend about/);
+});
+
+test('the arbiter of a council is told the answers carry contracts', () => {
+  const prompt = buildVerdictPrompt({ topic: 'Split the scheduler?', mode: 'council', transcript });
+
+  assert.match(prompt, /Each answer ends with a JSON contract/);
+  assert.match(prompt, /not by how firmly it was written/);
+  // The three sections it always asked for are unchanged.
+  assert.match(prompt, /Points of agreement/);
+  assert.match(prompt, /Remaining disagreements/);
+  assert.match(prompt, /Recommendation/);
+});
+
+test('council converges only when every member declared no disagreement', () => {
+  const signal = (consensus: boolean | null) => ({ role: 'participant', consensus });
+
+  assert.equal(hasConverged({ mode: 'council', roundTurns: [signal(true), signal(true)] }), true);
+  assert.equal(hasConverged({ mode: 'council', roundTurns: [signal(true), signal(false)] }), false);
+  // A member whose contract could not be read declared nothing, which cannot
+  // close a council on its behalf.
+  assert.equal(hasConverged({ mode: 'council', roundTurns: [signal(true), signal(null)] }), false);
 });

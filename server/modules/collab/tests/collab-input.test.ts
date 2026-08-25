@@ -163,3 +163,62 @@ test('maxRounds is type-checked even in a mode that then coerces it', () => {
   assert.equal(parseCreateCollaborationInput(body({ mode: 'vote' }), profiles).maxRounds, 1);
   assert.equal(parseCreateCollaborationInput(body({ maxRounds: 4 }), profiles).maxRounds, 4);
 });
+
+test('council is an accepted mode and needs no special roles', () => {
+  const input = parse({ mode: 'council' });
+
+  assert.equal(input.mode, 'council');
+  assert.deepEqual(
+    input.participants.map((participant) => participant.role),
+    ['participant', 'participant'],
+  );
+});
+
+test('an unknown mode names every mode that does exist', () => {
+  assert.throws(
+    () => parse({ mode: 'senate' }),
+    (error: Error & { code?: string }) => {
+      assert.equal(error.code, 'INVALID_MODE');
+      assert.match(error.message, /debate, review, vote, council/);
+      return true;
+    },
+  );
+});
+
+test('a request with no budget gets the ceiling its own shape implies', () => {
+  // Two seats over three rounds, plus the synthesis: exactly the turns this
+  // request was always going to run.
+  assert.deepEqual(parse({ mode: 'council' }).budget, {
+    totalTokens: 200_000,
+    maxTurns: 7,
+    turnTimeoutMs: 300_000,
+  });
+
+  // The default follows the shape rather than a constant, so a four-seat run
+  // is not silently cut off after the turns a two-seat run would have taken.
+  const wider = parse({
+    mode: 'council',
+    maxRounds: 2,
+    participants: [
+      { profileId: 'profile-a' }, { profileId: 'profile-b' },
+      { profileId: 'profile-c' }, { profileId: 'profile-d' },
+    ],
+  });
+  assert.equal(wider.budget.maxTurns, 9);
+});
+
+test('a budget sent with the request is validated and kept', () => {
+  assert.deepEqual(parse({ mode: 'council', budget: { totalTokens: 40_000, maxTurns: 5 } }).budget, {
+    totalTokens: 40_000,
+    maxTurns: 5,
+    turnTimeoutMs: 300_000,
+  });
+
+  assert.equal(codeOf(() => parse({ mode: 'council', budget: { maxTurns: 0 } })), 'INVALID_BUDGET');
+  assert.equal(codeOf(() => parse({ budget: 'as much as it takes' })), 'INVALID_BUDGET');
+});
+
+test('the older modes accept a budget too, so nothing has to switch to council to be capped', () => {
+  assert.equal(parse({ mode: 'debate', budget: { maxTurns: 3 } }).budget.maxTurns, 3);
+  assert.equal(parse({ mode: 'vote' }).budget.maxTurns, 3);
+});
