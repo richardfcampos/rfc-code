@@ -25,7 +25,8 @@
     "tasks": "Tasks",
     "browser": "Browser",
     "computer": "Computer",
-    "board": "Board"
+    "board": "Board",
+    "team": "Team"
   },
   "status": {
     "loading": "Loading...",

@@ -24,7 +24,7 @@ export type ProviderModelsCacheInfo = {
   source: 'memory' | 'disk' | 'fresh';
 };
 
-export type AppTab = 'chat' | 'files' | 'shell' | 'git' | 'tasks' | 'browser' | 'collab' | 'board' | 'reviews' | `plugin:${string}`;
+export type AppTab = 'chat' | 'files' | 'shell' | 'git' | 'tasks' | 'browser' | 'collab' | 'board' | 'reviews' | 'team' | `plugin:${string}`;
 
 export interface ProjectSession {
   id: string;
