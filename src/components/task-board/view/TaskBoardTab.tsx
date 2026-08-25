@@ -8,6 +8,7 @@ import { useTaskBoard } from '../hooks/useTaskBoard';
 import { TASK_BOARD_COLUMNS } from '../utils/taskBoardStages';
 import type { Task, TaskStage } from '../types';
 
+import AutoPickupToggle from './AutoPickupToggle';
 import TaskBoardColumn from './TaskBoardColumn';
 import TaskDetailModal from './TaskDetailModal';
 
@@ -75,7 +76,7 @@ export default function TaskBoardTab({ selectedProject }: TaskBoardTabProps) {
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex-shrink-0 border-b border-border p-3">
+      <div className="flex flex-shrink-0 items-center gap-2 border-b border-border p-3">
         <Input
           ref={quickAddRef}
           value={quickAddValue}
@@ -89,7 +90,9 @@ export default function TaskBoardTab({ selectedProject }: TaskBoardTabProps) {
           disabled={isCreating}
           placeholder={t('quickAdd.placeholder', { defaultValue: 'New task — Enter creates it' })}
           aria-label={t('quickAdd.placeholder', { defaultValue: 'New task — Enter creates it' })}
+          className="flex-1"
         />
+        <AutoPickupToggle project={selectedProject} />
       </div>
 
       {loadError && (

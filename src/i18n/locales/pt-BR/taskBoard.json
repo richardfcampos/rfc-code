@@ -4,6 +4,11 @@
   },
   "emptyProject": "Selecione um projeto para ver o quadro de tasks.",
   "loadError": "Falha ao carregar as tasks. Tente recarregar o projeto.",
+  "autoPickup": {
+    "label": "Auto-pickup",
+    "limitLabel": "Limite",
+    "error": "Não foi possível atualizar o auto-pickup"
+  },
   "columns": {
     "backlog": "Backlog",
     "inProgress": "Em progresso",

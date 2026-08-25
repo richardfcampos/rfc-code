@@ -62,3 +62,17 @@ export interface TaskDetail {
   attachments: TaskAttachment[];
   evidence: TaskEvidence[];
 }
+
+// Frontend mirror of the automations REST view
+// (server/modules/automations/automations.types.ts `AutomationView`).
+export interface AutomationView {
+  automationId: string;
+  name: string;
+  enabled: boolean;
+  triggerKind: string;
+  triggerConfig: Record<string, unknown>;
+  actionKind: string;
+  actionConfig: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}

@@ -4,6 +4,11 @@
   },
   "emptyProject": "Select a project to see its task board.",
   "loadError": "Failed to load tasks. Try reloading the project.",
+  "autoPickup": {
+    "label": "Auto-pickup",
+    "limitLabel": "Limit",
+    "error": "Could not update auto-pickup"
+  },
   "columns": {
     "backlog": "Backlog",
     "inProgress": "In progress",
