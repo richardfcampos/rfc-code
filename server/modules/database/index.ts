@@ -3,6 +3,17 @@ export { closeConnection, getConnection, getDatabasePath } from '@/modules/datab
 export { activeSessionRunsDb } from '@/modules/database/repositories/active-session-runs.db.js';
 export type { ActiveSessionRunRow } from '@/modules/database/repositories/active-session-runs.db.js';
 export { apiKeysDb } from '@/modules/database/repositories/api-keys.js';
+export { automationsDb } from '@/modules/database/repositories/automations.db.js';
+export type {
+  AutomationActionKind,
+  AutomationRow,
+  AutomationRunRow,
+  AutomationRunStatus,
+  AutomationTriggerKind,
+  CreateAutomationInput,
+  RecordAutomationRunInput,
+  UpdateAutomationInput,
+} from '@/modules/database/repositories/automations.db.js';
 export { appConfigDb } from '@/modules/database/repositories/app-config.js';
 export { credentialsDb } from '@/modules/database/repositories/credentials.js';
 export { githubTokensDb } from '@/modules/database/repositories/github-tokens.js';

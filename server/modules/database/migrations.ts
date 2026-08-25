@@ -5,6 +5,8 @@ import { Database } from 'better-sqlite3';
 import {
   ACTIVE_SESSION_RUNS_TABLE_SCHEMA_SQL,
   APP_CONFIG_TABLE_SCHEMA_SQL,
+  AUTOMATION_RUNS_TABLE_SCHEMA_SQL,
+  AUTOMATIONS_TABLE_SCHEMA_SQL,
   COLLABORATIONS_TABLE_SCHEMA_SQL,
   COLLABORATION_TURNS_TABLE_SCHEMA_SQL,
   LAST_SCANNED_AT_SQL,
@@ -866,6 +868,20 @@ export const runMigrations = (db: Database) => {
       'CREATE INDEX IF NOT EXISTS idx_profile_fallback_audit_org ON profile_fallback_audit(org_id, created_at)',
     );
     seedDefaultOrg(db);
+
+    db.exec(AUTOMATIONS_TABLE_SCHEMA_SQL);
+    db.exec('CREATE INDEX IF NOT EXISTS idx_automations_trigger ON automations(trigger_kind, enabled)');
+    db.exec(AUTOMATION_RUNS_TABLE_SCHEMA_SQL);
+    db.exec(
+      'CREATE INDEX IF NOT EXISTS idx_automation_runs_automation ON automation_runs(automation_id, fired_at)',
+    );
+    // The idempotency guarantee lives in the database rather than in the
+    // service: two triggers racing on the same event both reach the insert,
+    // and only one of them can win it.
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_runs_dedupe
+      ON automation_runs(automation_id, dedupe_key, attempt) WHERE dedupe_key IS NOT NULL
+    `);
 
     console.log('Database migrations completed successfully');
   } catch (error: any) {

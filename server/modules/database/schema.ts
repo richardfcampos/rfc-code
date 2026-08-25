@@ -380,6 +380,44 @@ CREATE TABLE IF NOT EXISTS profile_fallback_audit (
 );
 `;
 
+export const AUTOMATIONS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS automations (
+    automation_id TEXT PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    trigger_kind TEXT NOT NULL
+      CHECK (trigger_kind IN ('cron', 'task_stage', 'webhook', 'quota_threshold')),
+    -- Trigger and action parameters are JSON documents rather than columns:
+    -- each kind carries a different shape, and the service validates them on
+    -- the way in so nothing unparseable is ever stored.
+    trigger_config TEXT NOT NULL DEFAULT '{}',
+    action_kind TEXT NOT NULL
+      CHECK (action_kind IN ('prompt_agent', 'create_task', 'notify_push')),
+    action_config TEXT NOT NULL DEFAULT '{}',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
+export const AUTOMATION_RUNS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS automation_runs (
+    run_id TEXT PRIMARY KEY NOT NULL,
+    automation_id TEXT NOT NULL,
+    fired_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    status TEXT NOT NULL CHECK (status IN ('success', 'failed', 'skipped')),
+    detail TEXT,
+    -- 1-based; one row per attempt, so a firing that only succeeded on its
+    -- third try leaves the two failures behind it in the history.
+    attempt INTEGER NOT NULL DEFAULT 1,
+    -- Identifies the event that caused the firing (a task's stage transition, a
+    -- cron minute, ...). NULL means "always fire" — manual test fires and
+    -- webhooks without an idempotency key. The unique index below is what makes
+    -- the same event unable to fire the same automation twice.
+    dedupe_key TEXT,
+    FOREIGN KEY (automation_id) REFERENCES automations(automation_id) ON DELETE CASCADE
+);
+`;
+
 export const INIT_SCHEMA_SQL = `
 -- Initialize authentication database
 PRAGMA foreign_keys = ON;
@@ -463,4 +501,12 @@ CREATE INDEX IF NOT EXISTS idx_task_evidence_task ON task_evidence(task_id);
 
 ${PROFILE_FALLBACK_AUDIT_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_profile_fallback_audit_org ON profile_fallback_audit(org_id, created_at);
+
+${AUTOMATIONS_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_automations_trigger ON automations(trigger_kind, enabled);
+
+${AUTOMATION_RUNS_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_automation_runs_automation ON automation_runs(automation_id, fired_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_runs_dedupe
+  ON automation_runs(automation_id, dedupe_key, attempt) WHERE dedupe_key IS NOT NULL;
 `;
