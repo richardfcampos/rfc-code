@@ -2,6 +2,19 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useAuth } from '../components/auth/context/AuthContext';
 import { IS_PLATFORM } from '../constants/config';
 
+import {
+  computeReconnectDelayMs,
+  hasLivenessProbeTimedOut,
+  shouldReconnectImmediatelyOnWake,
+} from './utils/websocket-liveness';
+
+/**
+ * How long a wake-triggered `chat.ping` liveness probe waits for a reply (or
+ * any other frame — both count as proof of life) before the socket is
+ * treated as half-open and force-reconnected.
+ */
+const LIVENESS_PROBE_TIMEOUT_MS = 3000;
+
 /**
  * One frame received from the chat websocket. The server guarantees every
  * frame carries a `kind` (provider message kinds plus gateway kinds such as
@@ -74,6 +87,15 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   const [latestMessage, setLatestMessage] = useState<ServerEvent | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Reset to 0 on every successful open; drives the exponential backoff delay
+  // for the next reconnect attempt after a drop.
+  const reconnectAttemptRef = useRef(0);
+  // Timestamp of the last frame received on the current socket (any message,
+  // including a `chat_pong` reply) — the signal the wake-up liveness probe
+  // checks against to decide whether a socket that still claims OPEN is
+  // actually half-open.
+  const lastActivityAtRef = useRef<number | null>(null);
+  const livenessProbeRef = useRef<{ sentAt: number; timer: ReturnType<typeof setTimeout> } | null>(null);
   const { token, isTrusted } = useAuth();
 
   const dispatch = useCallback((event: ServerEvent) => {
@@ -85,6 +107,13 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       }
     }
     setLatestMessage(event);
+  }, []);
+
+  const clearLivenessProbe = useCallback(() => {
+    if (livenessProbeRef.current) {
+      clearTimeout(livenessProbeRef.current.timer);
+      livenessProbeRef.current = null;
+    }
   }, []);
 
   useEffect(() => {
@@ -99,7 +128,12 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
+      clearLivenessProbe();
       if (wsRef.current) {
+        // wsRef is assigned at construction time (below), not only on open,
+        // so a socket still stuck in CONNECTING is closed here too instead
+        // of being orphaned to finish connecting after the provider using it
+        // has already unmounted.
         wsRef.current.close();
       }
     };
@@ -114,10 +148,14 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       if (!wsUrl) return console.warn('No authentication token found for WebSocket connection');
 
       const websocket = new WebSocket(wsUrl);
+      // Assigned immediately (before onopen) so close() during cleanup or a
+      // forced reconnect can always reach this socket, even mid-handshake.
+      wsRef.current = websocket;
 
       websocket.onopen = () => {
         setIsConnected(true);
-        wsRef.current = websocket;
+        reconnectAttemptRef.current = 0;
+        lastActivityAtRef.current = Date.now();
         if (hasConnectedRef.current) {
           // This is a reconnect — signal so components can catch up on missed messages
           dispatch({ kind: 'websocket_reconnected', timestamp: Date.now() });
@@ -126,8 +164,13 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       };
 
       websocket.onmessage = (event) => {
+        lastActivityAtRef.current = Date.now();
         try {
           const data = JSON.parse(event.data) as ServerEvent;
+          if (data.kind === 'chat_pong') {
+            // Liveness-probe reply only — recorded above, nothing for consumers to see.
+            return;
+          }
           dispatch(data);
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
@@ -136,13 +179,18 @@ const useWebSocketProviderState = (): WebSocketContextType => {
 
       websocket.onclose = () => {
         setIsConnected(false);
-        wsRef.current = null;
+        if (wsRef.current === websocket) {
+          wsRef.current = null;
+        }
+        clearLivenessProbe();
 
-        // Attempt to reconnect after 3 seconds
+        const delay = computeReconnectDelayMs(reconnectAttemptRef.current);
+        reconnectAttemptRef.current += 1;
+
         reconnectTimeoutRef.current = setTimeout(() => {
           if (unmountedRef.current) return; // Prevent reconnection if unmounted
           connect();
-        }, 3000);
+        }, delay);
       };
 
       websocket.onerror = (error) => {
@@ -152,7 +200,105 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     } catch (error) {
       console.error('Error creating WebSocket connection:', error);
     }
-  }, [token, isTrusted, dispatch]); // reconnect whenever the token or trusted-mode status changes
+  }, [token, isTrusted, dispatch, clearLivenessProbe]); // reconnect whenever the token or trusted-mode status changes
+
+  /**
+   * Drops the current socket (whatever its state) and reconnects right away,
+   * bypassing the backoff timer. Used when a wake event proves the socket is
+   * dead or half-open — waiting on a fixed retry timer that may never fire
+   * on a half-open socket is exactly the failure mode this closes.
+   */
+  const forceReconnect = useCallback(() => {
+    if (unmountedRef.current) return;
+    clearLivenessProbe();
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
+    const staleSocket = wsRef.current;
+    wsRef.current = null;
+    if (staleSocket) {
+      // Detach handlers first so the stale socket's own close/error (if it
+      // ever fires) cannot trigger a second, redundant reconnect on top of
+      // the one started below.
+      staleSocket.onopen = null;
+      staleSocket.onmessage = null;
+      staleSocket.onclose = null;
+      staleSocket.onerror = null;
+      try {
+        staleSocket.close();
+      } catch {
+        // already closed/closing — nothing to clean up
+      }
+    }
+
+    setIsConnected(false);
+    connect();
+  }, [connect, clearLivenessProbe]);
+
+  /**
+   * Runs on `visibilitychange` (tab foregrounded) and `online` (network back)
+   * events. A socket that is not OPEN is known-dead already; one that claims
+   * OPEN might still be half-open after sleep/network-switch, so it is probed
+   * with a `chat.ping` and given a short window to answer before being
+   * treated as dead.
+   */
+  const checkLivenessOnWake = useCallback(() => {
+    if (unmountedRef.current) return;
+    const socket = wsRef.current;
+
+    if (!socket || shouldReconnectImmediatelyOnWake(socket.readyState, WebSocket.OPEN)) {
+      forceReconnect();
+      return;
+    }
+
+    if (livenessProbeRef.current) return; // a probe is already in flight
+
+    const sentAt = Date.now();
+    try {
+      socket.send(JSON.stringify({ type: 'chat.ping' }));
+    } catch {
+      forceReconnect();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const probe = livenessProbeRef.current;
+      livenessProbeRef.current = null;
+      if (!probe || unmountedRef.current) return;
+
+      if (
+        hasLivenessProbeTimedOut({
+          probeSentAt: probe.sentAt,
+          lastActivityAt: lastActivityAtRef.current,
+          now: Date.now(),
+          timeoutMs: LIVENESS_PROBE_TIMEOUT_MS,
+        })
+      ) {
+        forceReconnect();
+      }
+    }, LIVENESS_PROBE_TIMEOUT_MS);
+
+    livenessProbeRef.current = { sentAt, timer };
+  }, [forceReconnect]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkLivenessOnWake();
+      }
+    };
+    const handleOnline = () => checkLivenessOnWake();
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('online', handleOnline);
+    };
+  }, [checkLivenessOnWake]);
 
   const sendMessage = useCallback((message: unknown) => {
     const socket = wsRef.current;
