@@ -58,6 +58,7 @@ import projectModuleRoutes from './modules/projects/projects.routes.js';
 import { worktreesRoutes } from './modules/worktrees/index.js';
 import { tasksRoutes } from './modules/tasks/index.js';
 import { orgsRoutes } from './modules/orgs/index.js';
+import { configureReviewsRuntime, reviewsRoutes } from './modules/reviews/index.js';
 import { agentBridgeRoutes, agentBridgeSessionTokenRoutes } from './modules/agent-bridge/index.js';
 import { agentMessagesRoutes } from './modules/agent-messages/index.js';
 import {
@@ -223,6 +224,10 @@ app.use('/api/orgs', authenticateToken, orgsRoutes);
 // by the JWT-protected router below.
 app.use('/api/automations/webhook', automationsWebhookRoutes);
 app.use('/api/automations', authenticateToken, automationsRoutes);
+
+// Review Center: the queue of tasks waiting on a human, their diffs and the
+// per-line conversation (protected)
+app.use('/api/reviews', authenticateToken, reviewsRoutes);
 
 // Agent bridge: minting a session's bridge token is a user action (JWT), while
 // the tools an agent process calls authenticate with that token instead — agent
@@ -1666,6 +1671,19 @@ async function startServer() {
             opencode: spawnOpenCode,
         });
         startAutomations();
+
+        // A review comment has to reach the agent that wrote the code, which
+        // means starting a turn on its session with no browser behind it. The
+        // same runtimes the chat websocket uses are handed over here, and this
+        // call also subscribes the module to task stage changes.
+        configureReviewsRuntime({
+            spawnFns: {
+                claude: queryClaudeSDK,
+                cursor: spawnCursor,
+                codex: queryCodex,
+                opencode: spawnOpenCode,
+            },
+        });
 
         // A cross-provider handoff whose history overflows the destination's
         // budget compresses its oldest turns the same detached way, so the

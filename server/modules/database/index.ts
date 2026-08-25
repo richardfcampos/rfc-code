@@ -35,7 +35,20 @@ export type {
 } from '@/modules/database/repositories/orgs.db.js';
 export { projectsDb } from '@/modules/database/repositories/projects.db.js';
 export { pushSubscriptionsDb } from '@/modules/database/repositories/push-subscriptions.js';
+export { reviewCommentsDb } from '@/modules/database/repositories/review-comments.db.js';
+export type {
+  CreateReviewCommentInput,
+  ReviewCommentAuthor,
+  ReviewCommentRow,
+  ReviewCommentState,
+} from '@/modules/database/repositories/review-comments.db.js';
 export { scanStateDb } from '@/modules/database/repositories/scan-state.db.js';
+export { LIVE_REVIEW_STATES, taskReviewsDb } from '@/modules/database/repositories/task-reviews.db.js';
+export type {
+  TaskReviewRow,
+  TaskReviewState,
+  TaskReviewWithTaskRow,
+} from '@/modules/database/repositories/task-reviews.db.js';
 export { taskAttachmentsDb } from '@/modules/database/repositories/task-attachments.db.js';
 export type {
   CreateTaskAttachmentInput,

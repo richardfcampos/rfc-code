@@ -19,11 +19,13 @@ import {
   PROFILE_FALLBACK_AUDIT_TABLE_SCHEMA_SQL,
   PROJECTS_TABLE_SCHEMA_SQL,
   PUSH_SUBSCRIPTIONS_TABLE_SCHEMA_SQL,
+  REVIEW_COMMENTS_TABLE_SCHEMA_SQL,
   SESSION_LEGS_TABLE_SCHEMA_SQL,
   SESSION_RUN_FAILURES_TABLE_SCHEMA_SQL,
   SESSIONS_TABLE_SCHEMA_SQL,
   TASK_ATTACHMENTS_TABLE_SCHEMA_SQL,
   TASK_EVIDENCE_TABLE_SCHEMA_SQL,
+  TASK_REVIEWS_TABLE_SCHEMA_SQL,
   TASKS_TABLE_SCHEMA_SQL,
   USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL,
   VAPID_KEYS_TABLE_SCHEMA_SQL,
@@ -898,6 +900,19 @@ export const runMigrations = (db: Database) => {
     `);
 
     createAgentMessagesInbox(db);
+
+    db.exec(TASK_REVIEWS_TABLE_SCHEMA_SQL);
+    // At most one live review per task, enforced by the database so a racing
+    // pair of stage transitions cannot open two threads for the same card.
+    db.exec(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_task_reviews_live
+      ON task_reviews(task_id) WHERE state IN ('open', 'changes_requested')
+    `);
+    db.exec('CREATE INDEX IF NOT EXISTS idx_task_reviews_state ON task_reviews(state, updated_at)');
+    db.exec(REVIEW_COMMENTS_TABLE_SCHEMA_SQL);
+    db.exec(
+      'CREATE INDEX IF NOT EXISTS idx_review_comments_review ON review_comments(review_id, file_path)',
+    );
 
     console.log('Database migrations completed successfully');
   } catch (error: any) {
