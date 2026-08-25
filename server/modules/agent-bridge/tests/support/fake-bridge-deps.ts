@@ -5,8 +5,13 @@
  * describe the interaction it is actually about.
  */
 
-import type { AgentMessageRow, TaskEvidenceRow, TaskRow } from '@/modules/database/index.js';
-import type { TaskUpdateAction } from '@/modules/tasks/index.js';
+import type {
+  AgentMessageRow,
+  SubtaskRow,
+  TaskEvidenceRow,
+  TaskRow,
+} from '@/modules/database/index.js';
+import type { TaskDecomposition, TaskUpdateAction } from '@/modules/tasks/index.js';
 
 import type {
   AgentBridgeSessionScope,
@@ -43,6 +48,24 @@ export const EVIDENCE: TaskEvidenceRow = {
   created_at: '2026-08-20T00:00:00.000Z',
 };
 
+/** Two subtasks of TASK, the second waiting on the first. */
+export const SUBTASKS: SubtaskRow[] = [
+  { ...TASK, id: 'task-2', title: 'Parse the CSV', parent_task_id: TASK.id },
+  { ...TASK, id: 'task-3', title: 'Write the loader', parent_task_id: TASK.id },
+];
+
+export const DECOMPOSITION: TaskDecomposition = {
+  parent: { ...TASK, parent_task_id: null },
+  subtasks: SUBTASKS,
+  dependencies: [
+    {
+      task_id: SUBTASKS[1]!.id,
+      depends_on_task_id: SUBTASKS[0]!.id,
+      created_at: '2026-08-20T00:00:00.000Z',
+    },
+  ],
+};
+
 export const MESSAGE: AgentMessageRow = {
   message_id: 'message-1',
   from_session_id: 'session-2',
@@ -64,6 +87,7 @@ export interface BridgeTestDeps extends AgentBridgeToolDeps {
   updateCalls: Array<[unknown, Record<string, unknown>]>;
   createCalls: Array<Record<string, unknown>>;
   evidenceCalls: Array<[unknown, Record<string, unknown>]>;
+  decomposeCalls: Array<[unknown, Record<string, unknown>]>;
   messageCalls: Record<'send' | 'list' | 'pullInbox' | 'acknowledge' | 'answer', MessageCall[]>;
 }
 
@@ -72,6 +96,7 @@ export function createBridgeDeps(overrides: Partial<AgentBridgeToolDeps> = {}): 
   const updateCalls: Array<[unknown, Record<string, unknown>]> = [];
   const createCalls: Array<Record<string, unknown>> = [];
   const evidenceCalls: Array<[unknown, Record<string, unknown>]> = [];
+  const decomposeCalls: Array<[unknown, Record<string, unknown>]> = [];
   const messageCalls: BridgeTestDeps['messageCalls'] = {
     send: [],
     list: [],
@@ -100,6 +125,17 @@ export function createBridgeDeps(overrides: Partial<AgentBridgeToolDeps> = {}): 
         return { ...EVIDENCE, kind: (body.kind as TaskEvidenceRow['kind']) ?? EVIDENCE.kind, content: String(body.content ?? EVIDENCE.content) };
       },
       ...overrides.tasks,
+    },
+    // Mirrors the real decomposition service: a plan is echoed back with its
+    // edges, and nothing is blocked unless a test says so.
+    decomposition: overrides.decomposition ?? {
+      decompose: (parentTaskId, body) => {
+        decomposeCalls.push([parentTaskId, body]);
+        return DECOMPOSITION;
+      },
+      getDecomposition: () => DECOMPOSITION,
+      listReady: () => [SUBTASKS[0]!],
+      listBlockers: () => [],
     },
     // Mirrors the real service closely enough for the dispatch tests: it
     // records who acted and echoes a row in the state that call produces.
@@ -160,5 +196,13 @@ export function createBridgeDeps(overrides: Partial<AgentBridgeToolDeps> = {}): 
     }),
   };
 
-  return { ...deps, broadcasts, updateCalls, createCalls, evidenceCalls, messageCalls };
+  return {
+    ...deps,
+    broadcasts,
+    updateCalls,
+    createCalls,
+    evidenceCalls,
+    decomposeCalls,
+    messageCalls,
+  };
 }

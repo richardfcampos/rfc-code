@@ -10,9 +10,14 @@
  */
 
 import type { AgentMessageAnswer } from '@/modules/agent-messages/index.js';
-import type { AgentMessageRow, TaskEvidenceRow, TaskRow } from '@/modules/database/index.js';
+import type {
+  AgentMessageRow,
+  SubtaskRow,
+  TaskEvidenceRow,
+  TaskRow,
+} from '@/modules/database/index.js';
 import type { ProfileRecommendation } from '@/modules/orgs/index.js';
-import type { TaskUpdateAction } from '@/modules/tasks/index.js';
+import type { TaskDecomposition, TaskUpdateAction } from '@/modules/tasks/index.js';
 import type { LLMProvider } from '@/shared/types.js';
 
 import type { AgentBridgeTokenPayload } from './agent-bridge-token.js';
@@ -36,6 +41,19 @@ export interface AgentBridgeTasksPort {
   listTasks(project: unknown): TaskRow[];
   updateTask(id: unknown, body: Record<string, unknown>): Promise<TaskRow>;
   addEvidence(taskId: unknown, body: Record<string, unknown>): TaskEvidenceRow;
+}
+
+/**
+ * The slice of the decomposition service a leader session uses.
+ *
+ * Only the parent task is named by the caller; the subtasks it produces inherit
+ * their project from it, so this port never takes a project either.
+ */
+export interface AgentBridgeDecompositionPort {
+  decompose(parentTaskId: unknown, body: Record<string, unknown>): TaskDecomposition;
+  getDecomposition(parentTaskId: unknown): TaskDecomposition;
+  listReady(parentTaskId: unknown): SubtaskRow[];
+  listBlockers(taskId: unknown): SubtaskRow[];
 }
 
 /** The slice of the org policy engine the bridge uses. */
@@ -75,6 +93,7 @@ export type AgentBridgeBroadcast = (task: TaskRow, action: TaskUpdateAction) => 
 
 export interface AgentBridgeToolDeps {
   tasks: AgentBridgeTasksPort;
+  decomposition: AgentBridgeDecompositionPort;
   messages: AgentBridgeMessagesPort;
   policy: AgentBridgePolicyPort;
   recommend: AgentBridgeRecommendPort;
