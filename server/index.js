@@ -59,6 +59,7 @@ import { worktreesRoutes } from './modules/worktrees/index.js';
 import { tasksRoutes } from './modules/tasks/index.js';
 import { orgsRoutes } from './modules/orgs/index.js';
 import { agentBridgeRoutes, agentBridgeSessionTokenRoutes } from './modules/agent-bridge/index.js';
+import { agentMessagesRoutes } from './modules/agent-messages/index.js';
 import {
     automationsRoutes,
     automationsWebhookRoutes,
@@ -229,6 +230,12 @@ app.use('/api/automations', authenticateToken, automationsRoutes);
 // captured by the token-protected router below.
 app.use('/api/agent-bridge/session-token', authenticateToken, agentBridgeSessionTokenRoutes);
 app.use('/api/agent-bridge', agentBridgeRoutes);
+
+// Agent handoff inbox, read-only (protected). Sending, acknowledging and
+// answering are agent actions and go through the bridge above, where the acting
+// session is proven by its token; this surface only lets the UI read what the
+// agents are saying to each other.
+app.use('/api/agent-messages', authenticateToken, agentMessagesRoutes);
 
 // Cursor API Routes (protected)
 app.use('/api/cursor', authenticateToken, cursorRoutes);

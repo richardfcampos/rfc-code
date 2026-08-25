@@ -4,6 +4,7 @@ import { Database } from 'better-sqlite3';
 
 import {
   ACTIVE_SESSION_RUNS_TABLE_SCHEMA_SQL,
+  AGENT_MESSAGES_TABLE_SCHEMA_SQL,
   APP_CONFIG_TABLE_SCHEMA_SQL,
   AUTOMATION_RUNS_TABLE_SCHEMA_SQL,
   AUTOMATIONS_TABLE_SCHEMA_SQL,
@@ -760,6 +761,19 @@ const seedDefaultOrg = (db: Database): void => {
   ).run();
 };
 
+/**
+ * Agent-to-agent handoff inbox (`agent_messages`).
+ *
+ * Purely additive and idempotent: the table and both box indexes are created
+ * with IF NOT EXISTS, and nothing existing is rewritten, so re-running this on
+ * an installation that already has the inbox is a no-op.
+ */
+const createAgentMessagesInbox = (db: Database): void => {
+  db.exec(AGENT_MESSAGES_TABLE_SCHEMA_SQL);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_agent_messages_inbox ON agent_messages(to_session_id, state)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_agent_messages_outbox ON agent_messages(from_session_id, state)');
+};
+
 export const runMigrations = (db: Database) => {
   try {
     const usersTableInfo = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
@@ -882,6 +896,8 @@ export const runMigrations = (db: Database) => {
       CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_runs_dedupe
       ON automation_runs(automation_id, dedupe_key, attempt) WHERE dedupe_key IS NOT NULL
     `);
+
+    createAgentMessagesInbox(db);
 
     console.log('Database migrations completed successfully');
   } catch (error: any) {

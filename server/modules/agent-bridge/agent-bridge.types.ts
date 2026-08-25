@@ -9,7 +9,8 @@
  * `agent-bridge.module.ts`.
  */
 
-import type { TaskEvidenceRow, TaskRow } from '@/modules/database/index.js';
+import type { AgentMessageAnswer } from '@/modules/agent-messages/index.js';
+import type { AgentMessageRow, TaskEvidenceRow, TaskRow } from '@/modules/database/index.js';
 import type { ProfileRecommendation } from '@/modules/orgs/index.js';
 import type { TaskUpdateAction } from '@/modules/tasks/index.js';
 import type { LLMProvider } from '@/shared/types.js';
@@ -42,6 +43,22 @@ export interface AgentBridgePolicyPort {
   assertProfileAllowed(projectPath: string | null, profileId: string): void;
 }
 
+/**
+ * The slice of the handoff inbox the bridge uses.
+ *
+ * Every method takes the acting session id first, and the bridge always passes
+ * the one from the verified token — the agent names a correspondent, never
+ * itself. Field validation lives in the messages module, so the bridge forwards
+ * the raw input instead of re-checking it here.
+ */
+export interface AgentBridgeMessagesPort {
+  send(fromSessionId: string, body: Record<string, unknown>): AgentMessageRow;
+  list(sessionId: string, filter: Record<string, unknown>): AgentMessageRow[];
+  pullInbox(sessionId: string, filter: Record<string, unknown>): AgentMessageRow[];
+  acknowledge(sessionId: string, messageId: unknown): AgentMessageRow;
+  answer(sessionId: string, messageId: unknown, body: Record<string, unknown>): AgentMessageAnswer;
+}
+
 /** The slice of the quota-aware recommender the bridge uses. */
 export interface AgentBridgeRecommendPort {
   recommend(projectPath: string | null, provider?: LLMProvider): Promise<ProfileRecommendation>;
@@ -58,6 +75,7 @@ export type AgentBridgeBroadcast = (task: TaskRow, action: TaskUpdateAction) => 
 
 export interface AgentBridgeToolDeps {
   tasks: AgentBridgeTasksPort;
+  messages: AgentBridgeMessagesPort;
   policy: AgentBridgePolicyPort;
   recommend: AgentBridgeRecommendPort;
   broadcast: AgentBridgeBroadcast;

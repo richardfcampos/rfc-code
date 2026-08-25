@@ -1,12 +1,13 @@
 # Agent Bridge
 
-Lets an agent running inside a chat session drive its own project's task board
-and ask which account profile to use, through MCP.
+Lets an agent running inside a chat session drive its own project's task board,
+hand work to another agent, and ask which account profile to use, through MCP.
 
 ```
 agent process ──stdio──▶ server/agent-bridge-mcp.ts ──HTTP──▶ POST /api/agent-bridge/tools/:toolName
                                 (bearer: session token)              │
                                                                      ├─▶ modules/tasks
+                                                                     ├─▶ modules/agent-messages (handoff inbox)
                                                                      └─▶ modules/orgs (policy + recommend)
 ```
 
@@ -20,10 +21,26 @@ agent process ──stdio──▶ server/agent-bridge-mcp.ts ──HTTP──�
 | `task_update_description` | `taskId`, `description` | Sets a task's markdown description |
 | `task_assign` | `taskId`, `profileId` | Assigns an account profile, refused (403) when org policy denies it |
 | `task_evidence_add` | `taskId`, `kind` (`note`\|`link`), `content` | Appends a work-log entry to the task. Attachment upload is out of scope for the bridge — an agent that wants to reference a file logs `kind: 'link'` with the file path as `content` instead |
+| `message_send` | `toSessionId`, `subject`, `body`, `replyToMessageId?` | Queues a handoff message in another session's inbox |
+| `message_list` | `box?` (`inbox`\|`outbox`, default `inbox`), `state?` | Lists the caller's mailbox. **Listing the inbox is the delivery event** — the `queued` messages it returns come back `delivered` |
+| `message_ack` | `messageId` | Marks a delivered message `acknowledged`: "I have this, I am working on it" |
+| `message_answer` | `messageId`, `body`, `subject?` | Marks the message `answered` and queues a linked reply back to its sender |
 | `profile_recommend` | `provider?` | Returns the profile the project should use next, quota aware |
 
 Every tool is scoped by the token: the agent never names a project, and a task
-id from another project answers 404.
+id from another project answers 404. The `message_*` tools take the acting
+session from the token too, so an agent cannot post a handoff as somebody else,
+nor read or acknowledge a message it is not a party to (those answer 404 rather
+than 403, so a mailbox cannot be probed for ids).
+
+`toSessionId` is deliberately *not* restricted to the caller's own project: the
+common handoff is a lead session delegating to a worker running in a worktree,
+which the project registry sees as a different project. The addressee must be a
+session that exists right now — a handoff to a session that is already gone is
+refused (`AGENT_MESSAGE_RECIPIENT_UNKNOWN`) instead of queued forever.
+
+See `server/modules/agent-messages/README.md` for the message state machine and
+the reasoning behind pull-based delivery.
 
 ## Token
 

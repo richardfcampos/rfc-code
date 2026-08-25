@@ -5,7 +5,7 @@
  * describe the interaction it is actually about.
  */
 
-import type { TaskEvidenceRow, TaskRow } from '@/modules/database/index.js';
+import type { AgentMessageRow, TaskEvidenceRow, TaskRow } from '@/modules/database/index.js';
 import type { TaskUpdateAction } from '@/modules/tasks/index.js';
 
 import type {
@@ -43,11 +43,28 @@ export const EVIDENCE: TaskEvidenceRow = {
   created_at: '2026-08-20T00:00:00.000Z',
 };
 
+export const MESSAGE: AgentMessageRow = {
+  message_id: 'message-1',
+  from_session_id: 'session-2',
+  to_session_id: SCOPE.sessionId,
+  subject: 'Review the parser fix',
+  body: 'Branch feat/parser is ready.',
+  state: 'queued',
+  reply_to_message_id: null,
+  detail: null,
+  created_at: '2026-08-20T00:00:00.000Z',
+  updated_at: '2026-08-20T00:00:00.000Z',
+};
+
+/** One recorded call to the messages port: the acting session plus its arguments. */
+export type MessageCall = [string, ...unknown[]];
+
 export interface BridgeTestDeps extends AgentBridgeToolDeps {
   broadcasts: Array<[TaskRow, TaskUpdateAction]>;
   updateCalls: Array<[unknown, Record<string, unknown>]>;
   createCalls: Array<Record<string, unknown>>;
   evidenceCalls: Array<[unknown, Record<string, unknown>]>;
+  messageCalls: Record<'send' | 'list' | 'pullInbox' | 'acknowledge' | 'answer', MessageCall[]>;
 }
 
 export function createBridgeDeps(overrides: Partial<AgentBridgeToolDeps> = {}): BridgeTestDeps {
@@ -55,6 +72,13 @@ export function createBridgeDeps(overrides: Partial<AgentBridgeToolDeps> = {}): 
   const updateCalls: Array<[unknown, Record<string, unknown>]> = [];
   const createCalls: Array<Record<string, unknown>> = [];
   const evidenceCalls: Array<[unknown, Record<string, unknown>]> = [];
+  const messageCalls: BridgeTestDeps['messageCalls'] = {
+    send: [],
+    list: [],
+    pullInbox: [],
+    acknowledge: [],
+    answer: [],
+  };
 
   const deps: AgentBridgeToolDeps = {
     tasks: {
@@ -77,6 +101,49 @@ export function createBridgeDeps(overrides: Partial<AgentBridgeToolDeps> = {}): 
       },
       ...overrides.tasks,
     },
+    // Mirrors the real service closely enough for the dispatch tests: it
+    // records who acted and echoes a row in the state that call produces.
+    messages: overrides.messages ?? {
+      send: (fromSessionId, body) => {
+        messageCalls.send.push([fromSessionId, body]);
+        return {
+          ...MESSAGE,
+          from_session_id: fromSessionId,
+          to_session_id: String(body.toSessionId ?? MESSAGE.to_session_id),
+          subject: String(body.subject ?? MESSAGE.subject),
+          body: String(body.body ?? MESSAGE.body),
+          reply_to_message_id:
+            typeof body.replyToMessageId === 'string' ? body.replyToMessageId : null,
+        };
+      },
+      list: (sessionId, filter) => {
+        messageCalls.list.push([sessionId, filter]);
+        return [{ ...MESSAGE, from_session_id: sessionId, to_session_id: 'session-2' }];
+      },
+      pullInbox: (sessionId, filter) => {
+        messageCalls.pullInbox.push([sessionId, filter]);
+        return [{ ...MESSAGE, to_session_id: sessionId, state: 'delivered' }];
+      },
+      acknowledge: (sessionId, messageId) => {
+        messageCalls.acknowledge.push([sessionId, messageId]);
+        return { ...MESSAGE, to_session_id: sessionId, state: 'acknowledged' };
+      },
+      answer: (sessionId, messageId, body) => {
+        messageCalls.answer.push([sessionId, messageId, body]);
+        return {
+          message: { ...MESSAGE, to_session_id: sessionId, state: 'answered' },
+          reply: {
+            ...MESSAGE,
+            message_id: 'message-2',
+            from_session_id: sessionId,
+            to_session_id: MESSAGE.from_session_id,
+            subject: `Re: ${MESSAGE.subject}`,
+            body: String(body.body ?? ''),
+            reply_to_message_id: MESSAGE.message_id,
+          },
+        };
+      },
+    },
     policy: overrides.policy ?? {
       assertProfileAllowed: () => {},
     },
@@ -93,5 +160,5 @@ export function createBridgeDeps(overrides: Partial<AgentBridgeToolDeps> = {}): 
     }),
   };
 
-  return { ...deps, broadcasts, updateCalls, createCalls, evidenceCalls };
+  return { ...deps, broadcasts, updateCalls, createCalls, evidenceCalls, messageCalls };
 }

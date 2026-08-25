@@ -399,6 +399,34 @@ CREATE TABLE IF NOT EXISTS automations (
 );
 `;
 
+/**
+ * Agent-to-agent handoff inbox.
+ *
+ * `from_session_id`/`to_session_id` are soft references to `sessions`: the
+ * handoff trail is the record of who asked whom for what, and it has to keep
+ * reading correctly after either session is deleted, so no cascade erases it.
+ * `detail` carries the reason a message ended in `failed` (and nothing else),
+ * which is what a stuck maestro gets to read instead of a bare state.
+ */
+export const AGENT_MESSAGES_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS agent_messages (
+    message_id TEXT PRIMARY KEY NOT NULL,
+    from_session_id TEXT NOT NULL,
+    to_session_id TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    body TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'queued'
+      CHECK (state IN ('queued', 'delivered', 'acknowledged', 'answered', 'failed')),
+    -- Set on a reply so the answer and the question read as one thread. The
+    -- referenced message is never removed by this module, so a plain soft
+    -- reference is enough and keeps the reply readable on its own.
+    reply_to_message_id TEXT,
+    detail TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
 export const AUTOMATION_RUNS_TABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS automation_runs (
     run_id TEXT PRIMARY KEY NOT NULL,
@@ -509,4 +537,8 @@ ${AUTOMATION_RUNS_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_automation_runs_automation ON automation_runs(automation_id, fired_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_automation_runs_dedupe
   ON automation_runs(automation_id, dedupe_key, attempt) WHERE dedupe_key IS NOT NULL;
+
+${AGENT_MESSAGES_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_agent_messages_inbox ON agent_messages(to_session_id, state);
+CREATE INDEX IF NOT EXISTS idx_agent_messages_outbox ON agent_messages(from_session_id, state);
 `;

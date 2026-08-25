@@ -1,14 +1,20 @@
 /**
  * Tool dispatch for the Agent Bridge.
  *
- * One function per MCP tool, all of them scoped to the session's own project:
- * the agent names a task or a profile, never a project. Input arrives straight
- * off the wire, so every field is validated here before it reaches the Tasks or
- * Orgs modules — manual checks in the same style as the other MCP surface,
- * which keeps this file dependency-free.
+ * One function per MCP tool, all of them scoped by the session's token: the
+ * agent names a task, a profile or a correspondent — never a project, and never
+ * itself. Input arrives straight off the wire, so every field is validated
+ * before it reaches the Tasks or Orgs modules — manual checks in the same style
+ * as the other MCP surface.
+ *
+ * The `message_*` tools are the exception to validating here: the Agent
+ * Messages module validates every field of a handoff and throws the same kind
+ * of named `AppError`, so those tools forward the raw input rather than
+ * checking the same lengths twice in two places that could drift apart.
  */
 
-import type { TaskEvidenceRow, TaskRow, TaskStage } from '@/modules/database/index.js';
+import type { AgentMessageAnswer } from '@/modules/agent-messages/index.js';
+import type { AgentMessageRow, TaskEvidenceRow, TaskRow, TaskStage } from '@/modules/database/index.js';
 import type { LLMProvider } from '@/shared/types.js';
 
 import {
@@ -24,6 +30,10 @@ const PROVIDERS: readonly LLMProvider[] = ['claude', 'codex', 'cursor', 'opencod
 const AGENT_EVIDENCE_KINDS = ['note', 'link'] as const;
 type AgentEvidenceKind = (typeof AGENT_EVIDENCE_KINDS)[number];
 
+/** Which side of its mailbox a session is asking for. */
+const MESSAGE_BOXES = ['inbox', 'outbox'] as const;
+type MessageBox = (typeof MESSAGE_BOXES)[number];
+
 export const AGENT_BRIDGE_TOOL_NAMES = [
   'task_create',
   'task_list',
@@ -31,6 +41,10 @@ export const AGENT_BRIDGE_TOOL_NAMES = [
   'task_update_description',
   'task_assign',
   'task_evidence_add',
+  'message_send',
+  'message_list',
+  'message_ack',
+  'message_answer',
   'profile_recommend',
 ] as const;
 
@@ -198,6 +212,71 @@ function taskEvidenceAdd(
   return { evidence };
 }
 
+/**
+ * The box a listing reads, defaulting to the inbox.
+ *
+ * Read here rather than in the messages module because it decides *which*
+ * service call happens: pulling an inbox is what marks its queued messages
+ * delivered, while reading an outbox must never change anything.
+ */
+function readMessageBox(value: unknown): MessageBox {
+  if (value === undefined || value === null || value === '') {
+    return 'inbox';
+  }
+  const box = readRequiredString(value, 'box');
+  if (!MESSAGE_BOXES.includes(box as MessageBox)) {
+    throw new AgentBridgeValidationError(`box must be one of: ${MESSAGE_BOXES.join(', ')}`);
+  }
+  return box as MessageBox;
+}
+
+function messageSend(
+  input: Record<string, unknown>,
+  scope: AgentBridgeSessionScope,
+  deps: AgentBridgeToolDeps,
+): { message: AgentMessageRow } {
+  // The sender is the token's session, never a field of the request: an agent
+  // cannot post a handoff as somebody else.
+  return { message: deps.messages.send(scope.sessionId, input) };
+}
+
+/**
+ * Lists one side of the caller's mailbox.
+ *
+ * Reading the inbox *is* the delivery event — there is no way to push a message
+ * into a running agent's context, so the queued messages this call returns come
+ * back marked `delivered`.
+ */
+function messageList(
+  input: Record<string, unknown>,
+  scope: AgentBridgeSessionScope,
+  deps: AgentBridgeToolDeps,
+): { box: MessageBox; messages: AgentMessageRow[] } {
+  const box = readMessageBox(input.box);
+  const messages =
+    box === 'inbox'
+      ? deps.messages.pullInbox(scope.sessionId, { state: input.state })
+      : deps.messages.list(scope.sessionId, { box, state: input.state });
+
+  return { box, messages };
+}
+
+function messageAck(
+  input: Record<string, unknown>,
+  scope: AgentBridgeSessionScope,
+  deps: AgentBridgeToolDeps,
+): { message: AgentMessageRow } {
+  return { message: deps.messages.acknowledge(scope.sessionId, input.messageId) };
+}
+
+function messageAnswer(
+  input: Record<string, unknown>,
+  scope: AgentBridgeSessionScope,
+  deps: AgentBridgeToolDeps,
+): AgentMessageAnswer {
+  return deps.messages.answer(scope.sessionId, input.messageId, input);
+}
+
 async function profileRecommend(
   input: Record<string, unknown>,
   scope: AgentBridgeSessionScope,
@@ -234,6 +313,14 @@ export async function runAgentBridgeTool(
       return taskAssign(input, scope, deps);
     case 'task_evidence_add':
       return taskEvidenceAdd(input, scope, deps);
+    case 'message_send':
+      return messageSend(input, scope, deps);
+    case 'message_list':
+      return messageList(input, scope, deps);
+    case 'message_ack':
+      return messageAck(input, scope, deps);
+    case 'message_answer':
+      return messageAnswer(input, scope, deps);
     case 'profile_recommend':
       return profileRecommend(input, scope, deps);
     default:

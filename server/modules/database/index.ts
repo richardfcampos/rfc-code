@@ -2,6 +2,14 @@ export { initializeDatabase } from '@/modules/database/init-db.js';
 export { closeConnection, getConnection, getDatabasePath } from '@/modules/database/connection.js';
 export { activeSessionRunsDb } from '@/modules/database/repositories/active-session-runs.db.js';
 export type { ActiveSessionRunRow } from '@/modules/database/repositories/active-session-runs.db.js';
+export { agentMessagesDb } from '@/modules/database/repositories/agent-messages.db.js';
+export type {
+  AgentMessageBox,
+  AgentMessageRow,
+  AgentMessageState,
+  CreateAgentMessageInput,
+  ListAgentMessagesFilter,
+} from '@/modules/database/repositories/agent-messages.db.js';
 export { apiKeysDb } from '@/modules/database/repositories/api-keys.js';
 export { automationsDb } from '@/modules/database/repositories/automations.db.js';
 export type {
