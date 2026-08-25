@@ -8,6 +8,7 @@ import PluginTabContent from '../../plugins/view/PluginTabContent';
 import { BrowserUsePanel } from '../../browser-use';
 import { CollabPanel } from '../../collab';
 import { TaskBoardTab } from '../../task-board';
+import { TeamViewTab } from '../../team-view';
 import type { MainContentProps } from '../types/types';
 import { useTaskMaster } from '../../../contexts/TaskMasterContext';
 import { usePaletteOpsRegister } from '../../../contexts/PaletteOpsContext';
@@ -233,6 +234,14 @@ function MainContent({
             <div className="h-full overflow-hidden">
               <ErrorBoundary showDetails>
                 <TaskBoardTab selectedProject={selectedProject} />
+              </ErrorBoundary>
+            </div>
+          )}
+
+          {activeTab === 'team' && (
+            <div className="h-full overflow-hidden">
+              <ErrorBoundary showDetails>
+                <TeamViewTab onNavigateToSession={(sessionId) => onNavigateToSession(sessionId)} />
               </ErrorBoundary>
             </div>
           )}
