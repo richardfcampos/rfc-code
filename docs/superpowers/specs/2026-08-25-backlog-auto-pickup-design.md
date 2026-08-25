@@ -121,6 +121,42 @@ Frontend (~3):
 - `src/components/task-board/view/TaskBoardTab.tsx` — mount the toggle
 - `src/components/task-board/hooks/use-auto-pickup.ts` — new
 
+## Extension: orchestrator pickup (approved 2026-08-25, second pass)
+
+The solo pipeline above shipped first. The approved follow-up turns the
+picked-up agent into a conditional orchestrator:
+
+- The pickup prompt tells the agent: a large/multi-part ticket is decomposed
+  with the bundled `maestro` skill via the bridge's `task_decompose` (the
+  subtasks land in `backlog` and the existing election drains them in
+  dependency order); a small ticket is executed directly, as today. The
+  judgment stays with the agent — no size heuristic in code.
+- A decomposing parent logs its plan as evidence and exits without moving
+  its card. Delegation stays with auto-pickup, not `task_delegate`.
+- Integration (user-chosen): the parent integrates at the end. Subtask
+  worktrees branch from the parent's branch (`auto/task-{parentId}`), not
+  from the project base. When all subtasks are `done`, the tick re-dispatches
+  the parent with an integration prompt: merge the subtask branches into its
+  own, resolve conflicts, move the parent card to `review`. One consolidated
+  review.
+- Open lifecycle details (parent slot accounting against `maxConcurrent`,
+  re-wake election + dedupe identity, child base-branch plumbing) are
+  resolved in the implementation plan, phases 05+.
+
+Closing the loop (approved, same second pass) — the human gate lives at
+review approval:
+
+- First-pass reviewer: a card landing in `review` gets an agent reviewer
+  that reads the branch diff and leaves comments through the existing
+  reviews module; the author agent addresses them. The engine's
+  `task_stage` trigger machinery is the natural carrier.
+- The user gives the final approval in the Review Center — the one human
+  action per ticket.
+- Merge-on-approve: an approved review merges the task's branch into the
+  project base branch and moves the card to `done`. A merge conflict or
+  failed merge surfaces on the card instead of completing silently.
+  `done` then means integrated, not just finished.
+
 ## Out of scope
 
 - Generic automation rules screen.

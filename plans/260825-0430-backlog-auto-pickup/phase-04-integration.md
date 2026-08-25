@@ -8,7 +8,8 @@
 ## Overview
 
 - **Priority:** P1
-- **Status:** pending
+- **Status:** partial — build, typecheck, lint and the suites are green and the
+  feature is deployed; the end-to-end smoke steps below are still unticked.
 - **Effort:** 1h
 - Verification only. This phase **owns no source files** — it builds, runs the suite
   and drives the loop by hand. Any defect it finds is fixed in the owning phase.
