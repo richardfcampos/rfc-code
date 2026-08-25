@@ -10,6 +10,7 @@
  */
 
 import type { collabRepository } from './collab.repository.js';
+import type { CouncilSummary } from './council-summary.js';
 import type { CollaborationRow, CollaborationStatusPatch } from './collab.types.js';
 
 /** Applies only while the run is still ours to advance. */
@@ -22,8 +23,14 @@ export interface CollabRunState {
   claimRound(id: string, round: number): boolean;
   /** Writes an outcome. `false` means the run had already ended elsewhere. */
   finish(id: string, patch: CollaborationStatusPatch): boolean;
-  /** Closes a run as failed. Never throws: `run()` is fire-and-forget. */
-  fail(id: string, message: string): void;
+  /**
+   * Closes a run as failed. Never throws: `run()` is fire-and-forget.
+   *
+   * The summary is optional because a run can break before there is anything to
+   * summarize; when there is, a failure is exactly when the reader most wants
+   * to see what was already stated and what it cost.
+   */
+  fail(id: string, message: string, summary?: CouncilSummary): void;
 }
 
 export function createRunState(repository: typeof collabRepository): CollabRunState {
@@ -41,9 +48,15 @@ export function createRunState(repository: typeof collabRepository): CollabRunSt
       return repository.updateStatus(id, patch, WHILE_RUNNING) !== null;
     },
 
-    fail(id: string, message: string): void {
+    fail(id: string, message: string, summary?: CouncilSummary): void {
       try {
-        state.finish(id, { status: 'failed', error: message });
+        // Spread rather than passed as undefined: the repository writes every
+        // key it is given, and an explicit undefined would blank a summary.
+        state.finish(id, {
+          status: 'failed',
+          error: message,
+          ...(summary ? { summary } : {}),
+        });
       } catch (error) {
         console.error('[collab] could not record collaboration failure:', error);
       }

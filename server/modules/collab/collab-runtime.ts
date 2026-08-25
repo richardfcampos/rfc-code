@@ -12,6 +12,8 @@
 
 import type { LLMProvider } from '@/shared/types.js';
 
+import type { CollabTurnUsage } from './collab.types.js';
+
 /**
  * What one turn needs to run. `model` and `effort` are the seat's own choices
  * and stay optional: an account that picked neither runs on whatever its CLI
@@ -26,15 +28,24 @@ export interface RuntimeCallInput {
   effort?: string;
 }
 
+/**
+ * What one turn produced. The bare string is the original contract and still
+ * the common case: an adapter whose provider reports no token accounting has
+ * nothing to add, and every fake in the tests answers this way.
+ */
+export type RuntimeAnswer = string | { content: string; usage?: CollabTurnUsage | null };
+
 export type CollabRuntime = (
   input: RuntimeCallInput & { signal?: AbortSignal },
-) => Promise<string>;
+) => Promise<RuntimeAnswer>;
 
 export interface RuntimeCallResult {
   content: string;
   error: string | null;
   /** True when the failure must end the collaboration rather than one turn. */
   fatal: boolean;
+  /** What the turn cost, when the provider reported it. */
+  usage: CollabTurnUsage | null;
 }
 
 function errorMessage(error: unknown): string {
@@ -67,10 +78,13 @@ export async function callRuntimeWithTimeout(
   });
 
   try {
-    const content = await Promise.race([runtime({ ...input, signal: controller.signal }), expiry]);
-    return { content, error: null, fatal: false };
+    const answer = await Promise.race([runtime({ ...input, signal: controller.signal }), expiry]);
+    if (typeof answer === 'string') return { content: answer, error: null, fatal: false, usage: null };
+    return { content: answer.content, error: null, fatal: false, usage: answer.usage ?? null };
   } catch (error) {
-    return { content: '', error: errorMessage(error), fatal: !timedOut };
+    // A turn that failed still cost something, but no adapter can report what:
+    // the accounting arrives with the answer that never came.
+    return { content: '', error: errorMessage(error), fatal: !timedOut, usage: null };
   } finally {
     clearTimeout(timer);
   }

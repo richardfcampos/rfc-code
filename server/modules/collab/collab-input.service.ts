@@ -18,10 +18,12 @@
 
 import type { LLMProvider } from '@/shared/types.js';
 
+import { readCouncilBudget } from './collab-budget.js';
 import { badRequest } from './collab-input-errors.js';
 import { assertReviewRoles, readMaxRounds, readMode } from './collab-mode-rules.js';
 import { collabModelCatalog } from './collab-model-catalog.service.js';
 import { readParticipantEffort, readParticipantModel } from './collab-participant-model.service.js';
+import type { CouncilBudget } from './collab-budget.js';
 import type { CollabModelCatalog } from './collab-model-catalog.service.js';
 import type { CollabMode, CollabParticipant } from './collab.types.js';
 
@@ -57,6 +59,12 @@ export interface CreateCollaborationInput {
   mode: CollabMode;
   maxRounds: number;
   participants: CollabParticipant[];
+  /**
+   * Always present, because the defaults are computed from the run that was
+   * just described: a request that sent no budget gets the ceiling its own
+   * shape implies, which is the one it would have run under anyway.
+   */
+  budget: CouncilBudget;
 }
 
 function readText(value: unknown, name: string, code: string): string {
@@ -148,12 +156,20 @@ export function parseCreateCollaborationInput(
 ): CreateCollaborationInput {
   const input = (typeof body === 'object' && body !== null ? body : {}) as Record<string, unknown>;
   const mode = readMode(input.mode);
+  const maxRounds = readMaxRounds(input.maxRounds, mode);
+  const participants = readParticipants(input.participants, mode, profiles, catalog);
 
   return {
     topic: readText(input.topic, 'topic', 'TOPIC_REQUIRED'),
     projectPath: readText(input.projectPath, 'projectPath', 'PROJECT_PATH_REQUIRED'),
     mode,
-    maxRounds: readMaxRounds(input.maxRounds, mode),
-    participants: readParticipants(input.participants, mode, profiles, catalog),
+    maxRounds,
+    participants,
+    // Read last: the defaults it falls back to are the seats and rounds this
+    // very request just settled on.
+    budget: readCouncilBudget(input.budget, {
+      seats: participants.length,
+      rounds: maxRounds,
+    }),
   };
 }

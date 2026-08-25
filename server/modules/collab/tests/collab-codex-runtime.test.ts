@@ -22,6 +22,18 @@ import {
   configureCollabCodexRuntime,
 } from '@/modules/collab/collab-codex-runtime.service.js';
 import type { CollabCodexThread } from '@/modules/collab/collab-codex-runtime.service.js';
+import type { RuntimeAnswer } from '@/modules/collab/collab-runtime.js';
+import type { CollabTurnUsage } from '@/modules/collab/collab.types.js';
+
+/**
+ * The runtime seam still allows a bare string — every fake in the engine suite
+ * answers that way — but this adapter always reports the pair, so the tests
+ * narrow it once here instead of at every assertion.
+ */
+function readAnswer(answer: RuntimeAnswer): { content: string; usage: CollabTurnUsage | null } {
+  if (typeof answer === 'string') return { content: answer, usage: null };
+  return { content: answer.content, usage: answer.usage ?? null };
+}
 
 const TURN_INPUT = {
   prompt: 'Argue your case.',
@@ -54,7 +66,7 @@ function runTurn(
     model?: string;
     effort?: string;
   } = TURN_INPUT,
-): { answer: Promise<string>; calls: RecordedCall[] } {
+): { answer: Promise<RuntimeAnswer>; calls: RecordedCall[] } {
   const calls: RecordedCall[] = [];
 
   configureCollabCodexRuntime({
@@ -88,7 +100,7 @@ test('the Codex adapter returns the final assistant message and runs sandboxed',
     ),
   );
 
-  assert.equal(await answer, 'The cache is the constraint.\n\nCONSENSUS: YES');
+  assert.equal(readAnswer(await answer).content, 'The cache is the constraint.\n\nCONSENSUS: YES');
   assert.equal(calls.length, 1);
   assert.equal(calls[0].prompt, 'Argue your case.');
   assert.equal(calls[0].profileId, 'profile-a');
@@ -134,6 +146,33 @@ test('an effort outside the SDK union is dropped rather than forwarded', async (
 
   await answer;
   assert.ok(!('modelReasoningEffort' in calls[0].options));
+});
+
+test('the Codex adapter folds cached input and reasoning output into the turn cost', async () => {
+  const { answer } = runTurn(() =>
+    Promise.resolve(
+      completedTurn({
+        finalResponse: 'Done arguing.',
+        usage: {
+          input_tokens: 1_000,
+          cached_input_tokens: 200,
+          output_tokens: 300,
+          reasoning_output_tokens: 400,
+        },
+      }),
+    ),
+  );
+
+  // Both are consumed, so both count against a ceiling on consumption.
+  assert.deepEqual(readAnswer(await answer).usage, { inputTokens: 1_200, outputTokens: 700 });
+});
+
+test('a turn the CLI did not meter reports no usage rather than a free turn', async () => {
+  const { answer } = runTurn(() =>
+    Promise.resolve(completedTurn({ finalResponse: 'Done arguing.', usage: null })),
+  );
+
+  assert.equal(readAnswer(await answer).usage, null);
 });
 
 test('the Codex adapter propagates a failed turn as a rejection', async () => {
@@ -186,7 +225,7 @@ test('an error item is ignored when the turn still produced an answer', async ()
     ),
   );
 
-  assert.equal(await answer, 'Still here.');
+  assert.equal(readAnswer(await answer).content, 'Still here.');
 });
 
 test('the engine abort signal reaches the SDK call', async () => {
@@ -255,7 +294,7 @@ test('a turn survives an archive that fails and skips it when no thread was star
     createClient: () => ({ startThread: () => thread(null) }),
     archiveSession,
   });
-  assert.equal(await collabCodexRuntime(TURN_INPUT), 'Done arguing.');
+  assert.equal(readAnswer(await collabCodexRuntime(TURN_INPUT)).content, 'Done arguing.');
   assert.equal(attempts, 0);
 
   configureCollabCodexRuntime({
@@ -263,6 +302,6 @@ test('a turn survives an archive that fails and skips it when no thread was star
     archiveSession,
   });
   // The answer is already paid for; sidebar housekeeping cannot take it down.
-  assert.equal(await collabCodexRuntime(TURN_INPUT), 'Done arguing.');
+  assert.equal(readAnswer(await collabCodexRuntime(TURN_INPUT)).content, 'Done arguing.');
   assert.equal(attempts, 1);
 });

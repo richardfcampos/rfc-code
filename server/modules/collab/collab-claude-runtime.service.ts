@@ -26,7 +26,9 @@
 import { sessionsDb } from '@/modules/database/index.js';
 import { sessionSynchronizerService } from '@/modules/providers/index.js';
 
+import { readUsage, readWriterMessage } from './collab-claude-messages.js';
 import type { CollabRuntime } from './collab-runtime.js';
+import type { CollabTurnUsage } from './collab.types.js';
 
 type ClaudeQuery = (prompt: string, options: Record<string, unknown>, writer: unknown) => Promise<unknown>;
 
@@ -80,18 +82,6 @@ export function configureCollabClaudeRuntime(deps: CollabClaudeRuntimeDeps): voi
   claudeDeps = deps;
 }
 
-type WriterMessage = { kind?: unknown; role?: unknown; content?: unknown; requestId?: unknown };
-
-/** The writer receives normalized message objects; older callers send strings. */
-function readWriterMessage(data: unknown): WriterMessage | null {
-  try {
-    const parsed: unknown = typeof data === 'string' ? JSON.parse(data) : data;
-    return typeof parsed === 'object' && parsed !== null ? (parsed as WriterMessage) : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Keeps the transcript a turn leaves behind out of the chat sidebar.
  *
@@ -132,11 +122,15 @@ export const collabClaudeRuntime: CollabRuntime = async ({
   const chunks: string[] = [];
   const failures: string[] = [];
   const session: { id: string | null } = { id: null };
+  let usage: CollabTurnUsage | null = null;
 
   const writer = {
     send: (data: unknown): void => {
       const message = readWriterMessage(data);
       if (!message) return;
+
+      const reported = readUsage(message);
+      if (reported) usage = reported;
 
       if (message.kind === 'text' && message.role === 'assistant' && typeof message.content === 'string') {
         chunks.push(message.content);
@@ -201,5 +195,5 @@ export const collabClaudeRuntime: CollabRuntime = async ({
 
   const answer = chunks.join('\n\n').trim();
   if (!answer) throw new Error(NO_ANSWER_ERROR);
-  return answer;
+  return { content: answer, usage };
 };

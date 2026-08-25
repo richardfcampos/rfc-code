@@ -24,6 +24,7 @@ import { createRunState } from './collab-run-state.js';
 import { callRuntimeWithTimeout } from './collab-runtime.js';
 import { collabRepository } from './collab.repository.js';
 import { mapCollaborationRow } from './collab.types.js';
+import { contractConsensus, createCouncilRun } from './council-run.service.js';
 import type {
   PromptParticipant,
   PromptTranscriptEntry,
@@ -38,6 +39,7 @@ export type { CollabRuntime };
 export interface CollabEngineDeps {
   runtime: CollabRuntime;
   repository?: typeof collabRepository;
+  /** Overrides the run's own budget; the tests use it to expire a turn fast. */
   turnTimeoutMs?: number;
   /** Names shown in prompts and in the verdict; defaults to the profile id. */
   resolveName?: (profileId: string) => string;
@@ -47,16 +49,12 @@ export interface CollabEngine {
   run(collaborationId: string): Promise<void>;
 }
 
-/** Five minutes: long enough for a reasoning turn, short enough to not hang a run. */
-const DEFAULT_TURN_TIMEOUT_MS = 300_000;
-
 const UNKNOWN_RUNTIME_ERROR = 'The collaboration runtime failed.';
 
 const NOTHING_TO_SYNTHESIZE_ERROR = 'No participant produced an answer to synthesize.';
 
 export function createCollabEngine(deps: CollabEngineDeps): CollabEngine {
   const repository = deps.repository ?? collabRepository;
-  const turnTimeoutMs = deps.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS;
   const resolveName = deps.resolveName ?? ((profileId: string): string => profileId);
   // Every status this loop writes goes through here, and every one of them is
   // conditional on the run still being running.
@@ -72,11 +70,16 @@ export function createCollabEngine(deps: CollabEngineDeps): CollabEngine {
     if (!initial) return;
 
     const collaboration = mapCollaborationRow(initial);
-    const { mode, topic, participants, projectPath } = collaboration;
+    const { mode, topic, participants, projectPath, budget } = collaboration;
     if (participants.length === 0) {
       state.fail(id, 'This collaboration has no participants to run.');
       return;
     }
+
+    // The run's own budget, unless a caller overrode the deadline — which only
+    // the tests do, to expire a turn without waiting five minutes for it.
+    const turnTimeoutMs = deps.turnTimeoutMs ?? budget.turnTimeoutMs;
+    const council = createCouncilRun({ mode, budget });
 
     const record = (turn: Omit<AppendTurnInput, 'id' | 'collaborationId'>): void => {
       repository.appendTurn({ id: randomUUID(), collaborationId: id, ...turn });
@@ -89,8 +92,12 @@ export function createCollabEngine(deps: CollabEngineDeps): CollabEngine {
     let converged = false;
     let roundsRun = 0;
     let firstTurnError: string | null = null;
+    let outOfBudget = false;
 
-    for (let round = 1; round <= totalRounds && !converged; round += 1) {
+    for (let round = 1; round <= totalRounds && !converged && !outOfBudget; round += 1) {
+      // Checked before the round is claimed so an unaffordable round never
+      // shows up as progress the UI would display and nobody spent.
+      if (council.blockedBy() !== null) break;
       // The round marker doubles as the stop check.
       if (!state.claimRound(id, round)) return;
       roundsRun = round;
@@ -101,6 +108,14 @@ export function createCollabEngine(deps: CollabEngineDeps): CollabEngine {
         // Checked before every turn so a stop costs nothing more; a turn
         // already paid for is still a turn we record.
         if (!state.read(id)) return;
+
+        // The budget is checked in the same place and for the same reason: the
+        // cheapest turn is the one that never starts. A run that runs out
+        // mid-round still synthesizes what it already paid for.
+        if (council.blockedBy() !== null) {
+          outOfBudget = true;
+          break;
+        }
 
         const participant = participants[turnIndex];
         const { profileId, provider, model, effort, role: participantRole } = participant;
@@ -114,23 +129,36 @@ export function createCollabEngine(deps: CollabEngineDeps): CollabEngine {
           self: toPromptParticipant(participant),
           others: participants.filter((_, index) => index !== turnIndex).map(toPromptParticipant),
           transcript: visible,
+          budget: council.promptBudget(),
         });
 
-        const { content, error, fatal } = await callRuntimeWithTimeout(
+        const { content, error, fatal, usage } = await callRuntimeWithTimeout(
           deps.runtime,
           // The seat's own model and effort travel with every one of its turns.
           { prompt, profileId, provider, cwd: projectPath, model, effort },
           turnTimeoutMs,
         );
 
-        // Vote turns are never asked to declare consensus, so they never carry one.
-        const consensus = error !== null || mode === 'vote' ? null : parseConsensus(content);
+        const { contract, contractError } = council.record({
+          profileId, round, role: 'participant', content, error, usage,
+        });
+        // Vote turns are never asked to declare consensus, so they never carry
+        // one; a council declares it through its contract instead of a line.
+        const consensus =
+          error !== null || mode === 'vote'
+            ? null
+            : mode === 'council'
+              ? contractConsensus(contract)
+              : parseConsensus(content);
 
-        record({ round, turnIndex, profileId, role: 'participant', content, consensus, error });
+        record({
+          round, turnIndex, profileId, role: 'participant', content, consensus, error,
+          contract, contractError, usage,
+        });
 
         if (error !== null && firstTurnError === null) firstTurnError = error;
         if (fatal) {
-          state.fail(id, error ?? UNKNOWN_RUNTIME_ERROR);
+          state.fail(id, error ?? UNKNOWN_RUNTIME_ERROR, council.summary());
           return;
         }
 
@@ -155,7 +183,7 @@ export function createCollabEngine(deps: CollabEngineDeps): CollabEngine {
     // read, so it would bill one more call and answer with a verdict on a
     // discussion that never happened; the run ends on the reason it broke.
     if (transcript.length === 0) {
-      state.fail(id, firstTurnError ?? NOTHING_TO_SYNTHESIZE_ERROR);
+      state.fail(id, firstTurnError ?? NOTHING_TO_SYNTHESIZE_ERROR, council.summary());
       return;
     }
 
@@ -171,13 +199,15 @@ export function createCollabEngine(deps: CollabEngineDeps): CollabEngine {
     );
 
     // The synthesis is a turn like any other, so a failed one stays visible in
-    // the transcript instead of vanishing behind a status change.
-    const { content, error } = verdict;
+    // the transcript instead of vanishing behind a status change — and it is
+    // billed like any other, so the budget hears about it too.
+    const { content, error, usage } = verdict;
     const turnIndex = participants.length;
-    record({ round: roundsRun, turnIndex, profileId, role: 'arbiter', content, error });
+    council.record({ profileId, round: roundsRun, role: 'arbiter', content, error, usage });
+    record({ round: roundsRun, turnIndex, profileId, role: 'arbiter', content, error, usage });
 
     if (verdict.fatal) {
-      state.fail(id, error ?? UNKNOWN_RUNTIME_ERROR);
+      state.fail(id, error ?? UNKNOWN_RUNTIME_ERROR, council.summary());
       return;
     }
 
@@ -185,6 +215,9 @@ export function createCollabEngine(deps: CollabEngineDeps): CollabEngine {
       status: converged ? 'converged' : 'exhausted',
       verdict: content || null,
       currentRound: roundsRun,
+      // Computed, never generated: the arbiter writes the prose, this is the
+      // part a caller can read without one.
+      summary: council.summary(),
     });
   }
 

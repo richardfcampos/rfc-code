@@ -15,13 +15,15 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { closeConnection, initializeDatabase } from '@/modules/database/index.js';
+import { closeConnection, getConnection, initializeDatabase } from '@/modules/database/index.js';
 
 import { createCollabEngine } from '../collab-engine.service.js';
 import { collabRepository } from '../collab.repository.js';
-import { mapTurnRow } from '../collab.types.js';
+import { mapCollaborationRow, mapTurnRow } from '../collab.types.js';
 import type { CollabRuntime } from '../collab-engine.service.js';
+import type { RuntimeAnswer } from '../collab-runtime.js';
 import type { CollabParticipant, InsertCollaborationInput } from '../collab.types.js';
+import type { CouncilContract } from '../council-contract.js';
 
 async function withIsolatedDatabase(runTest: () => void | Promise<void>): Promise<void> {
   const previousDatabasePath = process.env.DATABASE_PATH;
@@ -75,7 +77,7 @@ interface RuntimeCall {
 }
 
 /** Answers are consumed in call order; anything unscripted keeps a debate open. */
-function scriptedRuntime(answers: (string | Error)[]): {
+function scriptedRuntime(answers: (RuntimeAnswer | Error)[]): {
   runtime: CollabRuntime;
   calls: RuntimeCall[];
 } {
@@ -86,6 +88,18 @@ function scriptedRuntime(answers: (string | Error)[]): {
     return answer instanceof Error ? Promise.reject(answer) : Promise.resolve(answer);
   };
   return { runtime, calls };
+}
+
+/** A council answer: prose plus the contract block the members are asked for. */
+function councilAnswer(contract: Partial<CouncilContract> & { confidence?: unknown }): string {
+  return `Here is my position.\n\n\`\`\`json\n${JSON.stringify({
+    evidence: [],
+    risks: [],
+    tests: [],
+    disagreements: [],
+    confidence: { value: 50, rationale: 'read the code' },
+    ...contract,
+  })}\n\`\`\``;
 }
 
 function readTurns(id: string) {
@@ -506,5 +520,252 @@ test('a collaboration that is missing, already finished or empty is left alone',
     assert.match(emptyRow.error ?? '', /no participants/i);
 
     assert.equal(calls.length, 0, 'no model call may happen in any of these cases');
+  });
+});
+
+test('a council stores every member contract and closes when nobody disputes anything', async () => {
+  await withIsolatedDatabase(async () => {
+    const id = seed({ mode: 'council', maxRounds: 3 });
+    const { runtime, calls } = scriptedRuntime([
+      councilAnswer({
+        evidence: [{ observation: 'the scheduler holds one lock', source: 'a.ts:1' }],
+        disagreements: [{ with: 'profile-b', point: 'the lock is not the bottleneck' }],
+        confidence: { value: 40, rationale: 'read it, did not profile it' },
+      }),
+      councilAnswer({
+        risks: [{ risk: 'in-flight jobs are stranded', severity: 'high' }],
+        disagreements: [{ with: 'profile-a', point: 'the lock is not the bottleneck' }],
+        confidence: { value: 60, rationale: 'profiled it' },
+      }),
+      // Round two: both drop their objections, which is how a council ends.
+      councilAnswer({
+        evidence: [{ observation: 'the scheduler holds one lock', source: 'a.ts:1' }],
+        confidence: { value: 80, rationale: 'convinced by the profile' },
+      }),
+      councilAnswer({ confidence: { value: 90, rationale: 'agreed' } }),
+      'Synthesis of the council.',
+    ]);
+
+    await createCollabEngine({ runtime }).run(id);
+
+    const turns = readTurns(id);
+    assert.equal(calls.length, 5);
+    // The contract is stored structured, next to the prose it came wrapped in.
+    assert.deepEqual(turns[0].contract?.evidence, [
+      { observation: 'the scheduler holds one lock', source: 'a.ts:1' },
+    ]);
+    assert.deepEqual(turns[1].contract?.risks, [
+      { risk: 'in-flight jobs are stranded', severity: 'high' },
+    ]);
+    assert.equal(turns[0].contractError, null);
+    assert.match(turns[0].content, /Here is my position/, 'the raw answer is never replaced');
+
+    // Consensus is derived from the contract, not from a CONSENSUS line.
+    assert.deepEqual(turns.slice(0, 4).map((turn) => turn.consensus), [false, false, true, true]);
+    // The arbiter is not a member, so it is never faulted for having no contract.
+    assert.equal(turns[4].role, 'arbiter');
+    assert.equal(turns[4].contract, null);
+    assert.equal(turns[4].contractError, null);
+
+    const collaboration = readCollaboration(id);
+    assert.equal(collaboration.status, 'converged');
+    assert.equal(collaboration.current_round, 2);
+    assert.equal(collaboration.verdict, 'Synthesis of the council.');
+  });
+});
+
+test('a council run is stored with a summary computed from the contracts', async () => {
+  await withIsolatedDatabase(async () => {
+    const id = seed({ mode: 'council', maxRounds: 1 });
+    const { runtime } = scriptedRuntime([
+      {
+        content: councilAnswer({
+          evidence: [{ observation: 'the queue drains in 4s', source: 'bench.md' }],
+          risks: [{ risk: 'config drift', severity: 'low' }],
+          confidence: { value: 30, rationale: 'one run' },
+        }),
+        usage: { inputTokens: 1_000, outputTokens: 500 },
+      },
+      {
+        content: councilAnswer({
+          evidence: [{ observation: 'The queue drains in 4s.', source: 'own run' }],
+          risks: [{ risk: 'config drift', severity: 'high' }],
+          disagreements: [{ with: 'premise', point: 'this assumes one writer' }],
+          confidence: { value: 70, rationale: 'reproduced it' },
+        }),
+        usage: { inputTokens: 2_000, outputTokens: 500 },
+      },
+      { content: 'Synthesis.', usage: { inputTokens: 3_000, outputTokens: 1_000 } },
+    ]);
+
+    await createCollabEngine({ runtime }).run(id);
+
+    const { summary, budget } = mapCollaborationRow(readCollaboration(id));
+    assert.ok(summary);
+    // Two members said the same thing, so it is an agreement; the risk keeps the
+    // worst severity either of them gave it.
+    assert.deepEqual(summary.agreements, [
+      { point: 'the queue drains in 4s', agreedBy: ['profile-a', 'profile-b'] },
+    ]);
+    assert.deepEqual(summary.risks, [
+      { risk: 'config drift', severity: 'high', raisedBy: ['profile-a', 'profile-b'] },
+    ]);
+    assert.deepEqual(summary.disputes, [
+      { point: 'this assumes one writer', raisedBy: ['profile-b'], against: ['premise'] },
+    ]);
+    assert.equal(summary.confidence?.min, 30);
+    assert.equal(summary.confidence?.median, 50);
+    assert.equal(summary.contractsParsed, 2);
+    assert.equal(summary.contractsFailed, 0);
+
+    // The arbiter's turn is billed like any other, so all three are counted.
+    assert.equal(summary.budget.turnsUsed, 3);
+    assert.equal(summary.budget.tokensUsed, 8_000);
+    assert.equal(summary.budget.stoppedBy, null);
+    assert.equal(summary.budget.totalTokens, budget.totalTokens);
+
+    // Per-turn accounting survives on the turn rows too.
+    assert.deepEqual(readTurns(id)[0].usage, { inputTokens: 1_000, outputTokens: 500 });
+  });
+});
+
+test('a member who ignored the format costs its own contract, never the run', async () => {
+  await withIsolatedDatabase(async () => {
+    const id = seed({ mode: 'council', maxRounds: 1 });
+    const { runtime } = scriptedRuntime([
+      'I have thoughts but no JSON for you.',
+      // Half a contract: what it stated is used, what it omitted is reported.
+      '```json\n{ "evidence": [{ "observation": "the index is missing" }] }\n```',
+      'Synthesis.',
+    ]);
+
+    await createCollabEngine({ runtime }).run(id);
+
+    const turns = readTurns(id);
+    assert.equal(turns[0].contract, null);
+    assert.match(turns[0].contractError ?? '', /no council contract json object/i);
+    assert.equal(turns[0].consensus, null, 'a member who declared nothing cannot converge a council');
+    assert.equal(turns[0].content, 'I have thoughts but no JSON for you.');
+
+    assert.deepEqual(turns[1].contract?.evidence, [
+      { observation: 'the index is missing', source: null },
+    ]);
+    assert.match(turns[1].contractError ?? '', /missing: risks, tests, disagreements, confidence/);
+
+    const collaboration = readCollaboration(id);
+    assert.equal(collaboration.status, 'exhausted', 'a malformed answer is not a failed run');
+    assert.equal(collaboration.verdict, 'Synthesis.');
+
+    const { summary } = mapCollaborationRow(collaboration);
+    assert.equal(summary?.contractsParsed, 1);
+    assert.equal(summary?.contractsFailed, 2);
+    assert.equal(summary?.confidence, null, 'nobody stated one, so none is reported');
+  });
+});
+
+test('the turn ceiling ends a council early and still pays for the synthesis', async () => {
+  await withIsolatedDatabase(async () => {
+    // Three turns total: two members answer once, the arbiter takes the last.
+    const id = seed({ mode: 'council', maxRounds: 5, budget: { totalTokens: 200_000, maxTurns: 3, turnTimeoutMs: 300_000 } });
+    const { runtime, calls } = scriptedRuntime([
+      councilAnswer({ disagreements: [{ with: 'profile-b', point: 'still open' }] }),
+      councilAnswer({ disagreements: [{ with: 'profile-a', point: 'still open' }] }),
+      'Synthesis of an unfinished council.',
+    ]);
+
+    await createCollabEngine({ runtime }).run(id);
+
+    assert.equal(calls.length, 3, 'the ceiling stops the second round before it costs anything');
+    const turns = readTurns(id);
+    assert.equal(turns.length, 3);
+    assert.equal(turns[2].role, 'arbiter');
+
+    const collaboration = readCollaboration(id);
+    assert.equal(collaboration.status, 'exhausted');
+    assert.equal(collaboration.current_round, 1);
+    assert.equal(mapCollaborationRow(collaboration).summary?.budget.stoppedBy, 'turns');
+  });
+});
+
+test('the token ceiling ends a council once the adapters report it spent', async () => {
+  await withIsolatedDatabase(async () => {
+    const id = seed({ mode: 'council', maxRounds: 4, budget: { totalTokens: 5_000, maxTurns: 20, turnTimeoutMs: 300_000 } });
+    const answer = councilAnswer({ disagreements: [{ with: 'someone', point: 'still open' }] });
+    const { runtime, calls } = scriptedRuntime([
+      { content: answer, usage: { inputTokens: 2_000, outputTokens: 500 } },
+      { content: answer, usage: { inputTokens: 2_000, outputTokens: 500 } },
+      { content: 'Synthesis.', usage: { inputTokens: 100, outputTokens: 50 } },
+    ]);
+
+    await createCollabEngine({ runtime }).run(id);
+
+    assert.equal(calls.length, 3, 'the third round is never opened');
+    const collaboration = readCollaboration(id);
+    assert.equal(collaboration.status, 'exhausted');
+    assert.equal(mapCollaborationRow(collaboration).summary?.budget.stoppedBy, 'tokens');
+  });
+});
+
+test('a run whose adapters report nothing is bounded by turns alone', async () => {
+  await withIsolatedDatabase(async () => {
+    // No usage anywhere, so the token ceiling can never trip: the turn cap is
+    // the only thing standing between this run and its round ceiling.
+    const id = seed({ mode: 'council', maxRounds: 5, budget: { totalTokens: 1_000, maxTurns: 5, turnTimeoutMs: 300_000 } });
+    const { runtime, calls } = scriptedRuntime([
+      councilAnswer({ disagreements: [{ with: 'b', point: 'open' }] }),
+      councilAnswer({ disagreements: [{ with: 'a', point: 'open' }] }),
+      councilAnswer({ disagreements: [{ with: 'b', point: 'open' }] }),
+      councilAnswer({ disagreements: [{ with: 'a', point: 'open' }] }),
+      'Synthesis.',
+    ]);
+
+    await createCollabEngine({ runtime }).run(id);
+
+    assert.equal(calls.length, 5, 'four member turns, then the reserved synthesis');
+    assert.equal(readCollaboration(id).current_round, 2);
+    const { summary } = mapCollaborationRow(readCollaboration(id));
+    assert.equal(summary?.budget.stoppedBy, 'turns');
+    assert.equal(summary?.budget.tokensUsed, 0);
+  });
+});
+
+test('a debate keeps its prose protocol and stores no contract at all', async () => {
+  await withIsolatedDatabase(async () => {
+    const id = seed({ maxRounds: 1 });
+    const { runtime, calls } = scriptedRuntime([
+      // Even a debater that volunteers a contract block is not asked for one,
+      // so nothing about the older modes changes shape.
+      `${councilAnswer({})}\nCONSENSUS: NO — not yet`,
+      'B answers.\nCONSENSUS: NO — disagree',
+      'Synthesis.',
+    ]);
+
+    await createCollabEngine({ runtime }).run(id);
+
+    const turns = readTurns(id);
+    assert.equal(turns[0].contract, null);
+    assert.equal(turns[0].contractError, null);
+    assert.equal(turns[0].consensus, false, 'the CONSENSUS line still decides');
+    assert.equal(turns[0].usage, null);
+    assert.doesNotMatch(calls[0].prompt, /fenced ```json block/);
+    assert.equal(readCollaboration(id).status, 'exhausted');
+  });
+});
+
+test('a row written before budgets existed runs the rounds it always ran', async () => {
+  await withIsolatedDatabase(async () => {
+    const id = seed({ maxRounds: 3 });
+    // Exactly what an older build left behind: no budget, no summary.
+    getConnection().prepare('UPDATE collaborations SET budget = NULL WHERE id = ?').run(id);
+
+    const { runtime, calls } = scriptedRuntime([]);
+    await createCollabEngine({ runtime }).run(id);
+
+    // Two seats over three rounds, plus the synthesis — the defaults derived
+    // from the row's own shape, which is the ceiling it had before budgets.
+    assert.equal(calls.length, 7);
+    const collaboration = readCollaboration(id);
+    assert.equal(collaboration.status, 'exhausted');
+    assert.equal(collaboration.current_round, 3);
   });
 });

@@ -17,8 +17,14 @@
  * ceiling always ends the run anyway.
  */
 
+import {
+  COUNCIL_CONTRACT_INSTRUCTIONS,
+  councilBudgetNote,
+  councilFraming,
+} from './council-prompt.service.js';
+
 /** Collaboration shapes are structural on purpose: callers pass their own types. */
-export type CollabPromptMode = 'debate' | 'review' | 'vote';
+export type CollabPromptMode = 'debate' | 'review' | 'vote' | 'council';
 
 export interface PromptParticipant {
   name: string;
@@ -38,6 +44,12 @@ export interface TurnPromptInput {
   self: PromptParticipant;
   others: PromptParticipant[];
   transcript: PromptTranscriptEntry[];
+  /**
+   * The run's ceiling, stated to council members so they can answer inside it.
+   * Absent leaves the prompt as it was: the other modes never mentioned a
+   * budget, and the loop enforces it either way.
+   */
+  budget?: { totalTokens: number; maxTurns: number; tokenAllowance: number };
 }
 
 export interface VerdictPromptInput {
@@ -108,13 +120,15 @@ Give your own position, the reasoning behind it, and the main way it could turn 
 function framingFor(mode: CollabPromptMode, self: PromptParticipant): string {
   if (mode === 'review') return reviewFraming(self);
   if (mode === 'vote') return voteFraming(self);
+  if (mode === 'council') return councilFraming(self);
   return debateFraming(self);
 }
 
 /** Builds the prompt for a single participant turn. */
 export function buildTurnPrompt(input: TurnPromptInput): string {
-  const { mode, topic, round, maxRounds, self, others, transcript } = input;
+  const { mode, topic, round, maxRounds, self, others, transcript, budget } = input;
   const isVote = mode === 'vote';
+  const isCouncil = mode === 'council';
 
   const sections: (string | null)[] = [
     framingFor(mode, self),
@@ -123,21 +137,31 @@ export function buildTurnPrompt(input: TurnPromptInput): string {
     // Vote is answered blind by design, so the transcript is never shown.
     isVote ? null : renderTranscript(transcript),
     GROUND_RULES,
+    // Stated before the output contract so the ceiling frames the answer rather
+    // than arriving as an afterthought once the format is already in mind.
+    isCouncil && budget ? councilBudgetNote(budget) : null,
     // A vote is a single independent answer, so announcing a "final round" would
     // imply an exchange that never happens.
     isVote ? null : finalRoundNote(round, maxRounds),
-    isVote ? null : CONSENSUS_CONTRACT,
+    // A council declares agreement through its contract's `disagreements` list,
+    // so the one-line consensus protocol would be a second, conflicting answer.
+    isCouncil ? COUNCIL_CONTRACT_INSTRUCTIONS : isVote ? null : CONSENSUS_CONTRACT,
   ];
 
   return sections.filter((section): section is string => Boolean(section)).join('\n\n');
 }
 
+const VERDICT_MODE_NOTES: Record<CollabPromptMode, string> = {
+  vote: 'The participants answered independently, without seeing each other, so expect overlap and contradiction rather than a conversation.',
+  council:
+    'The members answered each other in rounds, so read the transcript in order. Each answer ends with a JSON contract stating its evidence, risks, tests, disagreements and confidence: weigh a position by what it checked and how sure its author said they were, not by how firmly it was written.',
+  debate: 'The participants answered each other in rounds, so read the transcript in order.',
+  review: 'The participants answered each other in rounds, so read the transcript in order.',
+};
+
 /** Builds the arbiter prompt that closes a collaboration with a verdict. */
 export function buildVerdictPrompt(input: VerdictPromptInput): string {
-  const modeNote =
-    input.mode === 'vote'
-      ? 'The participants answered independently, without seeing each other, so expect overlap and contradiction rather than a conversation.'
-      : 'The participants answered each other in rounds, so read the transcript in order.';
+  const modeNote = VERDICT_MODE_NOTES[input.mode] ?? VERDICT_MODE_NOTES.debate;
 
   return [
     'You are the arbiter of a collaboration between several accounts. Your job is to synthesize the discussion below, not to continue it.',
@@ -193,5 +217,9 @@ export function hasConverged(input: {
     return reviewer?.consensus === true;
   }
 
+  // Debate and council share this rule and differ only in where the signal came
+  // from: a parsed `CONSENSUS:` line for one, an empty `disagreements` list in
+  // the contract for the other. Both read `null` as "did not declare", so a
+  // member who ignored the format keeps the council open.
   return roundTurns.every((turn) => turn.consensus === true);
 }
