@@ -27,6 +27,7 @@ import { sessionsDb } from '@/modules/database/index.js';
 import { sessionSynchronizerService } from '@/modules/providers/index.js';
 
 import type { CollabRuntime } from './collab-runtime.js';
+import type { CollabTurnUsage } from './collab.types.js';
 
 type ClaudeQuery = (prompt: string, options: Record<string, unknown>, writer: unknown) => Promise<unknown>;
 
@@ -80,7 +81,36 @@ export function configureCollabClaudeRuntime(deps: CollabClaudeRuntimeDeps): voi
   claudeDeps = deps;
 }
 
-type WriterMessage = { kind?: unknown; role?: unknown; content?: unknown; requestId?: unknown };
+type WriterMessage = {
+  kind?: unknown;
+  role?: unknown;
+  content?: unknown;
+  requestId?: unknown;
+  text?: unknown;
+  tokenBudget?: unknown;
+};
+
+/**
+ * The SDK announces token accounting as a status frame carrying the running
+ * totals for the whole query, so the last one seen is the turn's cost. It is
+ * read here — after years of being discarded as transcript noise — because a
+ * council enforces a token budget, and a ceiling nobody measures is a wish.
+ */
+function readUsage(message: WriterMessage): CollabTurnUsage | null {
+  if (message.kind !== 'status' || message.text !== 'token_budget') return null;
+
+  const budget = message.tokenBudget as Record<string, unknown> | undefined;
+  if (typeof budget !== 'object' || budget === null) return null;
+
+  const inputTokens = Number(budget.inputTokens);
+  const outputTokens = Number(budget.outputTokens);
+  if (!Number.isFinite(inputTokens) && !Number.isFinite(outputTokens)) return null;
+
+  return {
+    inputTokens: Number.isFinite(inputTokens) ? inputTokens : 0,
+    outputTokens: Number.isFinite(outputTokens) ? outputTokens : 0,
+  };
+}
 
 /** The writer receives normalized message objects; older callers send strings. */
 function readWriterMessage(data: unknown): WriterMessage | null {
@@ -132,11 +162,15 @@ export const collabClaudeRuntime: CollabRuntime = async ({
   const chunks: string[] = [];
   const failures: string[] = [];
   const session: { id: string | null } = { id: null };
+  let usage: CollabTurnUsage | null = null;
 
   const writer = {
     send: (data: unknown): void => {
       const message = readWriterMessage(data);
       if (!message) return;
+
+      const reported = readUsage(message);
+      if (reported) usage = reported;
 
       if (message.kind === 'text' && message.role === 'assistant' && typeof message.content === 'string') {
         chunks.push(message.content);
@@ -201,5 +235,5 @@ export const collabClaudeRuntime: CollabRuntime = async ({
 
   const answer = chunks.join('\n\n').trim();
   if (!answer) throw new Error(NO_ANSWER_ERROR);
-  return answer;
+  return { content: answer, usage };
 };

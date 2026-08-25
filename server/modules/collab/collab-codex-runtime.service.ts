@@ -23,13 +23,14 @@
  * between two accounts.
  */
 
-import type { ModelReasoningEffort, ThreadOptions, Thread, ThreadItem } from '@openai/codex-sdk';
+import type { ModelReasoningEffort, RunResult, ThreadOptions, Thread, ThreadItem } from '@openai/codex-sdk';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import { profilesService } from '@/modules/profiles/index.js';
 import { sessionSynchronizerService } from '@/modules/providers/index.js';
 
 import type { CollabRuntime } from './collab-runtime.js';
+import type { CollabTurnUsage } from './collab.types.js';
 
 /** The slice of a Codex thread a turn uses, so tests can stand one up cheaply. */
 export type CollabCodexThread = Pick<Thread, 'id' | 'run'>;
@@ -159,6 +160,24 @@ function toCodexReasoningEffort(effort: string | undefined): ModelReasoningEffor
   return CODEX_REASONING_EFFORTS.find((candidate) => candidate === effort);
 }
 
+/**
+ * The turn's cost, as the SDK reports it.
+ *
+ * Cached input and reasoning output are folded into their respective sides
+ * rather than tracked separately: a council budget is a ceiling on what the run
+ * consumes, and both are consumed. `null` when the CLI reported nothing, which
+ * must not read as a free turn.
+ */
+function readUsage(usage: RunResult['usage']): CollabTurnUsage | null {
+  if (!usage) return null;
+
+  const read = (value: number | undefined): number => (Number.isFinite(value) ? Number(value) : 0);
+  return {
+    inputTokens: read(usage.input_tokens) + read(usage.cached_input_tokens),
+    outputTokens: read(usage.output_tokens) + read(usage.reasoning_output_tokens),
+  };
+}
+
 /** The engine's runtime seam, filled in with a real Codex call. */
 export const collabCodexRuntime: CollabRuntime = async ({
   prompt, profileId, cwd, signal, model, effort,
@@ -181,7 +200,7 @@ export const collabCodexRuntime: CollabRuntime = async ({
     const turn = await thread.run(prompt, { signal });
 
     const answer = turn.finalResponse?.trim() ?? '';
-    if (answer) return answer;
+    if (answer) return { content: answer, usage: readUsage(turn.usage) };
     throw new Error(firstReportedError(turn.items) ?? NO_ANSWER_ERROR);
   } finally {
     await hideTurnSession(thread.id);

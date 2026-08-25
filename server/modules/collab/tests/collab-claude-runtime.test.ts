@@ -16,6 +16,8 @@ import {
   collabClaudeRuntime,
   configureCollabClaudeRuntime,
 } from '@/modules/collab/collab-claude-runtime.service.js';
+import type { RuntimeAnswer } from '@/modules/collab/collab-runtime.js';
+import type { CollabTurnUsage } from '@/modules/collab/collab.types.js';
 
 type WriterLike = { send: (data: unknown) => void; setSessionId: (id: string) => void };
 
@@ -26,10 +28,20 @@ const TURN_INPUT = {
   cwd: '/workspace/demo',
 };
 
-function runTurn(
+/**
+ * The runtime seam still allows a bare string — every fake in the engine suite
+ * answers that way — but this adapter always reports the pair, so the tests
+ * narrow it once here instead of at every assertion.
+ */
+function readAnswer(answer: RuntimeAnswer): { content: string; usage: CollabTurnUsage | null } {
+  if (typeof answer === 'string') return { content: answer, usage: null };
+  return { content: answer.content, usage: answer.usage ?? null };
+}
+
+async function runTurn(
   query: (prompt: string, options: Record<string, unknown>, writer: WriterLike) => Promise<void>,
   input: typeof TURN_INPUT & { model?: string; effort?: string } = TURN_INPUT,
-): Promise<string> {
+): Promise<{ content: string; usage: CollabTurnUsage | null }> {
   configureCollabClaudeRuntime({
     query: (prompt, options, writer) => query(prompt, options, writer as WriterLike),
     resolveToolApproval: () => {},
@@ -37,7 +49,7 @@ function runTurn(
     // which is the machine's actual chat history and not this suite's business.
     archiveSession: () => {},
   });
-  return collabClaudeRuntime(input);
+  return readAnswer(await collabClaudeRuntime(input));
 }
 
 test('the Claude adapter keeps assistant text, drops tool noise and runs read-only', async () => {
@@ -55,7 +67,10 @@ test('the Claude adapter keeps assistant text, drops tool noise and runs read-on
     writer.send({ kind: 'complete' });
   });
 
-  assert.equal(answer, 'The cache is the constraint.\n\nCONSENSUS: YES');
+  assert.equal(answer.content, 'The cache is the constraint.\n\nCONSENSUS: YES');
+  // A status frame with no accounting attached reports nothing, which is not
+  // the same as a turn that cost zero.
+  assert.equal(answer.usage, null);
   assert.equal(seenOptions.permissionMode, 'plan');
   assert.equal(seenOptions.profileId, 'profile-a');
   assert.equal(seenOptions.cwd, '/workspace/demo');
@@ -104,6 +119,25 @@ test('the Claude adapter runs the turn on the seat own model and effort', async 
   await runTurn(capture);
   assert.equal(seenOptions.model, undefined);
   assert.equal(seenOptions.effort, undefined);
+});
+
+test('the Claude adapter reports the last token accounting the SDK announced', async () => {
+  const answer = await runTurn(async (_prompt, _options, writer) => {
+    writer.send({
+      kind: 'status',
+      text: 'token_budget',
+      tokenBudget: { inputTokens: 1_200, outputTokens: 300 },
+    });
+    writer.send({ kind: 'text', role: 'assistant', content: 'Done arguing.' });
+    // The frames carry running totals, so the last one is the turn's cost.
+    writer.send({
+      kind: 'status',
+      text: 'token_budget',
+      tokenBudget: { inputTokens: 1_800, outputTokens: 900 },
+    });
+  });
+
+  assert.deepEqual(answer.usage, { inputTokens: 1_800, outputTokens: 900 });
 });
 
 test('the Claude adapter turns a writer error frame into a rejection', async () => {
@@ -157,9 +191,9 @@ test('the Claude adapter denies a prompt whose resolver is registered after the 
     archiveSession: () => {},
   });
 
-  const answer = await collabClaudeRuntime(TURN_INPUT);
+  const answer = readAnswer(await collabClaudeRuntime(TURN_INPUT));
 
-  assert.match(answer, /Tool refused: This collaboration is read-only/);
+  assert.match(answer.content, /Tool refused: This collaboration is read-only/);
   assert.deepEqual(denied, [{ requestId: 'req-1', allow: false }]);
 });
 
@@ -178,7 +212,7 @@ test('the Claude adapter archives the session a finished turn leaves behind', as
     },
   });
 
-  assert.equal(await collabClaudeRuntime(TURN_INPUT), 'Done arguing.');
+  assert.equal(readAnswer(await collabClaudeRuntime(TURN_INPUT)).content, 'Done arguing.');
   assert.deepEqual(archived, ['claude-session-7']);
 });
 
@@ -197,7 +231,7 @@ test('a turn survives an archive that fails and skips it when no session was ann
   });
 
   // No setSessionId call: there is nothing to archive and nothing to log about.
-  assert.equal(await collabClaudeRuntime(TURN_INPUT), 'Done arguing.');
+  assert.equal(readAnswer(await collabClaudeRuntime(TURN_INPUT)).content, 'Done arguing.');
   assert.equal(attempts, 0);
 
   configureCollabClaudeRuntime({
@@ -214,6 +248,6 @@ test('a turn survives an archive that fails and skips it when no session was ann
   });
 
   // The answer is already paid for; sidebar housekeeping cannot take it down.
-  assert.equal(await collabClaudeRuntime(TURN_INPUT), 'Done arguing.');
+  assert.equal(readAnswer(await collabClaudeRuntime(TURN_INPUT)).content, 'Done arguing.');
   assert.equal(attempts, 1);
 });

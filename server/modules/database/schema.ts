@@ -188,6 +188,14 @@ CREATE TABLE IF NOT EXISTS collaborations (
     verdict TEXT,
     -- Reason shown to the user when status = failed.
     error TEXT,
+    -- JSON {totalTokens, maxTurns, turnTimeoutMs}: the ceiling this run may
+    -- spend. NULL means the defaults derived from the run's own shape, which is
+    -- what every collaboration written before budgets existed carries.
+    budget TEXT,
+    -- JSON council summary computed from the stored contracts when the run
+    -- ends. NULL while it is still running, and for runs that ended before a
+    -- summary could be written.
+    summary TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
@@ -209,6 +217,17 @@ CREATE TABLE IF NOT EXISTS collaboration_turns (
     -- ignored the required output format).
     consensus INTEGER,
     error TEXT,
+    -- JSON council contract {evidence, risks, tests, disagreements, confidence}
+    -- parsed out of the content column. NULL when the turn carried none, which
+    -- is the normal state for every mode that does not ask for one.
+    contract TEXT,
+    -- Why the contract could not be read in full. The raw answer always stays
+    -- in the content column, so a malformed turn is displayable, never lost.
+    contract_error TEXT,
+    -- Tokens this turn actually cost, when the provider adapter reports them.
+    -- NULL means "not reported", which is not the same as zero.
+    input_tokens INTEGER,
+    output_tokens INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (collaboration_id) REFERENCES collaborations(id) ON DELETE CASCADE
 );

@@ -12,7 +12,7 @@ import { getConnection } from '@/modules/database/index.js';
 import type { AppendTurnInput, CollaborationTurnRow } from '@/modules/collab/collab.types.js';
 
 const TURN_COLUMNS =
-  'id, collaboration_id, round, turn_index, profile_id, role, content, consensus, error, created_at';
+  'id, collaboration_id, round, turn_index, profile_id, role, content, consensus, error, contract, contract_error, input_tokens, output_tokens, created_at';
 
 function normalizeTurnRow(row: CollaborationTurnRow): CollaborationTurnRow {
   return { ...row, created_at: normalizeSqliteTimestamp(row.created_at) };
@@ -60,8 +60,9 @@ export const collabTurnsRepository = {
 
       db.prepare(
         `INSERT INTO collaboration_turns
-           (id, collaboration_id, round, turn_index, profile_id, role, content, consensus, error)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, collaboration_id, round, turn_index, profile_id, role, content, consensus, error,
+            contract, contract_error, input_tokens, output_tokens)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(
         turn.id,
         turn.collaborationId,
@@ -72,6 +73,12 @@ export const collabTurnsRepository = {
         turn.content,
         consensus,
         turn.error ?? null,
+        turn.contract ? JSON.stringify(turn.contract) : null,
+        turn.contractError ?? null,
+        // A turn nobody metered stores NULL in both columns rather than zeros,
+        // so "not reported" never reads as "produced nothing".
+        turn.usage?.inputTokens ?? null,
+        turn.usage?.outputTokens ?? null,
       );
       return true;
     });

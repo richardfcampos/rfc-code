@@ -1,20 +1,45 @@
 /**
  * Contracts shared by the collaboration repository, engine and routes.
  *
- * Database rows are snake_case mirrors of SQLite columns while the HTTP
- * surface is camelCase, so something has to own that crossing. It lives here,
- * as pure functions, rather than in the repository: the service layer enriches
- * participants and turns with profile names it resolves elsewhere, and the
- * prompt/engine tests need to shape rows without ever opening a connection.
+ * Database rows are snake_case mirrors of SQLite columns while the HTTP surface
+ * is camelCase, so something has to own that crossing: the functions that do it
+ * live in `collab-row-mapping.ts` and are re-exported here, which keeps this
+ * file a list of shapes and every existing import unchanged.
+ *
+ * The council fields — the per-turn contract, the run's budget and its computed
+ * summary — are additive everywhere they appear. A row that predates them is a
+ * row where they are absent, never a row that fails to load.
  */
 
 import type { LLMProvider } from '@/shared/types.js';
 
-export type CollabMode = 'debate' | 'review' | 'vote';
+import type { CouncilBudget } from './collab-budget.js';
+import type { CouncilContract } from './council-contract.js';
+import type { CouncilSummary } from './council-summary.js';
+
+export {
+  mapCollaborationRow,
+  mapTurnRow,
+  normalizeSqliteTimestamp,
+  parseParticipants,
+} from './collab-row-mapping.js';
+
+/**
+ * `council` is the generalized mode: participants answer under the
+ * evidence/risk/test/disagreement/confidence contract. The other three predate
+ * it and keep their own prose-and-consensus protocol untouched.
+ */
+export type CollabMode = 'debate' | 'review' | 'vote' | 'council';
 
 export type CollabStatus = 'running' | 'converged' | 'exhausted' | 'stopped' | 'failed';
 
 export type CollabTurnRole = 'participant' | 'arbiter';
+
+/** What one turn actually cost, when the provider adapter reports it. */
+export interface CollabTurnUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
 
 /**
  * One account taking part in a collaboration. `role` is mode-dependent
@@ -48,6 +73,10 @@ export type CollaborationRow = {
   participants: string;
   verdict: string | null;
   error: string | null;
+  /** JSON-encoded `CouncilBudget`; NULL on rows written before budgets. */
+  budget: string | null;
+  /** JSON-encoded `CouncilSummary`; NULL until the run ends. */
+  summary: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -64,6 +93,11 @@ export type CollaborationTurnRow = {
   /** 1 yes, 0 no, NULL when the mode or the turn does not vote. */
   consensus: number | null;
   error: string | null;
+  /** JSON-encoded `CouncilContract`; NULL when the turn carried none. */
+  contract: string | null;
+  contract_error: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
   created_at: string;
 };
 
@@ -78,6 +112,9 @@ export type CollaborationSummary = {
   participants: CollabParticipant[];
   verdict: string | null;
   error: string | null;
+  /** Always present on read: a stored NULL resolves to the run's own defaults. */
+  budget: CouncilBudget;
+  summary: CouncilSummary | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -90,6 +127,10 @@ export type CollaborationTurn = {
   role: CollabTurnRole;
   content: string;
   consensus: boolean | null;
+  contract: CouncilContract | null;
+  /** Why the contract could not be read in full; the raw answer is `content`. */
+  contractError: string | null;
+  usage: CollabTurnUsage | null;
   error: string | null;
   createdAt: string;
 };
@@ -104,6 +145,8 @@ export type InsertCollaborationInput = {
   projectPath: string;
   maxRounds: number;
   participants: CollabParticipant[];
+  /** Omitted leaves the column NULL, which reads back as the run's defaults. */
+  budget?: CouncilBudget;
   /** Defaults to `running`: a row only exists because a run just started. */
   status?: CollabStatus;
   currentRound?: number;
@@ -119,6 +162,9 @@ export type AppendTurnInput = {
   content: string;
   consensus?: boolean | null;
   error?: string | null;
+  contract?: CouncilContract | null;
+  contractError?: string | null;
+  usage?: CollabTurnUsage | null;
 };
 
 export type CollaborationStatusPatch = {
@@ -126,99 +172,5 @@ export type CollaborationStatusPatch = {
   verdict?: string | null;
   error?: string | null;
   currentRound?: number;
+  summary?: CouncilSummary | null;
 };
-
-const SQLITE_UTC_TIMESTAMP_REGEX = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
-
-/**
- * SQLite writes CURRENT_TIMESTAMP as UTC without a timezone suffix, which the
- * browser would otherwise read as local time and render as hours-old rows.
- * Every timestamp leaving this module is canonical ISO.
- */
-export function normalizeSqliteTimestamp(value: string): string {
-  if (!value) return value;
-
-  const candidate = SQLITE_UTC_TIMESTAMP_REGEX.test(value)
-    ? `${value.replace(' ', 'T')}Z`
-    : value;
-  const parsed = new Date(candidate);
-
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
-}
-
-/**
- * Rebuilds one participant field by field rather than trusting the blob it came
- * from. The optional model and effort are dropped when they are not text, so a
- * hand-edited row cannot put a number where a provider expects a model id — and
- * the key stays absent rather than present-and-undefined, which is what keeps
- * the JSON round trip and the API response identical to what was written.
- */
-function toParticipant(value: unknown): CollabParticipant | null {
-  const candidate = value as Partial<CollabParticipant> | null;
-  if (
-    typeof candidate !== 'object' ||
-    candidate === null ||
-    typeof candidate.profileId !== 'string' ||
-    typeof candidate.provider !== 'string' ||
-    typeof candidate.role !== 'string'
-  ) {
-    return null;
-  }
-
-  const participant: CollabParticipant = {
-    profileId: candidate.profileId,
-    provider: candidate.provider,
-    role: candidate.role,
-  };
-  if (typeof candidate.model === 'string' && candidate.model) participant.model = candidate.model;
-  if (typeof candidate.effort === 'string' && candidate.effort) participant.effort = candidate.effort;
-  return participant;
-}
-
-/**
- * Participants are stored as a JSON blob. A collaboration whose blob got
- * corrupted must still be readable and deletable, so malformed content
- * degrades to an empty list instead of throwing on the read path.
- */
-export function parseParticipants(raw: string): CollabParticipant[] {
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map(toParticipant)
-      .filter((participant): participant is CollabParticipant => participant !== null);
-  } catch {
-    return [];
-  }
-}
-
-export function mapCollaborationRow(row: CollaborationRow): CollaborationSummary {
-  return {
-    id: row.id,
-    topic: row.topic,
-    mode: row.mode,
-    projectPath: row.project_path,
-    status: row.status,
-    maxRounds: row.max_rounds,
-    currentRound: row.current_round,
-    participants: parseParticipants(row.participants),
-    verdict: row.verdict,
-    error: row.error,
-    createdAt: normalizeSqliteTimestamp(row.created_at),
-    updatedAt: normalizeSqliteTimestamp(row.updated_at),
-  };
-}
-
-export function mapTurnRow(row: CollaborationTurnRow): CollaborationTurn {
-  return {
-    id: row.id,
-    round: row.round,
-    turnIndex: row.turn_index,
-    profileId: row.profile_id,
-    role: row.role,
-    content: row.content,
-    consensus: row.consensus === null ? null : row.consensus === 1,
-    createdAt: normalizeSqliteTimestamp(row.created_at),
-    error: row.error,
-  };
-}

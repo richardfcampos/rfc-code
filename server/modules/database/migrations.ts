@@ -481,6 +481,38 @@ const addWorktreeColumnsToSessions = (db: Database): void => {
 };
 
 /**
+ * Adds the council contract to collaborations and their turns.
+ *
+ * A collaboration gains the budget it may spend and the summary computed when
+ * it ends; a turn gains the structured contract parsed out of its answer, the
+ * reason that parse fell short, and what the turn actually cost.
+ *
+ * Every column is nullable and every existing row keeps NULL, which is exactly
+ * how the read path reads "this run predates the contract": the budget falls
+ * back to the defaults for the run's own shape and the transcript renders from
+ * `content` as it always did.
+ *
+ * Must run after both tables exist.
+ */
+const addCouncilContractColumns = (db: Database): void => {
+  if (tableExists(db, 'collaborations')) {
+    const columnNames = getTableInfo(db, 'collaborations').map((column) => column.name);
+
+    addColumnToTableIfNotExists(db, 'collaborations', columnNames, 'budget', 'TEXT');
+    addColumnToTableIfNotExists(db, 'collaborations', columnNames, 'summary', 'TEXT');
+  }
+
+  if (tableExists(db, 'collaboration_turns')) {
+    const columnNames = getTableInfo(db, 'collaboration_turns').map((column) => column.name);
+
+    addColumnToTableIfNotExists(db, 'collaboration_turns', columnNames, 'contract', 'TEXT');
+    addColumnToTableIfNotExists(db, 'collaboration_turns', columnNames, 'contract_error', 'TEXT');
+    addColumnToTableIfNotExists(db, 'collaboration_turns', columnNames, 'input_tokens', 'INTEGER');
+    addColumnToTableIfNotExists(db, 'collaboration_turns', columnNames, 'output_tokens', 'INTEGER');
+  }
+};
+
+/**
  * Adds the per-profile agent tooling defaults.
  *
  * Both stay NULL for profiles that predate the feature, which resolves to off
@@ -810,6 +842,7 @@ export const runMigrations = (db: Database) => {
     db.exec('CREATE INDEX IF NOT EXISTS idx_collaborations_project ON collaborations(project_path)');
     db.exec(COLLABORATION_TURNS_TABLE_SCHEMA_SQL);
     db.exec('CREATE INDEX IF NOT EXISTS idx_collaboration_turns_collab ON collaboration_turns(collaboration_id)');
+    addCouncilContractColumns(db);
 
     addWorktreeColumnsToSessions(db);
 

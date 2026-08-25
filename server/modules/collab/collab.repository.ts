@@ -25,7 +25,7 @@ export interface UpdateStatusOptions {
 }
 
 const COLLABORATION_COLUMNS =
-  'id, topic, mode, project_path, status, max_rounds, current_round, participants, verdict, error, created_at, updated_at';
+  'id, topic, mode, project_path, status, max_rounds, current_round, participants, verdict, error, budget, summary, created_at, updated_at';
 
 const ORPHANED_RUN_ERROR = 'Server restarted while this collaboration was running.';
 
@@ -44,8 +44,8 @@ export const collabRepository = {
     const db = getConnection();
     db.prepare(
       `INSERT INTO collaborations
-         (id, topic, mode, project_path, status, max_rounds, current_round, participants)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, topic, mode, project_path, status, max_rounds, current_round, participants, budget)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
       collaboration.id,
       collaboration.topic,
@@ -55,6 +55,9 @@ export const collabRepository = {
       collaboration.maxRounds,
       collaboration.currentRound ?? 0,
       JSON.stringify(collaboration.participants),
+      // NULL rather than a serialized default: an absent budget is read back as
+      // the defaults for the run's shape, so the two states stay one state.
+      collaboration.budget ? JSON.stringify(collaboration.budget) : null,
     );
 
     // Read back so the caller sees the DB-assigned timestamps.
@@ -114,6 +117,10 @@ export const collabRepository = {
     if (patch.currentRound !== undefined) {
       assignments.push('current_round = ?');
       values.push(patch.currentRound);
+    }
+    if ('summary' in patch) {
+      assignments.push('summary = ?');
+      values.push(patch.summary ? JSON.stringify(patch.summary) : null);
     }
 
     const conditions = ['id = ?'];
