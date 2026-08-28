@@ -101,6 +101,7 @@
   "kanban": {
     "pending": "📋 やること",
     "inProgress": "🚀 進行中",
+    "review": "🔍 レビュー",
     "done": "✅ 完了",
     "blocked": "🚫 ブロック中",
     "deferred": "⏳ 延期",
@@ -138,5 +139,35 @@
   "noMatchingTasks": {
     "title": "フィルターに一致するタスクがありません",
     "description": "検索条件またはフィルター基準を調整してみてください。"
+  },
+  "cockpit": {
+    "title": "レビュー",
+    "evidence": "変更されたファイル",
+    "noEvidence": "このタスクの実行エビデンスはまだありません — 判断はあなた次第です。",
+    "openGitTab": "完全な差分は Git タブにあります。",
+    "approve": "承認",
+    "approveConfirm": "このタスクを完了にしますか？",
+    "requestChanges": "変更をリクエスト",
+    "feedbackPlaceholder": "承認前に何を変更すべきですか？",
+    "feedbackSend": "送信して進行中に戻す",
+    "sending": "送信中…",
+    "uat": "UAT プレビュー",
+    "uatRun": "アプリを起動",
+    "uatStop": "停止",
+    "uatInstalling": "依存関係をインストール中…",
+    "uatStarting": "起動中…",
+    "uatReady": "準備完了",
+    "uatFailed": "プレビュー失敗",
+    "uatOpen": "プレビューを開く",
+    "uatCopy": "URL をコピー",
+    "uatLogs": "ログ",
+    "cfgTitle": "プレビュー設定",
+    "cfgCommand": "起動コマンド",
+    "cfgCommandHint": "$PORT と $HOST は置換され、環境変数としても渡されます。",
+    "cfgSetup": "セットアップコマンド（初回起動）",
+    "cfgBindHost": "バインドホスト（空 = tailnet IP 自動）",
+    "cfgPort": "ポート（空 = 自動）",
+    "cfgSave": "保存して起動",
+    "cancel": "キャンセル"
   }
 }

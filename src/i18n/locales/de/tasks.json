@@ -101,6 +101,7 @@
   "kanban": {
     "pending": "📋 Ausstehend",
     "inProgress": "🚀 In Bearbeitung",
+    "review": "🔍 Überprüfung",
     "done": "✅ Erledigt",
     "blocked": "🚫 Blockiert",
     "deferred": "⏳ Zurückgestellt",
@@ -138,5 +139,35 @@
   "noMatchingTasks": {
     "title": "Keine Aufgaben entsprechen deinen Filtern",
     "description": "Versuche, deine Such- oder Filterkriterien anzupassen."
+  },
+  "cockpit": {
+    "title": "Überprüfung",
+    "evidence": "Geänderte Dateien",
+    "noEvidence": "Noch keine Run-Evidenz für diese Aufgabe — die Entscheidung liegt bei dir.",
+    "openGitTab": "Der vollständige Diff ist im Git-Tab.",
+    "approve": "Genehmigen",
+    "approveConfirm": "Diese Aufgabe auf Erledigt setzen?",
+    "requestChanges": "Änderungen anfordern",
+    "feedbackPlaceholder": "Was soll sich vor der Genehmigung ändern?",
+    "feedbackSend": "Senden & auf In Bearbeitung setzen",
+    "sending": "Wird gesendet…",
+    "uat": "UAT-Vorschau",
+    "uatRun": "App starten",
+    "uatStop": "Stopp",
+    "uatInstalling": "Abhängigkeiten werden installiert…",
+    "uatStarting": "Wird gestartet…",
+    "uatReady": "Bereit",
+    "uatFailed": "Vorschau fehlgeschlagen",
+    "uatOpen": "Vorschau öffnen",
+    "uatCopy": "URL kopieren",
+    "uatLogs": "Logs",
+    "cfgTitle": "Vorschau-Setup",
+    "cfgCommand": "Startbefehl",
+    "cfgCommandHint": "$PORT und $HOST werden ersetzt und als Env-Variablen exportiert.",
+    "cfgSetup": "Setup-Befehl (erster Start)",
+    "cfgBindHost": "Bind-Host (leer = Tailnet-IP automatisch)",
+    "cfgPort": "Port (leer = automatisch)",
+    "cfgSave": "Speichern & starten",
+    "cancel": "Abbrechen"
   }
 }

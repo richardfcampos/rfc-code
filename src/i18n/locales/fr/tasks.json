@@ -101,6 +101,7 @@
   "kanban": {
     "pending": "📋 À faire",
     "inProgress": "🚀 En cours",
+    "review": "🔍 Revue",
     "done": "✅ Terminé",
     "blocked": "🚫 Bloqué",
     "deferred": "⏳ Différé",
@@ -138,5 +139,35 @@
   "noMatchingTasks": {
     "title": "Aucune tâche ne correspond à vos filtres",
     "description": "Essayez d'ajuster votre recherche ou vos critères de filtre."
+  },
+  "cockpit": {
+    "title": "Revue",
+    "evidence": "Fichiers modifiés",
+    "noEvidence": "Aucune évidence d'exécution pour cette tâche — la décision vous appartient.",
+    "openGitTab": "Le diff complet est dans l'onglet Git.",
+    "approve": "Approuver",
+    "approveConfirm": "Passer cette tâche en Terminé ?",
+    "requestChanges": "Demander des changements",
+    "feedbackPlaceholder": "Que faut-il changer avant approbation ?",
+    "feedbackSend": "Envoyer & passer En cours",
+    "sending": "Envoi…",
+    "uat": "Aperçu UAT",
+    "uatRun": "Lancer l'app",
+    "uatStop": "Arrêter",
+    "uatInstalling": "Installation des dépendances…",
+    "uatStarting": "Démarrage…",
+    "uatReady": "Prêt",
+    "uatFailed": "Échec de l'aperçu",
+    "uatOpen": "Ouvrir l'aperçu",
+    "uatCopy": "Copier l'URL",
+    "uatLogs": "Logs",
+    "cfgTitle": "Configuration de l'aperçu",
+    "cfgCommand": "Commande de lancement",
+    "cfgCommandHint": "$PORT et $HOST sont substitués et exportés en variables d'env.",
+    "cfgSetup": "Commande de setup (premier lancement)",
+    "cfgBindHost": "Hôte de bind (vide = IP tailnet auto)",
+    "cfgPort": "Port (vide = auto)",
+    "cfgSave": "Enregistrer & lancer",
+    "cancel": "Annuler"
   }
 }

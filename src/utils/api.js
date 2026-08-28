@@ -228,6 +228,37 @@ export const api = {
       }),
   },
 
+  // UAT preview runner (Review Cockpit)
+  preview: {
+    getConfig: (projectId) =>
+      authenticatedFetch(`/api/preview/config/${projectId}`),
+
+    saveConfig: (projectId, { command, setupCommand, bindHost, port }) =>
+      authenticatedFetch(`/api/preview/config/${projectId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ command, setupCommand, bindHost, port }),
+      }),
+
+    start: (projectId, { cwd } = {}) =>
+      authenticatedFetch(`/api/preview/start/${projectId}`, {
+        method: 'POST',
+        body: JSON.stringify({ cwd }),
+      }),
+
+    stop: (projectId, { cwd } = {}) =>
+      authenticatedFetch(`/api/preview/stop/${projectId}`, {
+        method: 'POST',
+        body: JSON.stringify({ cwd }),
+      }),
+
+    status: (projectId, { cwd } = {}) => {
+      const params = new URLSearchParams();
+      if (cwd) params.append('cwd', cwd);
+      const queryString = params.toString();
+      return authenticatedFetch(`/api/preview/status/${projectId}${queryString ? `?${queryString}` : ''}`);
+    },
+  },
+
   // Browse filesystem for project suggestions
   browseFilesystem: (dirPath = null) => {
     const params = new URLSearchParams();

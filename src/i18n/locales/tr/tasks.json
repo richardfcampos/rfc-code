@@ -101,6 +101,7 @@
   "kanban": {
     "pending": "📋 Yapılacak",
     "inProgress": "🚀 Sürüyor",
+    "review": "🔍 İnceleme",
     "done": "✅ Tamamlandı",
     "blocked": "🚫 Engellendi",
     "deferred": "⏳ Ertelendi",
@@ -138,5 +139,35 @@
   "noMatchingTasks": {
     "title": "Filtrelerine uygun görev yok",
     "description": "Arama veya filtre kriterlerini değiştirmeyi dene."
+  },
+  "cockpit": {
+    "title": "İnceleme",
+    "evidence": "Değişen dosyalar",
+    "noEvidence": "Bu görev için henüz çalışma kanıtı yok — karar hâlâ sizin.",
+    "openGitTab": "Tam diff Git sekmesinde.",
+    "approve": "Onayla",
+    "approveConfirm": "Bu görev Tamamlandı'ya taşınsın mı?",
+    "requestChanges": "Değişiklik iste",
+    "feedbackPlaceholder": "Onaydan önce ne değişmeli?",
+    "feedbackSend": "Gönder & Sürüyor'a taşı",
+    "sending": "Gönderiliyor…",
+    "uat": "UAT önizleme",
+    "uatRun": "Uygulamayı çalıştır",
+    "uatStop": "Durdur",
+    "uatInstalling": "Bağımlılıklar kuruluyor…",
+    "uatStarting": "Başlatılıyor…",
+    "uatReady": "Hazır",
+    "uatFailed": "Önizleme başarısız",
+    "uatOpen": "Önizlemeyi aç",
+    "uatCopy": "URL'yi kopyala",
+    "uatLogs": "Günlükler",
+    "cfgTitle": "Önizleme kurulumu",
+    "cfgCommand": "Çalıştırma komutu",
+    "cfgCommandHint": "$PORT ve $HOST değiştirilir ve ortam değişkeni olarak aktarılır.",
+    "cfgSetup": "Kurulum komutu (ilk çalıştırma)",
+    "cfgBindHost": "Bind host (boş = otomatik tailnet IP)",
+    "cfgPort": "Port (boş = otomatik)",
+    "cfgSave": "Kaydet & çalıştır",
+    "cancel": "İptal"
   }
 }
