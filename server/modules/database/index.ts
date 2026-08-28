@@ -1,7 +1,11 @@
 export { initializeDatabase } from '@/modules/database/init-db.js';
 export { closeConnection, getConnection, getDatabasePath } from '@/modules/database/connection.js';
+export { activePreviewsDb } from '@/modules/database/repositories/active-previews.db.js';
+export type { ActivePreviewRow } from '@/modules/database/repositories/active-previews.db.js';
 export { activeSessionRunsDb } from '@/modules/database/repositories/active-session-runs.db.js';
 export type { ActiveSessionRunRow } from '@/modules/database/repositories/active-session-runs.db.js';
+export { previewConfigsDb } from '@/modules/database/repositories/preview-configs.db.js';
+export type { PreviewConfigRow } from '@/modules/database/repositories/preview-configs.db.js';
 export { apiKeysDb } from '@/modules/database/repositories/api-keys.js';
 export { appConfigDb } from '@/modules/database/repositories/app-config.js';
 export { credentialsDb } from '@/modules/database/repositories/credentials.js';

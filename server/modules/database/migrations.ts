@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { Database } from 'better-sqlite3';
 
 import {
+  ACTIVE_PREVIEWS_TABLE_SCHEMA_SQL,
   ACTIVE_SESSION_RUNS_TABLE_SCHEMA_SQL,
   APP_CONFIG_TABLE_SCHEMA_SQL,
   COLLABORATIONS_TABLE_SCHEMA_SQL,
@@ -11,6 +12,7 @@ import {
   NOTIFICATION_CHANNEL_ENDPOINTS_TABLE_SCHEMA_SQL,
   PROFILES_TABLE_SCHEMA_SQL,
   PROJECTS_TABLE_SCHEMA_SQL,
+  PREVIEW_CONFIGS_TABLE_SCHEMA_SQL,
   PUSH_SUBSCRIPTIONS_TABLE_SCHEMA_SQL,
   SESSION_LEGS_TABLE_SCHEMA_SQL,
   SESSION_RUN_FAILURES_TABLE_SCHEMA_SQL,
@@ -817,6 +819,9 @@ export const runMigrations = (db: Database) => {
     `);
 
     db.exec(ACTIVE_SESSION_RUNS_TABLE_SCHEMA_SQL);
+
+    db.exec(PREVIEW_CONFIGS_TABLE_SCHEMA_SQL);
+    db.exec(ACTIVE_PREVIEWS_TABLE_SCHEMA_SQL);
 
     db.exec(LAST_SCANNED_AT_SQL);
     console.log('Database migrations completed successfully');
