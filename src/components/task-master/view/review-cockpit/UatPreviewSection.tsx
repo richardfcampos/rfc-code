@@ -21,7 +21,12 @@ type PreviewConfig = {
 };
 
 type UatPreviewSectionProps = {
-  projectId: string;
+  /** DB project id — the task-master cockpit's identifier. */
+  projectId?: string;
+  /** Explicit repository path — the Review Center's identifier. */
+  projectPath?: string;
+  /** Worktree to boot in; defaults to the project root server-side. */
+  cwd?: string;
 };
 
 const POLL_INTERVAL_MS = 1000;
@@ -32,7 +37,7 @@ const POLL_INTERVAL_MS = 1000;
  *          └─▶ booting (installing… → starting…) ──▶ ready (URL) ──Stop──▶ idle
  *                                              └──▶ failed (error + log tail)
  */
-export default function UatPreviewSection({ projectId }: UatPreviewSectionProps) {
+export default function UatPreviewSection({ projectId = '', projectPath, cwd }: UatPreviewSectionProps) {
   const { t } = useTranslation('tasks');
 
   const [preview, setPreview] = useState<PreviewStatus | null>(null);
@@ -50,7 +55,7 @@ export default function UatPreviewSection({ projectId }: UatPreviewSectionProps)
   }, []);
 
   const refreshStatus = useCallback(async () => {
-    const response = await api.preview.status(projectId);
+    const response = await api.preview.status(projectId, { cwd, projectPath });
     if (response.ok) {
       const status = (await response.json()) as PreviewStatus;
       setPreview(status);
@@ -58,7 +63,7 @@ export default function UatPreviewSection({ projectId }: UatPreviewSectionProps)
         stopPolling();
       }
     }
-  }, [projectId, stopPolling]);
+  }, [projectId, projectPath, cwd, stopPolling]);
 
   const startPolling = useCallback(() => {
     stopPolling();
@@ -76,11 +81,11 @@ export default function UatPreviewSection({ projectId }: UatPreviewSectionProps)
     if (isBusy) return;
     setIsBusy(true);
     try {
-      const response = await api.preview.start(projectId);
+      const response = await api.preview.start(projectId, { cwd, projectPath });
       if (response.status === 400) {
         const payload = (await response.json()) as { code?: string };
         if (payload.code === 'NO_CONFIG') {
-          const configResponse = await api.preview.getConfig(projectId);
+          const configResponse = await api.preview.getConfig(projectId, { projectPath });
           const { suggested } = (await configResponse.json()) as {
             suggested: { command: string; setupCommand?: string } | null;
           };
@@ -110,6 +115,7 @@ export default function UatPreviewSection({ projectId }: UatPreviewSectionProps)
         setupCommand: configDraft.setup_command ?? null,
         bindHost: configDraft.bind_host ?? null,
         port: configDraft.port ?? null,
+        projectPath,
       });
       if (!saveResponse.ok) {
         const payload = (await saveResponse.json()) as { error?: string };
@@ -117,7 +123,7 @@ export default function UatPreviewSection({ projectId }: UatPreviewSectionProps)
         return;
       }
       setShowConfigForm(false);
-      const response = await api.preview.start(projectId);
+      const response = await api.preview.start(projectId, { cwd, projectPath });
       setPreview((await response.json()) as PreviewStatus);
       startPolling();
     } catch (error) {
@@ -130,7 +136,7 @@ export default function UatPreviewSection({ projectId }: UatPreviewSectionProps)
   const handleStop = async () => {
     if (isBusy) return;
     stopPolling();
-    const response = await api.preview.stop(projectId);
+    const response = await api.preview.stop(projectId, { cwd, projectPath });
     if (response.ok) {
       setPreview((await response.json()) as PreviewStatus);
     }

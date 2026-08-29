@@ -30,6 +30,26 @@ async function resolveProjectPathFromId(projectId) {
 }
 
 /**
+ * Callers that already hold the repository path (the Review Center works from
+ * worktree coordinates, not project ids) pass it explicitly; everyone else
+ * resolves the `:projectId` route param through the projects table.
+ */
+async function resolveProjectPath(req) {
+  const explicitPath =
+    typeof req.body?.projectPath === 'string'
+      ? req.body.projectPath.trim()
+      : typeof req.query?.projectPath === 'string'
+        ? req.query.projectPath.trim()
+        : '';
+
+  if (explicitPath) {
+    return fs.existsSync(explicitPath) ? explicitPath : null;
+  }
+
+  return resolveProjectPathFromId(req.params.projectId);
+}
+
+/**
  * Suggest a boot recipe by sniffing the project's package.json. Only a
  * pre-fill for the config form — the user confirms before anything runs.
  */
@@ -81,7 +101,7 @@ function resolveCwd(projectPath, cwdValue) {
 /** GET /api/preview/config/:projectId — stored config + auto-detect suggestion */
 router.get('/config/:projectId', async (req, res) => {
   try {
-    const projectPath = await resolveProjectPathFromId(req.params.projectId);
+    const projectPath = await resolveProjectPath(req);
     if (!projectPath) {
       return res.status(404).json({ error: 'Project not found' });
     }
@@ -101,7 +121,7 @@ router.get('/config/:projectId', async (req, res) => {
 /** PUT /api/preview/config/:projectId — save the boot recipe */
 router.put('/config/:projectId', async (req, res) => {
   try {
-    const projectPath = await resolveProjectPathFromId(req.params.projectId);
+    const projectPath = await resolveProjectPath(req);
     if (!projectPath) {
       return res.status(404).json({ error: 'Project not found' });
     }
@@ -141,7 +161,7 @@ router.put('/config/:projectId', async (req, res) => {
 /** POST /api/preview/start/:projectId { cwd? } — boot and return a snapshot */
 router.post('/start/:projectId', async (req, res) => {
   try {
-    const projectPath = await resolveProjectPathFromId(req.params.projectId);
+    const projectPath = await resolveProjectPath(req);
     if (!projectPath) {
       return res.status(404).json({ error: 'Project not found' });
     }
@@ -182,7 +202,7 @@ router.post('/start/:projectId', async (req, res) => {
 /** GET /api/preview/status/:projectId?cwd= — poll during boot */
 router.get('/status/:projectId', async (req, res) => {
   try {
-    const projectPath = await resolveProjectPathFromId(req.params.projectId);
+    const projectPath = await resolveProjectPath(req);
     if (!projectPath) {
       return res.status(404).json({ error: 'Project not found' });
     }
@@ -198,7 +218,7 @@ router.get('/status/:projectId', async (req, res) => {
 /** POST /api/preview/stop/:projectId { cwd? } */
 router.post('/stop/:projectId', async (req, res) => {
   try {
-    const projectPath = await resolveProjectPathFromId(req.params.projectId);
+    const projectPath = await resolveProjectPath(req);
     if (!projectPath) {
       return res.status(404).json({ error: 'Project not found' });
     }

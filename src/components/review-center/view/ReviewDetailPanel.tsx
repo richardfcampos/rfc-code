@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Check, GitBranch, RotateCcw } from 'lucide-react';
 
 import { Button } from '../../../shared/view/ui';
+import UatPreviewSection from '../../task-master/view/review-cockpit/UatPreviewSection';
 import type { ReviewCommentRouting } from '../types';
 import { useReviewDetail } from '../hooks/useReviewDetail';
 
@@ -181,6 +182,15 @@ export default function ReviewDetailPanel({ reviewId, onResolved }: ReviewDetail
           {notice}
         </p>
       )}
+
+      {/* Hands-on UAT: boots the task's worktree (not the project root), so
+          the URL serves exactly the branch under review. */}
+      <div className="border-b border-border">
+        <UatPreviewSection
+          projectPath={detail.worktree.repositoryRoot}
+          cwd={detail.worktree.worktreePath}
+        />
+      </div>
 
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <ReviewFileList

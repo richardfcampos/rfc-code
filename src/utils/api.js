@@ -229,33 +229,41 @@ export const api = {
   },
 
   // UAT preview runner (Review Cockpit)
+  // Callers identify the project either by DB id (`projectId`) or by an
+  // explicit repository path (`projectPath` — used by the Review Center, which
+  // works from worktree coordinates). The server prefers projectPath when set.
   preview: {
-    getConfig: (projectId) =>
-      authenticatedFetch(`/api/preview/config/${projectId}`),
+    getConfig: (projectId, { projectPath } = {}) => {
+      const params = new URLSearchParams();
+      if (projectPath) params.append('projectPath', projectPath);
+      const queryString = params.toString();
+      return authenticatedFetch(`/api/preview/config/${projectId || '_'}${queryString ? `?${queryString}` : ''}`);
+    },
 
-    saveConfig: (projectId, { command, setupCommand, bindHost, port }) =>
-      authenticatedFetch(`/api/preview/config/${projectId}`, {
+    saveConfig: (projectId, { command, setupCommand, bindHost, port, projectPath }) =>
+      authenticatedFetch(`/api/preview/config/${projectId || '_'}`, {
         method: 'PUT',
-        body: JSON.stringify({ command, setupCommand, bindHost, port }),
+        body: JSON.stringify({ command, setupCommand, bindHost, port, projectPath }),
       }),
 
-    start: (projectId, { cwd } = {}) =>
-      authenticatedFetch(`/api/preview/start/${projectId}`, {
+    start: (projectId, { cwd, projectPath } = {}) =>
+      authenticatedFetch(`/api/preview/start/${projectId || '_'}`, {
         method: 'POST',
-        body: JSON.stringify({ cwd }),
+        body: JSON.stringify({ cwd, projectPath }),
       }),
 
-    stop: (projectId, { cwd } = {}) =>
-      authenticatedFetch(`/api/preview/stop/${projectId}`, {
+    stop: (projectId, { cwd, projectPath } = {}) =>
+      authenticatedFetch(`/api/preview/stop/${projectId || '_'}`, {
         method: 'POST',
-        body: JSON.stringify({ cwd }),
+        body: JSON.stringify({ cwd, projectPath }),
       }),
 
-    status: (projectId, { cwd } = {}) => {
+    status: (projectId, { cwd, projectPath } = {}) => {
       const params = new URLSearchParams();
       if (cwd) params.append('cwd', cwd);
+      if (projectPath) params.append('projectPath', projectPath);
       const queryString = params.toString();
-      return authenticatedFetch(`/api/preview/status/${projectId}${queryString ? `?${queryString}` : ''}`);
+      return authenticatedFetch(`/api/preview/status/${projectId || '_'}${queryString ? `?${queryString}` : ''}`);
     },
   },
 
