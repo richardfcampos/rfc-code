@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+
 import PRDEditor from '../../prd-editor';
 import { useTaskMaster } from '../context/TaskMasterContext';
 import { useProjectPrdFiles } from '../hooks/useProjectPrdFiles';
 import type { PrdFile, TaskMasterTask, TaskSelection } from '../types';
+
 import TaskBoard from './TaskBoard';
 import TaskDetailModal from './TaskDetailModal';
+import ReviewCockpitDrawer from './review-cockpit/ReviewCockpitDrawer';
 
 type TaskMasterPanelProps = {
   isVisible: boolean;
@@ -17,6 +20,7 @@ export default function TaskMasterPanel({ isVisible }: TaskMasterPanelProps) {
 
   const [selectedTask, setSelectedTask] = useState<TaskMasterTask | null>(null);
   const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
+  const [isCockpitOpen, setIsCockpitOpen] = useState(false);
 
   const [isPrdEditorOpen, setIsPrdEditorOpen] = useState(false);
   const [selectedPrd, setSelectedPrd] = useState<PrdFile | null>(null);
@@ -61,17 +65,26 @@ export default function TaskMasterPanel({ isVisible }: TaskMasterPanelProps) {
     (taskSelection: TaskSelection) => {
       const selectedId = String(taskSelection.id);
 
+      // Tasks awaiting a review decision open the cockpit; everything else
+      // keeps the detail modal.
+      const openTask = (task: TaskMasterTask) => {
+        setSelectedTask(task);
+        if (task.status === 'review') {
+          setIsCockpitOpen(true);
+        } else {
+          setIsTaskDetailOpen(true);
+        }
+      };
+
       if (!taskSelection.title) {
         const fullTask = tasks.find((task) => String(task.id) === selectedId) ?? null;
         if (fullTask) {
-          setSelectedTask(fullTask);
-          setIsTaskDetailOpen(true);
+          openTask(fullTask);
         }
         return;
       }
 
-      setSelectedTask(taskSelection as TaskMasterTask);
-      setIsTaskDetailOpen(true);
+      openTask(taskSelection as TaskMasterTask);
     },
     [tasks],
   );
@@ -98,6 +111,15 @@ export default function TaskMasterPanel({ isVisible }: TaskMasterPanelProps) {
           />
         </div>
       </div>
+
+      <ReviewCockpitDrawer
+        task={selectedTask}
+        isOpen={isCockpitOpen}
+        onClose={() => {
+          setIsCockpitOpen(false);
+          setSelectedTask(null);
+        }}
+      />
 
       <TaskDetailModal
         task={selectedTask}

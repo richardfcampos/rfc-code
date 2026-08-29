@@ -101,6 +101,7 @@
   "kanban": {
     "pending": "📋 To Do",
     "inProgress": "🚀 In Progress",
+    "review": "🔍 Review",
     "done": "✅ Done",
     "blocked": "🚫 Blocked",
     "deferred": "⏳ Deferred",
@@ -138,5 +139,35 @@
   "noMatchingTasks": {
     "title": "No tasks match your filters",
     "description": "Try adjusting your search or filter criteria."
+  },
+  "cockpit": {
+    "title": "Review",
+    "evidence": "Changed files",
+    "noEvidence": "No run evidence for this task yet — the decision is still yours.",
+    "openGitTab": "Full diff is in the Git tab.",
+    "approve": "Approve",
+    "approveConfirm": "Move this task to Done?",
+    "requestChanges": "Request changes",
+    "feedbackPlaceholder": "What should change before this is approved?",
+    "feedbackSend": "Send & move to In Progress",
+    "sending": "Sending…",
+    "uat": "UAT preview",
+    "uatRun": "Run app",
+    "uatStop": "Stop",
+    "uatInstalling": "Installing dependencies…",
+    "uatStarting": "Starting…",
+    "uatReady": "Ready",
+    "uatFailed": "Preview failed",
+    "uatOpen": "Open preview",
+    "uatCopy": "Copy URL",
+    "uatLogs": "Logs",
+    "cfgTitle": "Preview setup",
+    "cfgCommand": "Run command",
+    "cfgCommandHint": "$PORT and $HOST are substituted and exported as env vars.",
+    "cfgSetup": "Setup command (first boot)",
+    "cfgBindHost": "Bind host (empty = auto tailnet IP)",
+    "cfgPort": "Port (empty = auto)",
+    "cfgSave": "Save & run",
+    "cancel": "Cancel"
   }
 }

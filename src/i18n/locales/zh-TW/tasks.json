@@ -101,6 +101,7 @@
   "kanban": {
     "pending": "📋 待辦",
     "inProgress": "🚀 進行中",
+    "review": "🔍 待審查",
     "done": "✅ 已完成",
     "blocked": "🚫 已封鎖",
     "deferred": "⏳ 已延後",
@@ -138,5 +139,35 @@
   "noMatchingTasks": {
     "title": "沒有符合篩選條件的任務",
     "description": "嘗試調整您的搜尋或篩選條件。"
+  },
+  "cockpit": {
+    "title": "審查",
+    "evidence": "變更的檔案",
+    "noEvidence": "此任務尚無執行證據 — 決定權仍在你。",
+    "openGitTab": "完整差異在 Git 分頁。",
+    "approve": "核准",
+    "approveConfirm": "將此任務移至完成？",
+    "requestChanges": "要求變更",
+    "feedbackPlaceholder": "核准前需要變更什麼？",
+    "feedbackSend": "送出並移回進行中",
+    "sending": "傳送中…",
+    "uat": "UAT 預覽",
+    "uatRun": "啟動應用",
+    "uatStop": "停止",
+    "uatInstalling": "正在安裝相依套件…",
+    "uatStarting": "啟動中…",
+    "uatReady": "就緒",
+    "uatFailed": "預覽失敗",
+    "uatOpen": "開啟預覽",
+    "uatCopy": "複製 URL",
+    "uatLogs": "日誌",
+    "cfgTitle": "預覽設定",
+    "cfgCommand": "啟動指令",
+    "cfgCommandHint": "$PORT 與 $HOST 會被替換並匯出為環境變數。",
+    "cfgSetup": "安裝指令（首次啟動）",
+    "cfgBindHost": "綁定主機（留空 = 自動 tailnet IP）",
+    "cfgPort": "連接埠（留空 = 自動）",
+    "cfgSave": "儲存並啟動",
+    "cancel": "取消"
   }
 }
