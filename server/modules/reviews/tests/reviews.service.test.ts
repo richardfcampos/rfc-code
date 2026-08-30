@@ -42,6 +42,7 @@ function buildSession(overrides: Partial<SessionRow>): SessionRow {
     worktree_path: null,
     worktree_branch: null,
     seed_primer_path: null,
+    task_id: null,
     ...overrides,
   };
 }
