@@ -3,6 +3,7 @@ import express from 'express';
 import { createProject, updateProjectDisplayName } from '@/modules/projects/services/project-management.service.js';
 import { startCloneProject } from '@/modules/projects/services/project-clone.service.js';
 import { getProjectTaskMaster } from '@/modules/projects/services/projects-has-taskmaster.service.js';
+import { getProjectCodegraph, startProjectCodegraphIndexing } from '@/modules/projects/services/project-codegraph.service.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
 import { getArchivedProjectsWithSessions, getProjectSessionsPage, getProjectsWithSessions } from '@/modules/projects/services/projects-with-sessions-fetch.service.js';
 import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
@@ -224,6 +225,23 @@ router.get(
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
     const taskMasterDetails = await getProjectTaskMaster(projectId);
     res.json(taskMasterDetails);
+  }),
+);
+
+router.get(
+  '/:projectId/codegraph',
+  asyncHandler(async (req, res) => {
+    const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    res.json(await getProjectCodegraph(projectId));
+  }),
+);
+
+router.post(
+  '/:projectId/codegraph/init',
+  asyncHandler(async (req, res) => {
+    const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    await startProjectCodegraphIndexing(projectId);
+    res.status(202).json(createApiSuccessResponse({ projectId, indexing: true }));
   }),
 );
 

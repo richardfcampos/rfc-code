@@ -74,6 +74,10 @@ export const api = {
   },
   projectTaskmaster: (projectId) =>
     authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/taskmaster`),
+  projectCodegraph: (projectId) =>
+    authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/codegraph`),
+  projectCodegraphInit: (projectId) =>
+    authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/codegraph/init`, { method: 'POST' }),
   // Unified endpoint for persisted session messages.
   // Provider/project metadata are resolved by the backend from sessionId.
   unifiedSessionMessages: (sessionId, _provider = 'claude', { limit = null, offset = 0 } = {}) => {
