@@ -15,6 +15,8 @@ import type { SessionActivityMap } from './useSessionProtection';
 
 type UseProjectsStateArgs = {
   sessionId?: string;
+  /** Project id resolved from the `/project/:projectId` route, if that's the active route. */
+  projectId?: string;
   navigate: NavigateFunction;
   /** Subscription to the unified websocket event stream. */
   subscribe: (listener: (event: ServerEvent) => void) => () => void;
@@ -356,7 +358,7 @@ const removeSessionFromProject = (project: Project, sessionIdToDelete: string): 
 
 const VALID_TABS: Set<string> = new Set(['chat', 'files', 'shell', 'git', 'tasks', 'browser']);
 
-const isValidTab = (tab: string): tab is AppTab => {
+export const isValidTab = (tab: string): tab is AppTab => {
   return VALID_TABS.has(tab) || tab.startsWith('plugin:');
 };
 
@@ -374,6 +376,7 @@ const readPersistedTab = (): AppTab => {
 
 export function useProjectsState({
   sessionId,
+  projectId,
   navigate,
   subscribe,
   isMobile,
@@ -637,10 +640,25 @@ export function useProjectsState({
 
   // Auto-select the project when there is only one, so the user lands on the new session page
   useEffect(() => {
-    if (!isLoadingProjects && projects.length === 1 && !selectedProject && !sessionId) {
+    if (!isLoadingProjects && projects.length === 1 && !selectedProject && !sessionId && !projectId) {
       setSelectedProject(projects[0]);
     }
-  }, [isLoadingProjects, projects, selectedProject, sessionId]);
+  }, [isLoadingProjects, projects, selectedProject, sessionId, projectId]);
+
+  // Deep link into a project via `/project/:projectId`: select it once it
+  // shows up in the fetched project list. Unlike the session resolver below,
+  // this never navigates and never touches `selectedSession` — the route
+  // carries no session intent.
+  useEffect(() => {
+    if (!projectId || projects.length === 0 || selectedProject?.projectId === projectId) {
+      return;
+    }
+
+    const matchedProject = projects.find((project) => project.projectId === projectId);
+    if (matchedProject) {
+      setSelectedProject(matchedProject);
+    }
+  }, [projectId, projects, selectedProject?.projectId]);
 
   // Realtime sidebar updates. The backend pushes per-session deltas
   // (`session_upserted`) instead of full project snapshots, so each event is

@@ -11,12 +11,14 @@ import ReviewCockpitDrawer from './review-cockpit/ReviewCockpitDrawer';
 
 type TaskMasterPanelProps = {
   isVisible: boolean;
+  /** Task id from a deep-linked URL, opened once on the board after tasks load. */
+  initialTaskId?: string | null;
 };
 
 const PRD_SAVE_MESSAGE = 'PRD saved successfully!';
 
-export default function TaskMasterPanel({ isVisible }: TaskMasterPanelProps) {
-  const { tasks, currentProject, refreshTasks } = useTaskMaster();
+export default function TaskMasterPanel({ isVisible, initialTaskId = null }: TaskMasterPanelProps) {
+  const { tasks, currentProject, refreshTasks, isLoadingTasks } = useTaskMaster();
 
   const [selectedTask, setSelectedTask] = useState<TaskMasterTask | null>(null);
   const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
@@ -88,6 +90,37 @@ export default function TaskMasterPanel({ isVisible }: TaskMasterPanelProps) {
     },
     [tasks],
   );
+
+  // Deep-linked task id (`?task=<id>` on `/project/:projectId`): open it once
+  // the board's tasks have actually loaded, then forget it so it never
+  // reopens (e.g. after the drawer/modal is closed or tasks later refresh).
+  const [pendingInitialTaskId, setPendingInitialTaskId] = useState(initialTaskId);
+  const hasObservedTaskLoadRef = useRef(false);
+
+  useEffect(() => {
+    if (isLoadingTasks) {
+      hasObservedTaskLoadRef.current = true;
+    }
+  }, [isLoadingTasks]);
+
+  useEffect(() => {
+    if (!pendingInitialTaskId || isLoadingTasks) {
+      return;
+    }
+
+    // An empty list before any load has been observed just means the fetch
+    // hasn't started yet for this deep link — wait rather than concluding the
+    // id doesn't exist.
+    if (tasks.length === 0 && !hasObservedTaskLoadRef.current) {
+      return;
+    }
+
+    const matchedTask = tasks.find((task) => String(task.id) === pendingInitialTaskId);
+    if (matchedTask) {
+      handleTaskClick(matchedTask);
+    }
+    setPendingInitialTaskId(null);
+  }, [pendingInitialTaskId, tasks, isLoadingTasks, handleTaskClick]);
 
   return (
     <>

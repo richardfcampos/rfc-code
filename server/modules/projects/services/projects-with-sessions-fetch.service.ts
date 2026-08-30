@@ -21,6 +21,8 @@ type SessionSummary = {
   // the branch badge from a single shape. Null = session runs in the root.
   worktreePath: string | null;
   worktreeBranch: string | null;
+  // Linked TaskMaster task, if any; null for sessions with no linked task.
+  taskId: string | null;
 };
 
 type SessionRepositoryRow = {
@@ -32,6 +34,7 @@ type SessionRepositoryRow = {
   profile_id?: string | null;
   worktree_path?: string | null;
   worktree_branch?: string | null;
+  task_id?: string | null;
 };
 
 export type ProjectListItem = {
@@ -138,6 +141,7 @@ function mapSessionRowToSummary(row: SessionRepositoryRow): SessionSummary {
     profileId: row.profile_id ?? null,
     worktreePath: row.worktree_path ?? null,
     worktreeBranch: row.worktree_branch ?? null,
+    taskId: row.task_id ?? null,
   };
 }
 

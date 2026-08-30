@@ -24,6 +24,43 @@ type CreateAppSessionResult = {
   profileId: string | null;
 };
 
+type RunningSessionListItem = {
+  sessionId: string;
+  provider: LLMProvider;
+  startedAt: number;
+  lastSeq: number;
+  /** True when the run is blocked on an unanswered tool-approval request. */
+  needsAttention: boolean;
+  /** Human-readable reason the run needs the user, null while it just runs. */
+  statusText: string | null;
+  /** Whether an abort can address the provider runtime for this run yet. */
+  canInterrupt: boolean;
+};
+
+type PendingApprovalsLookup = (providerSessionId: string) => unknown[];
+
+/**
+ * Pending tool approvals live inside the Claude runtime (`server/claude-sdk.js`),
+ * which sits outside the module boundaries backend lint enforces — so the
+ * server entrypoint injects the lookup at boot instead of this module importing
+ * it. Until configured (or for providers without interactive approvals) every
+ * run simply reports no pending attention.
+ */
+let pendingApprovalsLookup: PendingApprovalsLookup | null = null;
+
+export function configureRunningSessionsAttention(lookup: PendingApprovalsLookup): void {
+  pendingApprovalsLookup = lookup;
+}
+
+/** Status line for a run blocked on a tool approval, naming the tool when known. */
+function describePendingApproval(approval: unknown): string {
+  const toolName =
+    approval && typeof approval === 'object' && typeof (approval as { toolName?: unknown }).toolName === 'string'
+      ? ((approval as { toolName: string }).toolName)
+      : '';
+  return toolName ? `Waiting for approval: ${toolName}` : 'Waiting for approval';
+}
+
 type ArchivedSessionListItem = {
   sessionId: string;
   provider: LLMProvider;
@@ -181,14 +218,27 @@ export const sessionsService = {
    *
    * This is intentionally status-only: callers that only need sidebar activity
    * indicators should not attach to chat streams or request replayed messages.
+   * Each run also reports whether it is blocked on a tool approval, so a
+   * polling client can show "waiting for you" without a websocket.
    */
-  listRunningSessions(): Array<{
-    sessionId: string;
-    provider: LLMProvider;
-    startedAt: number;
-    lastSeq: number;
-  }> {
-    return chatRunRegistry.listRunningRuns();
+  listRunningSessions(): RunningSessionListItem[] {
+    return chatRunRegistry.listRunningRuns().map((run) => {
+      // Approvals are tracked under the provider-native id; a run that has not
+      // announced one yet cannot have an approval pending (approvals only
+      // happen mid-run, after the id exists) and cannot be aborted either.
+      const providerSessionId = chatRunRegistry.getRun(run.sessionId)?.providerSessionId ?? null;
+      const pendingApprovals = providerSessionId && pendingApprovalsLookup
+        ? pendingApprovalsLookup(providerSessionId)
+        : [];
+      const needsAttention = pendingApprovals.length > 0;
+
+      return {
+        ...run,
+        needsAttention,
+        statusText: needsAttention ? describePendingApproval(pendingApprovals[0]) : null,
+        canInterrupt: providerSessionId !== null,
+      };
+    });
   },
 
   /**
@@ -452,8 +502,16 @@ export const sessionsService = {
 
   /**
    * Renames one session by id without requiring the caller to pass provider.
+   *
+   * `taskId` is optional: `undefined` leaves the session's TaskMaster link
+   * untouched (so plain renames don't need to know about it), while a string
+   * or `null` sets or clears the link in the same call.
    */
-  renameSessionById(sessionId: string, summary: string): { sessionId: string; summary: string } {
+  renameSessionById(
+    sessionId: string,
+    summary: string,
+    taskId?: string | null
+  ): { sessionId: string; summary: string; taskId: string | null } {
     const session = sessionsDb.getSessionById(sessionId);
     if (!session) {
       throw new AppError(`Session "${sessionId}" was not found.`, {
@@ -463,6 +521,10 @@ export const sessionsService = {
     }
 
     sessionsDb.updateSessionCustomName(sessionId, summary);
-    return { sessionId, summary };
+    if (taskId !== undefined) {
+      sessionsDb.setTaskId(sessionId, taskId);
+    }
+
+    return { sessionId, summary, taskId: taskId !== undefined ? taskId : session.task_id };
   },
 };

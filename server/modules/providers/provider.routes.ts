@@ -323,6 +323,46 @@ const parseSessionRenameSummary = (payload: unknown): string => {
   return summary;
 };
 
+const MAX_SESSION_TASK_ID_LENGTH = 64;
+
+/**
+ * `taskId` is optional on this route: `undefined` means "leave the link
+ * alone", `null` means "clear it", and anything else must be a non-empty
+ * string within the length cap.
+ */
+const parseOptionalSessionTaskId = (payload: unknown): string | null | undefined => {
+  const body = (payload && typeof payload === 'object' ? payload : {}) as Record<string, unknown>;
+  if (!('taskId' in body)) {
+    return undefined;
+  }
+
+  const taskId = body.taskId;
+  if (taskId === null) {
+    return null;
+  }
+
+  if (typeof taskId !== 'string') {
+    throw new AppError('taskId must be a string or null.', {
+      code: 'INVALID_TASK_ID',
+      statusCode: 400,
+    });
+  }
+
+  const trimmed = taskId.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.length > MAX_SESSION_TASK_ID_LENGTH) {
+    throw new AppError(`taskId must not exceed ${MAX_SESSION_TASK_ID_LENGTH} characters.`, {
+      code: 'INVALID_TASK_ID',
+      statusCode: 400,
+    });
+  }
+
+  return trimmed;
+};
+
 const parseSessionSearchQuery = (value: unknown): string => {
   const query = readOptionalQueryString(value) ?? '';
   if (query.length < 2) {
@@ -591,7 +631,8 @@ router.put(
   asyncHandler(async (req: Request, res: Response) => {
     const sessionId = parseSessionId(req.params.sessionId);
     const summary = parseSessionRenameSummary(req.body);
-    const result = sessionsService.renameSessionById(sessionId, summary);
+    const taskId = parseOptionalSessionTaskId(req.body);
+    const result = sessionsService.renameSessionById(sessionId, summary, taskId);
     res.json(createApiSuccessResponse(result));
   }),
 );

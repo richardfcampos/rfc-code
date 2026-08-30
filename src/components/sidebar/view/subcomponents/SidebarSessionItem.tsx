@@ -5,6 +5,7 @@ import type { TFunction } from 'i18next';
 import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
+import { resolveSessionStatus } from '../../utils/session-status';
 import { createSessionViewModel } from '../../utils/utils';
 
 import SidebarSessionRowActions from './SidebarSessionRowActions';
@@ -84,9 +85,7 @@ export default function SidebarSessionItem({
   const isEditing = editingSession === session.id;
   const compactSessionAge = formatCompactSessionAge(sessionView.sessionTime, currentTime);
   const editingContainerRef = useRef<HTMLDivElement>(null);
-  // Status dot semantics: waiting on the user (warning) takes priority over
-  // running (primary, pulsing); everything else reads as idle.
-  const dotStatus: 'attn' | 'run' | 'idle' = needsAttention ? 'attn' : isProcessing ? 'run' : 'idle';
+  const dotStatus = resolveSessionStatus({ needsAttention, isRunning: isProcessing });
   const dotLabel = dotStatus === 'attn'
     ? t('tooltips.attentionRequiredIndicator', { defaultValue: 'Session needs attention' })
     : dotStatus === 'run'

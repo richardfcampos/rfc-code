@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RFC Code — Overview (mockup v1)</title>
+<style>
+  :root {
+    --background: 216 10% 8%;
+    --card: 217 10% 11%;
+    --card-2: 217 10% 13.5%;
+    --foreground: 210 12% 93%;
+    --muted-foreground: 215 9% 62%;
+    --faint: 216 7% 44%;
+    --border: 216 9% 18%;
+    --border-strong: 214 9% 26%;
+    --primary: 217.2 91.2% 59.8%;
+    --success: 142.1 70% 45%;
+    --warning: 32.1 94.6% 53%;
+    --danger: 0 72.2% 56%;
+    --idle: 216 10% 38%;
+    --review: 262 83% 66%;
+    --radius-card: 10px;
+    --radius-ctl: 6px;
+    --dur: 150ms;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-size: 14px;
+    line-height: 1.45;
+    padding: 28px clamp(16px, 4vw, 48px) 64px;
+  }
+  a { color: inherit; text-decoration: none; }
+  .mono { font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  /* ---------- header ---------- */
+  header { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 28px; }
+  header h1 { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; }
+  header .sub { color: hsl(var(--muted-foreground)); font-size: 13px; }
+  .statchips { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+  .statchip {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 550;
+    border: 1px solid hsl(var(--border-strong));
+    background: hsl(var(--card));
+    cursor: pointer; user-select: none;
+    transition: border-color var(--dur), background var(--dur), color var(--dur), opacity var(--dur);
+    color: hsl(var(--foreground));
+    font-family: inherit;
+  }
+  .statchip:hover { border-color: hsl(var(--faint)); }
+  .statchip .dot { width: 8px; height: 8px; border-radius: 999px; }
+  .statchip.active { border-color: hsl(var(--primary)); background: hsl(var(--primary) / .12); color: hsl(var(--primary)); }
+  .statchip.active .dot { box-shadow: 0 0 0 3px hsl(var(--primary) / .18); }
+
+  /* ---------- status filter (multi-select, JS-driven) ---------- */
+  .hidden-by-filter { display: none !important; }
+  .col { transition: opacity var(--dur); }
+  .col.dim { opacity: .22; }
+
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 999px; flex: none; }
+  .dot-run  { background: hsl(var(--primary)); box-shadow: 0 0 0 4px hsl(var(--primary) / .15); animation: pulse 1.6s ease-in-out infinite; }
+  .dot-attn { background: hsl(var(--warning)); box-shadow: 0 0 0 4px hsl(var(--warning) / .15); }
+  .dot-idle { background: hsl(var(--idle)); }
+  .dot-review { background: hsl(var(--review)); }
+  @keyframes pulse { 50% { opacity: .45; } }
+
+  section { margin-bottom: 36px; }
+  .section-title {
+    display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px;
+  }
+  .section-title h2 { font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: .08em; color: hsl(var(--muted-foreground)); }
+  .section-title .count { font-size: 12px; color: hsl(var(--faint)); }
+
+  /* ---------- session cards ---------- */
+  .sessions { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 12px; }
+  .scard {
+    position: relative; display: block;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius-card);
+    padding: 14px 16px 13px 20px;
+    overflow: hidden;
+    transition: border-color var(--dur), transform var(--dur), box-shadow var(--dur);
+  }
+  .scard:hover { border-color: hsl(var(--border-strong)); transform: translateY(-1px); box-shadow: 0 8px 24px hsl(216 10% 3% / .5); }
+  .scard::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--proj); }
+  .scard .row1 { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .proj-name { font-size: 12px; font-weight: 650; color: var(--proj); }
+  .wt-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11px; padding: 2px 8px; border-radius: 999px;
+    background: hsl(var(--card-2)); border: 1px solid hsl(var(--border));
+    color: hsl(var(--muted-foreground));
+  }
+  .wt-chip svg { width: 10px; height: 10px; }
+  .provider {
+    margin-left: auto; font-size: 10.5px; font-weight: 650; letter-spacing: .04em;
+    padding: 2.5px 8px; border-radius: 5px; text-transform: uppercase;
+    background: hsl(var(--card-2)); border: 1px solid hsl(var(--border)); color: hsl(var(--muted-foreground));
+  }
+  .scard h3 { font-size: 14.5px; font-weight: 600; margin-bottom: 8px; letter-spacing: -0.005em; }
+  .status-line { display: flex; align-items: center; gap: 8px; font-size: 12.5px; margin-bottom: 10px; }
+  .status-line.run  { color: hsl(var(--primary)); }
+  .status-line.attn { color: hsl(var(--warning)); }
+  .status-line.idle { color: hsl(var(--muted-foreground)); }
+  .task-chip {
+    display: flex; align-items: center; gap: 7px;
+    margin-bottom: 10px; padding: 6px 9px;
+    font-size: 12px; font-weight: 550;
+    background: hsl(var(--review) / .1);
+    border: 1px solid hsl(var(--review) / .35);
+    border-radius: var(--radius-ctl);
+    color: hsl(var(--foreground));
+  }
+  .task-chip:hover { border-color: hsl(var(--review)); background: hsl(var(--review) / .16); }
+  .task-chip .k { font-size: 9.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: hsl(var(--review)); background: hsl(var(--review) / .18); padding: 1.5px 6px; border-radius: 4px; flex: none; }
+  .task-chip .tid { color: hsl(var(--faint)); font-size: 11px; flex: none; }
+  .task-chip .st { margin-left: auto; font-size: 10.5px; font-weight: 650; color: hsl(var(--review)); flex: none; }
+  .task-chip.tc-progress { background: hsl(var(--primary) / .08); border-color: hsl(var(--primary) / .3); }
+  .task-chip.tc-progress:hover { border-color: hsl(var(--primary)); background: hsl(var(--primary) / .14); }
+  .task-chip.tc-progress .k { color: hsl(var(--primary)); background: hsl(var(--primary) / .15); }
+  .task-chip.tc-progress .st { color: hsl(var(--primary)); }
+  .progress { display: grid; gap: 4px; font-size: 12.5px; color: hsl(var(--muted-foreground)); margin-bottom: 10px; }
+  .progress .done::before { content: "✓ "; color: hsl(var(--success)); font-weight: 700; }
+  .progress .todo::before { content: "○ "; color: hsl(var(--faint)); }
+  .scard .meta { display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: hsl(var(--faint)); }
+  .scard .meta .open { opacity: 0; transition: opacity var(--dur); color: var(--proj); font-weight: 550; }
+  .scard:hover .meta .open { opacity: 1; }
+
+  /* ---------- task list (modo task) ---------- */
+  .tasklist { display: grid; gap: 6px; }
+  .trow {
+    display: flex; align-items: center; gap: 10px;
+    background: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 13px;
+    transition: border-color var(--dur), background var(--dur);
+  }
+  .trow:hover { border-color: hsl(var(--border-strong)); background: hsl(var(--card-2)); }
+  .trow .pdot { width: 9px; height: 9px; border-radius: 3px; background: var(--proj); flex: none; }
+  .trow .proj { font-size: 11.5px; font-weight: 650; color: var(--proj); width: 104px; flex: none; }
+  .trow .tid { font-size: 11px; color: hsl(var(--faint)); width: 28px; flex: none; }
+  .trow .title { font-weight: 550; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trow .sess {
+    display: inline-flex; align-items: center; gap: 5px;
+    margin-left: auto; flex: none;
+    font-size: 11px; color: hsl(var(--muted-foreground));
+    padding: 2px 8px; border-radius: 999px;
+    background: hsl(var(--card-2)); border: 1px solid hsl(var(--border));
+  }
+  .trow .sess:hover { color: hsl(var(--foreground)); border-color: hsl(var(--border-strong)); }
+  .trow .sess .dot { width: 6px; height: 6px; }
+  .trow .st-badge {
+    flex: none; margin-left: 10px; width: 92px; text-align: center;
+    font-size: 10.5px; font-weight: 650; text-transform: uppercase; letter-spacing: .05em;
+    padding: 2.5px 0; border-radius: 999px;
+    background: hsl(var(--st) / .14); color: hsl(var(--st));
+  }
+  .trow:not(.has-sess) .sess { display: none; }
+  .trow[data-st="pending"]  { --st: 215 14% 55%; }
+  .trow[data-st="progress"] { --st: 217.2 91.2% 59.8%; }
+  .trow[data-st="review"]   { --st: 262 83% 66%; }
+  .trow[data-st="done"]     { --st: 142.1 70% 45%; }
+
+  /* ---------- boards ---------- */
+  .board-project { margin-bottom: 22px; background: hsl(var(--card) / .5); border: 1px solid hsl(var(--border)); border-radius: var(--radius-card); padding: 14px 16px 16px; }
+  .board-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .board-head .pdot { width: 10px; height: 10px; border-radius: 3px; background: var(--proj); }
+  .board-head h3 { font-size: 14px; font-weight: 650; }
+  .board-head .totals { font-size: 12px; color: hsl(var(--faint)); }
+  .board-head .goto { margin-left: auto; font-size: 12px; color: var(--proj); font-weight: 550; }
+  .board-head .goto:hover { text-decoration: underline; }
+  .columns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  @media (max-width: 900px) { .columns { grid-template-columns: repeat(2, 1fr); } .sessions { grid-template-columns: 1fr; } }
+  .col { background: hsl(var(--background) / .55); border: 1px solid hsl(var(--border)); border-radius: 8px; padding: 8px; min-height: 60px; }
+  .col-head { display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .07em; padding: 2px 4px 8px; }
+  .col-head .n { margin-left: auto; font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: hsl(var(--card-2)); color: hsl(var(--muted-foreground)); }
+  .col.pending  { --col: 215 14% 55%; }
+  .col.progress-c { --col: 217.2 91.2% 59.8%; }
+  .col.review   { --col: 262 83% 66%; }
+  .col.done     { --col: 142.1 70% 45%; }
+  .col-head { color: hsl(var(--col)); }
+  .ticket {
+    display: block; background: hsl(var(--card)); border: 1px solid hsl(var(--border));
+    border-left: 3px solid hsl(var(--col)); border-radius: 6px;
+    padding: 8px 10px; margin-bottom: 6px; font-size: 12.5px; font-weight: 500;
+    transition: border-color var(--dur), background var(--dur);
+  }
+  .ticket:hover { border-color: hsl(var(--col)); background: hsl(var(--card-2)); }
+  .ticket .tid { font-size: 10.5px; color: hsl(var(--faint)); margin-right: 6px; }
+  .ticket .badge { display: inline-block; margin-top: 5px; font-size: 10px; font-weight: 650; padding: 1px 7px; border-radius: 999px; background: hsl(var(--col) / .15); color: hsl(var(--col)); }
+  .empty { font-size: 11.5px; color: hsl(var(--faint)); text-align: center; padding: 12px 0 6px; }
+
+  footer { font-size: 11.5px; color: hsl(var(--faint)); border-top: 1px solid hsl(var(--border)); padding-top: 14px; }
+  footer .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 6px; }
+  footer .legend span { display: inline-flex; align-items: center; gap: 6px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Overview</h1>
+    <div class="sub">rfc-code · atualizado agora (poll 5s)</div>
+  </div>
+  <div class="statchips" id="filters">
+    <button class="statchip active" data-f="all">Tudo</button>
+    <button class="statchip" data-f="run"><span class="dot dot-run" style="animation:none"></span> 2 rodando</button>
+    <button class="statchip" data-f="attn"><span class="dot dot-attn"></span> 2 precisam de você</button>
+    <button class="statchip" data-f="review"><span class="dot dot-review"></span> 3 em review</button>
+    <button class="statchip" data-f="done"><span class="dot" style="background:hsl(var(--success))"></span> 1 concluída</button>
+  </div>
+</header>
+
+<!-- ══════════ SESSÕES ATIVAS ══════════ -->
+<section>
+  <div class="section-title"><h2>Sessões</h2><span class="count">5 nas últimas 24h · clique abre o chat</span></div>
+  <div class="sessions">
+
+    <a class="scard" data-status="run" href="#/session/a1" style="--proj: hsl(217 91% 66%)">
+      <div class="row1">
+        <span class="proj-name">rfc-code</span>
+        <span class="wt-chip"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 3v7c0 2 1 3 3 3h2M4 3a1.5 1.5 0 100-.01M12 13a1.5 1.5 0 100-.01M12 5a1.5 1.5 0 100-.01M12 6.5v5"/></svg>wt/tlc-spec-driven-plan-ceo-review</span>
+        <span class="provider">claude</span>
+      </div>
+      <h3>Dashboard de atividade — mockup</h3>
+      <div class="status-line run"><span class="dot dot-run"></span>Rodando · gerando mockup HTML</div>
+      <div class="progress">
+        <div class="done">Explorou data model (sessions, board, tokens)</div>
+        <div class="todo">Renderizar screenshot e apresentar pra aprovação</div>
+      </div>
+      <div class="meta"><span>há 1 min</span><span class="open">Abrir chat →</span></div>
+    </a>
+
+    <a class="scard" data-status="attn" data-review href="#/session/b2" style="--proj: hsl(217 91% 66%)">
+      <div class="row1">
+        <span class="proj-name">rfc-code</span>
+        <span class="wt-chip"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 3v7c0 2 1 3 3 3h2M4 3a1.5 1.5 0 100-.01M12 13a1.5 1.5 0 100-.01M12 5a1.5 1.5 0 100-.01M12 6.5v5"/></svg>wt/review-cockpit-phase-2</span>
+        <span class="provider">claude</span>
+      </div>
+      <h3>Review cockpit — fase 2 (decision inbox)</h3>
+      <div class="status-line attn"><span class="dot dot-attn"></span>Precisa de você · aguardando aprovação do plano</div>
+      <span class="task-chip" onclick="event.preventDefault()"><span class="k">Task</span><span class="tid">#8</span>Review cockpit drawer<span class="st">review</span></span>
+      <div class="progress">
+        <div class="done">Plano escrito, eng review concluído</div>
+        <div class="todo">Aprovar plano pra iniciar implementação</div>
+      </div>
+      <div class="meta"><span>há 25 min</span><span class="open">Abrir chat →</span></div>
+    </a>
+
+    <a class="scard" data-status="run" href="#/session/c3" style="--proj: hsl(150 65% 52%)">
+      <div class="row1">
+        <span class="proj-name">sportsdata-app</span>
+        <span class="provider">codex</span>
+      </div>
+      <h3>Add league: NCAA Volleyball (Pinnacle)</h3>
+      <div class="status-line run"><span class="dot dot-run"></span>Rodando · escrevendo grader do sport</div>
+      <span class="task-chip tc-progress" onclick="event.preventDefault()"><span class="k">Task</span><span class="tid">#3</span>NCAA Volleyball — grader<span class="st">in progress</span></span>
+      <div class="progress">
+        <div class="done">configs/volleyball.py + fixtures/leagues.json</div>
+        <div class="todo">Grader + testes de mapping</div>
+      </div>
+      <div class="meta"><span>há 4 min</span><span class="open">Abrir chat →</span></div>
+    </a>
+
+    <a class="scard" data-status="attn" href="#/session/d4" style="--proj: hsl(28 90% 60%)">
+      <div class="row1">
+        <span class="proj-name">mcp-manager</span>
+        <span class="provider">claude</span>
+      </div>
+      <h3>Timeout do gateway atrás do exit node</h3>
+      <div class="status-line attn"><span class="dot dot-attn"></span>Precisa de você · pediu permissão (systemctl restart)</div>
+      <div class="progress">
+        <div class="done">Causa raiz: return path do Docker via exit node</div>
+        <div class="todo">Aplicar fix e validar /mcp health</div>
+      </div>
+      <div class="meta"><span>há 42 min</span><span class="open">Abrir chat →</span></div>
+    </a>
+
+    <a class="scard" data-status="idle" href="#/session/e5" style="--proj: hsl(280 70% 68%)">
+      <div class="row1">
+        <span class="proj-name">oddsjam-etl</span>
+        <span class="provider">opencode</span>
+      </div>
+      <h3>Backfill de odds históricas — DOD-5700</h3>
+      <div class="status-line idle"><span class="dot dot-idle"></span>Idle · terminou o backfill</div>
+      <div class="progress">
+        <div class="done">3.2M linhas migradas, testes verdes</div>
+      </div>
+      <div class="meta"><span>há 2 h</span><span class="open">Abrir chat →</span></div>
+    </a>
+
+  </div>
+</section>
+
+<!-- ══════════ TASKS ══════════ -->
+<section>
+  <div class="section-title"><h2>Tasks</h2><span class="count">8 ativas em 2 projetos · clique abre a task no board</span></div>
+  <div class="tasklist">
+
+    <a class="trow has-sess" data-st="progress" href="#/project/sportsdata-app?tab=tasks&task=3" style="--proj: hsl(150 65% 52%)">
+      <span class="pdot"></span><span class="proj">sportsdata-app</span><span class="tid">#3</span>
+      <span class="title">NCAA Volleyball — grader</span>
+      <span class="sess"><span class="dot dot-run"></span>sessão rodando</span>
+      <span class="st-badge">in progress</span>
+    </a>
+    <a class="trow" data-st="progress" href="#/project/rfc-code?tab=tasks&task=10" style="--proj: hsl(217 91% 66%)">
+      <span class="pdot"></span><span class="proj">rfc-code</span><span class="tid">#10</span>
+      <span class="title">UAT runner — log tail do preview</span>
+      <span class="st-badge">in progress</span>
+    </a>
+    <a class="trow has-sess" data-st="review" href="#/project/rfc-code?tab=tasks&task=8" style="--proj: hsl(217 91% 66%)">
+      <span class="pdot"></span><span class="proj">rfc-code</span><span class="tid">#8</span>
+      <span class="title">Review cockpit drawer — aguardando UAT</span>
+      <span class="sess"><span class="dot dot-attn"></span>precisa de você</span>
+      <span class="st-badge">review</span>
+    </a>
+    <a class="trow" data-st="review" href="#/project/rfc-code?tab=tasks&task=9" style="--proj: hsl(217 91% 66%)">
+      <span class="pdot"></span><span class="proj">rfc-code</span><span class="tid">#9</span>
+      <span class="title">Preview com URL da tailnet</span>
+      <span class="st-badge">review</span>
+    </a>
+    <a class="trow" data-st="review" href="#/project/sportsdata-app?tab=tasks&task=2" style="--proj: hsl(150 65% 52%)">
+      <span class="pdot"></span><span class="proj">sportsdata-app</span><span class="tid">#2</span>
+      <span class="title">Sync de ligas Pinnacle</span>
+      <span class="st-badge">review</span>
+    </a>
+    <a class="trow" data-st="pending" href="#/project/rfc-code?tab=tasks&task=12" style="--proj: hsl(217 91% 66%)">
+      <span class="pdot"></span><span class="proj">rfc-code</span><span class="tid">#12</span>
+      <span class="title">Decision inbox cross-project</span>
+      <span class="st-badge">pending</span>
+    </a>
+    <a class="trow" data-st="pending" href="#/project/rfc-code?tab=tasks&task=13" style="--proj: hsl(217 91% 66%)">
+      <span class="pdot"></span><span class="proj">rfc-code</span><span class="tid">#13</span>
+      <span class="title">Deep links /project/:id e ?tab=</span>
+      <span class="st-badge">pending</span>
+    </a>
+    <a class="trow" data-st="pending" href="#/project/sportsdata-app?tab=tasks&task=4" style="--proj: hsl(150 65% 52%)">
+      <span class="pdot"></span><span class="proj">sportsdata-app</span><span class="tid">#4</span>
+      <span class="title">Mapear ligas Sofascore pendentes</span>
+      <span class="st-badge">pending</span>
+    </a>
+    <a class="trow" data-st="done" href="#/project/rfc-code?tab=tasks&task=7" style="--proj: hsl(217 91% 66%)">
+      <span class="pdot"></span><span class="proj">rfc-code</span><span class="tid">#7</span>
+      <span class="title">Coluna review no kanban</span>
+      <span class="st-badge">done</span>
+    </a>
+    <a class="trow" data-st="done" href="#/project/rfc-code?tab=tasks&task=6" style="--proj: hsl(217 91% 66%)">
+      <span class="pdot"></span><span class="proj">rfc-code</span><span class="tid">#6</span>
+      <span class="title">Registro de runs interrompidos</span>
+      <span class="st-badge">done</span>
+    </a>
+    <a class="trow" data-st="done" href="#/project/sportsdata-app?tab=tasks&task=1" style="--proj: hsl(150 65% 52%)">
+      <span class="pdot"></span><span class="proj">sportsdata-app</span><span class="tid">#1</span>
+      <span class="title">Fixture loader v2</span>
+      <span class="st-badge">done</span>
+    </a>
+
+  </div>
+</section>
+
+<!-- ══════════ BOARDS ══════════ -->
+<section>
+  <div class="section-title"><h2>Boards</h2><span class="count">2 projetos com board · clique no ticket abre o board na task</span></div>
+
+  <div class="board-project" style="--proj: hsl(217 91% 66%)">
+    <div class="board-head">
+      <span class="pdot"></span><h3>rfc-code</h3>
+      <span class="totals">9 tasks · 2 em review</span>
+      <a class="goto" href="#/project/rfc-code?tab=tasks">Abrir board →</a>
+    </div>
+    <div class="columns">
+      <div class="col pending">
+        <div class="col-head">Pending <span class="n">2</span></div>
+        <a class="ticket" href="#t12"><span class="tid">#12</span>Decision inbox cross-project</a>
+        <a class="ticket" href="#t13"><span class="tid">#13</span>Deep links /project/:id e ?tab=</a>
+      </div>
+      <div class="col progress-c">
+        <div class="col-head">In progress <span class="n">1</span></div>
+        <a class="ticket" href="#t10"><span class="tid">#10</span>UAT runner — log tail do preview</a>
+      </div>
+      <div class="col review">
+        <div class="col-head">Review <span class="n">2</span></div>
+        <a class="ticket" href="#t8"><span class="tid">#8</span>Review cockpit drawer<span style="display:block"><span class="badge">aguardando UAT</span></span></a>
+        <a class="ticket" href="#t9"><span class="tid">#9</span>Preview com URL da tailnet</a>
+      </div>
+      <div class="col done">
+        <div class="col-head">Done <span class="n">4</span></div>
+        <a class="ticket" href="#t7"><span class="tid">#7</span>Coluna review no kanban</a>
+        <a class="ticket" href="#t6"><span class="tid">#6</span>Registro de runs interrompidos</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="board-project" style="--proj: hsl(150 65% 52%)">
+    <div class="board-head">
+      <span class="pdot"></span><h3>sportsdata-app</h3>
+      <span class="totals">5 tasks · 1 em review</span>
+      <a class="goto" href="#/project/sportsdata-app?tab=tasks">Abrir board →</a>
+    </div>
+    <div class="columns">
+      <div class="col pending">
+        <div class="col-head">Pending <span class="n">1</span></div>
+        <a class="ticket" href="#s4"><span class="tid">#4</span>Mapear ligas Sofascore pendentes</a>
+      </div>
+      <div class="col progress-c">
+        <div class="col-head">In progress <span class="n">1</span></div>
+        <a class="ticket" href="#s3"><span class="tid">#3</span>NCAA Volleyball — grader</a>
+      </div>
+      <div class="col review">
+        <div class="col-head">Review <span class="n">1</span></div>
+        <a class="ticket" href="#s2"><span class="tid">#2</span>Sync de ligas Pinnacle</a>
+      </div>
+      <div class="col done">
+        <div class="col-head">Done <span class="n">2</span></div>
+        <a class="ticket" href="#s1"><span class="tid">#1</span>Fixture loader v2</a>
+        <a class="ticket" href="#s0"><span class="tid">#0</span>Configs de esporte base</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Mockup v1 — dados de exemplo. Cores: cada projeto tem um accent fixo (stripe do card, dot do board).
+  <div class="legend">
+    <span><span class="dot dot-run" style="animation:none"></span> rodando</span>
+    <span><span class="dot dot-attn"></span> precisa de você</span>
+    <span><span class="dot dot-idle"></span> idle</span>
+    <span><span class="dot dot-review"></span> review</span>
+    <span style="margin-left:auto">rota proposta: <span class="mono">/overview</span></span>
+  </div>
+</footer>
+
+<script>
+  const chips = [...document.querySelectorAll('#filters .statchip')];
+  const FILTERS = ['run', 'attn', 'review', 'done'];
+  let active = new Set(); // vazio = Tudo
+
+  // o que cada filtro aceita, por tipo de elemento
+  const cardMatch = { run: el => el.dataset.status === 'run',
+                      attn: el => el.dataset.status === 'attn',
+                      review: el => el.hasAttribute('data-review'),
+                      done: el => el.dataset.status === 'idle' };
+  const rowMatch  = { run: 'progress', attn: 'review', review: 'review', done: 'done' };
+  const colMatch  = { run: 'progress-c', attn: 'review', review: 'review', done: 'done' };
+
+  function apply() {
+    const all = active.size === 0;
+    chips.forEach(c => c.classList.toggle('active', all ? c.dataset.f === 'all' : active.has(c.dataset.f)));
+    document.querySelectorAll('.scard').forEach(el => {
+      const show = all || [...active].some(f => cardMatch[f](el));
+      el.classList.toggle('hidden-by-filter', !show);
+    });
+    document.querySelectorAll('.trow').forEach(el => {
+      const st = el.dataset.st;
+      const show = all ? st !== 'done' : [...active].some(f => rowMatch[f] === st);
+      el.classList.toggle('hidden-by-filter', !show);
+    });
+    document.querySelectorAll('.col').forEach(el => {
+      const lit = all || [...active].some(f => el.classList.contains(colMatch[f]));
+      el.classList.toggle('dim', !lit);
+    });
+    const url = new URL(location);
+    if (all) url.searchParams.delete('f'); else url.searchParams.set('f', [...active].join(','));
+    history.replaceState(null, '', url);
+  }
+
+  chips.forEach(c => c.addEventListener('click', () => {
+    const f = c.dataset.f;
+    if (f === 'all') active.clear();                       // Tudo limpa os demais
+    else if (active.has(f)) active.delete(f);              // toggle off (vazio volta pra Tudo)
+    else active.add(f);                                    // multi-seleção
+    apply();
+  }));
+
+  const initial = (new URLSearchParams(location.search).get('f') || '')
+    .split(',').filter(f => FILTERS.includes(f));
+  active = new Set(initial);
+  apply();
+</script>
+</body>
+</html>

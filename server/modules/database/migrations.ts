@@ -476,6 +476,18 @@ const addWorktreeColumnsToSessions = (db: Database): void => {
 };
 
 /**
+ * Adds the nullable `task_id` link from a session to a TaskMaster task.
+ *
+ * NULL means the session has no linked task, which is exactly the
+ * pre-feature state for every existing row.
+ */
+const addTaskIdToSessions = (db: Database): void => {
+  const columnNames = getTableInfo(db, 'sessions').map((column) => column.name);
+
+  addColumnToTableIfNotExists(db, 'sessions', columnNames, 'task_id', 'TEXT');
+};
+
+/**
  * Adds the per-profile agent tooling defaults.
  *
  * Both stay NULL for profiles that predate the feature, which resolves to off
@@ -785,6 +797,7 @@ export const runMigrations = (db: Database) => {
     db.exec('CREATE INDEX IF NOT EXISTS idx_collaboration_turns_collab ON collaboration_turns(collaboration_id)');
 
     addWorktreeColumnsToSessions(db);
+    addTaskIdToSessions(db);
 
     db.exec(SESSION_LEGS_TABLE_SCHEMA_SQL);
     db.exec('CREATE INDEX IF NOT EXISTS idx_session_legs_session ON session_legs(session_id, seq)');

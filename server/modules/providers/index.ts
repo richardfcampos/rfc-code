@@ -1,6 +1,6 @@
 export { providerModelsService } from './services/provider-models.service.js';
 export { sessionSynchronizerService } from './services/session-synchronizer.service.js';
-export { sessionsService } from './services/sessions.service.js';
+export { sessionsService, configureRunningSessionsAttention } from './services/sessions.service.js';
 export { providerSkillsService } from './services/skills.service.js';
 export { providerMcpService } from './services/mcp.service.js';
 
