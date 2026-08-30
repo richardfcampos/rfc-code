@@ -58,6 +58,12 @@ export interface ProjectSessionMeta {
   [key: string]: unknown;
 }
 
+export interface ProjectCodegraphInfo {
+  hasCodegraph?: boolean;
+  indexing?: boolean;
+  [key: string]: unknown;
+}
+
 export interface ProjectTaskmasterInfo {
   hasTaskmaster?: boolean;
   status?: string;
@@ -78,6 +84,7 @@ export interface Project {
   sessions?: ProjectSession[];
   sessionMeta?: ProjectSessionMeta;
   taskmaster?: ProjectTaskmasterInfo;
+  codegraph?: ProjectCodegraphInfo;
   [key: string]: unknown;
 }
 

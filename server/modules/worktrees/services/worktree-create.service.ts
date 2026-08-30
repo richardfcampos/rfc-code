@@ -43,6 +43,10 @@ export async function createWorktree(
   dependencies: {
     runGit: GitCommandRunner;
     fileSystem: WorktreeFileSystem;
+    // Fire-and-forget: called after the worktree exists so sessions opened
+    // there inherit the repository's CodeGraph index. Never awaited — index
+    // failures must not fail worktree creation.
+    armCodegraphIndex?: (repositoryRoot: string, worktreePath: string) => void;
   },
 ): Promise<CreateWorktreeResult> {
   const { fileSystem, runGit } = dependencies;
@@ -99,6 +103,8 @@ export async function createWorktree(
       repositoryRoot,
     );
   }
+
+  dependencies.armCodegraphIndex?.(repositoryRoot, worktreePath);
 
   return { worktreePath, branch, createdBranch: !branchExists };
 }

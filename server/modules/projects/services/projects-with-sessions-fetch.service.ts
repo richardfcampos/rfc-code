@@ -6,6 +6,7 @@ import { sessionSynchronizerService } from '@/modules/providers/index.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
 import type { RealtimeClientConnection } from '@/shared/types.js';
 import { AppError } from '@/shared/utils.js';
+import { detectCodegraphIndex } from '@/modules/projects/services/project-codegraph.service.js';
 
 type SessionSummary = {
   id: string;
@@ -40,6 +41,9 @@ export type ProjectListItem = {
   displayName: string;
   fullPath: string;
   isStarred: boolean;
+  codegraph: {
+    hasCodegraph: boolean;
+  };
   sessions: SessionSummary[];
   sessionMeta: {
     hasMore: boolean;
@@ -237,6 +241,9 @@ export async function getProjectsWithSessions(
       displayName,
       fullPath: projectPath,
       isStarred: Boolean(row.isStarred),
+      codegraph: {
+        hasCodegraph: await detectCodegraphIndex(projectPath),
+      },
       sessions: sessionsPage.sessions,
       sessionMeta: {
         hasMore: sessionsPage.hasMore,
@@ -290,6 +297,9 @@ export async function getArchivedProjectsWithSessions(
       fullPath: row.project_path,
       isStarred: Boolean(row.isStarred),
       isArchived: true,
+      codegraph: {
+        hasCodegraph: await detectCodegraphIndex(row.project_path),
+      },
       sessions: sessionsPage.sessions,
       sessionMeta: {
         hasMore: sessionsPage.hasMore,

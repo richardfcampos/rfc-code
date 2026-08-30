@@ -5,6 +5,7 @@ import {
   createProject,
   deleteOrArchiveProject,
   restoreArchivedProject,
+  startWorktreeCodegraphIndex,
 } from '@/modules/projects/index.js';
 import type {
   WorktreeFileSystem,
@@ -61,6 +62,9 @@ const remove: WorktreeServices['remove'] = (input) => removeWorktree(input, {
 const create: WorktreeServices['create'] = (input) => createWorktree(input, {
   runGit: runGitCommand,
   fileSystem: worktreeFileSystem,
+  armCodegraphIndex: (repositoryRoot, worktreePath) => {
+    void startWorktreeCodegraphIndex(repositoryRoot, worktreePath);
+  },
 });
 
 const open: WorktreeServices['open'] = (input) => openWorktreeAsProject(input, {

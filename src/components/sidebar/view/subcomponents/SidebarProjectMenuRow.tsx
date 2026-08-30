@@ -6,6 +6,7 @@ import type { Project } from '../../../../types/app';
 import type { MCPServerStatus } from '../../types/types';
 import { getTaskIndicatorStatus } from '../../utils/utils';
 
+import CodegraphIndicator from './CodegraphIndicator';
 import TaskIndicator from './TaskIndicator';
 
 type SidebarProjectMenuRowProps = {
@@ -121,6 +122,7 @@ export default function SidebarProjectMenuRow({
           {tasksEnabled && (
             <TaskIndicator status={getTaskIndicatorStatus(project, mcpServerStatus)} size="xs" className="flex-shrink-0" />
           )}
+          <CodegraphIndicator project={project} className="flex-shrink-0" />
           <span className="flex-shrink-0 font-mono text-[10px] tracking-wide text-faint">{sessionCount}</span>
         </span>
         <span className="w-full truncate font-mono text-[10px] tracking-wide text-muted-foreground" title={project.fullPath}>
