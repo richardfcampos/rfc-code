@@ -280,6 +280,43 @@ CREATE TABLE IF NOT EXISTS active_session_runs (
 );
 `;
 
+export const PREVIEW_CONFIGS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS preview_configs (
+    -- One preview recipe per project: how to boot this project's app for UAT.
+    project_path TEXT PRIMARY KEY,
+    -- Shell command; $PORT and $HOST placeholders are substituted at spawn
+    -- time and the same values are exported as PORT/HOST env vars.
+    command TEXT NOT NULL,
+    -- Optional one-time bootstrap (e.g. "npm install") run before first boot
+    -- when the working directory has no node_modules yet — fresh worktrees
+    -- can't start most apps without it.
+    setup_command TEXT,
+    -- Explicit bind address. NULL = auto-resolve the tailnet IP at spawn time
+    -- (never 0.0.0.0: the host has a public interface).
+    bind_host TEXT,
+    -- Fixed port. NULL = allocate a free one per boot.
+    port INTEGER,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
+export const ACTIVE_PREVIEWS_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS active_previews (
+    -- One row per running preview process, keyed by the directory it runs in
+    -- (project root or a task's worktree). Exists so a server restart can
+    -- find and kill processes the previous instance left behind — in-memory
+    -- tracking dies with the process.
+    cwd TEXT PRIMARY KEY,
+    project_path TEXT NOT NULL,
+    pid INTEGER NOT NULL,
+    port INTEGER NOT NULL,
+    -- Copy of the spawned shell command; the boot sweep refuses to kill a
+    -- recycled PID whose /proc cmdline no longer matches it.
+    command TEXT NOT NULL,
+    started_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
 export const LAST_SCANNED_AT_SQL = `
 CREATE TABLE IF NOT EXISTS scan_state (
   id INTEGER PRIMARY KEY CHECK (id = 1),

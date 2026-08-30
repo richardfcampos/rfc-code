@@ -18,6 +18,7 @@ import spawn from 'cross-spawn';
 import { projectsDb } from '../modules/database/index.js';
 import { detectTaskMasterMCPServer } from '../utils/mcp-detector.js';
 import { broadcastTaskMasterProjectUpdate, broadcastTaskMasterTasksUpdate } from '../utils/taskmaster-websocket.js';
+import { ensureTaskMasterTasksWatcher } from '../utils/taskmaster-file-watcher.js';
 
 /**
  * Resolve the absolute project directory from a DB-assigned `projectId`.
@@ -170,6 +171,10 @@ router.get('/tasks/:projectId', async (req, res) => {
 
         const taskMasterPath = path.join(projectPath, '.taskmaster');
         const tasksFilePath = path.join(taskMasterPath, 'tasks', 'tasks.json');
+
+        // Someone is looking at this board: keep it live for edits made
+        // outside the app (task-master CLI, agents, editors).
+        ensureTaskMasterTasksWatcher(req.app.locals.wss, projectId, projectPath);
 
         // Check if tasks file exists
         try {
@@ -680,7 +685,7 @@ router.post('/add-task/:projectId', async (req, res) => {
 router.put('/update-task/:projectId/:taskId', async (req, res) => {
     try {
         const { projectId, taskId } = req.params;
-        const { title, description, status, priority, details } = req.body;
+        const { title, description, status, priority, details, prompt: rawPrompt } = req.body;
 
         const projectPath = await resolveProjectPathFromId(projectId);
         if (!projectPath) {
@@ -741,8 +746,23 @@ router.put('/update-task/:projectId/:taskId', async (req, res) => {
             if (description) updates.push(`description: "${description}"`);
             if (priority) updates.push(`priority: "${priority}"`);
             if (details) updates.push(`details: "${details}"`);
-            
-            const prompt = `Update task with the following changes: ${updates.join(', ')}`;
+
+            // A caller-provided prompt (e.g. review feedback from the cockpit)
+            // is passed through verbatim; field updates are appended after it.
+            const promptParts = [];
+            if (typeof rawPrompt === 'string' && rawPrompt.trim()) {
+                promptParts.push(rawPrompt.trim());
+            }
+            if (updates.length > 0) {
+                promptParts.push(`Update task with the following changes: ${updates.join(', ')}`);
+            }
+            if (promptParts.length === 0) {
+                return res.status(400).json({
+                    error: 'Nothing to update',
+                    message: 'Provide a prompt or at least one field to update'
+                });
+            }
+            const prompt = promptParts.join('\n\n');
 
             const updateProcess = spawn('npx', ['task-master-ai', 'update-task', `--id=${taskId}`, `--prompt=${prompt}`], {
                 cwd: projectPath,

@@ -13,6 +13,8 @@ import {
   Save,
   X,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+
 import { cn } from '../../../lib/utils';
 import { copyTextToClipboard } from '../../../utils/clipboard';
 import { api } from '../../../utils/api';
@@ -30,12 +32,12 @@ type TaskDetailModalProps = {
 };
 
 const STATUS_OPTIONS = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'in-progress', label: 'In Progress' },
-  { value: 'review', label: 'Review' },
-  { value: 'done', label: 'Done' },
-  { value: 'deferred', label: 'Deferred' },
-  { value: 'cancelled', label: 'Cancelled' },
+  { value: 'pending', labelKey: 'kanban.pending' },
+  { value: 'in-progress', labelKey: 'kanban.inProgress' },
+  { value: 'review', labelKey: 'kanban.review' },
+  { value: 'done', labelKey: 'kanban.done' },
+  { value: 'deferred', labelKey: 'kanban.deferred' },
+  { value: 'cancelled', labelKey: 'kanban.cancelled' },
 ];
 
 function getStatusIcon(status?: string) {
@@ -64,6 +66,7 @@ export default function TaskDetailModal({
   onTaskClick = null,
 }: TaskDetailModalProps) {
   const { currentProject, refreshTasks } = useTaskMaster();
+  const { t } = useTranslation('tasks');
 
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -230,7 +233,7 @@ export default function TaskDetailModal({
               >
                 {STATUS_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
-                    {option.label}
+                    {t(option.labelKey)}
                   </option>
                 ))}
               </select>

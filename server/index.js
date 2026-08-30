@@ -80,6 +80,9 @@ import { runWorktreeSessionBackfill } from './modules/repo-context/index.js';
 import notificationRoutes from './modules/notifications/notifications.routes.js';
 import userRoutes from './routes/user.js';
 import pluginsRoutes from './routes/plugins.js';
+import previewRoutes from './routes/preview.js';
+import { sweepOrphanPreviews, stopAllPreviews } from './utils/preview-runner.js';
+import { stopAllTaskMasterTasksWatchers } from './utils/taskmaster-file-watcher.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import profilesRoutes from './modules/profiles/profiles.routes.js';
 import { ensureDefaultConfigDirSkills } from './modules/bundled-skills/index.js';
@@ -269,6 +272,9 @@ app.use('/api/user', authenticateToken, userRoutes);
 
 // Plugins API Routes (protected)
 app.use('/api/plugins', authenticateToken, pluginsRoutes);
+
+// UAT Preview API Routes (protected)
+app.use('/api/preview', authenticateToken, previewRoutes);
 
 // Browser MCP bridge API (local token protected)
 app.use('/api/browser-use-mcp', browserUseMcpRoutes);
@@ -1782,6 +1788,13 @@ async function startServer() {
             startEnabledPluginServers().catch(err => {
                 console.error('[Plugins] Error during startup:', err.message);
             });
+
+            // Kill UAT previews a previous server instance left running
+            try {
+                sweepOrphanPreviews();
+            } catch (err) {
+                console.error('[Preview] Error during orphan sweep:', err.message);
+            }
         });
 
         await closeSessionsWatcher();
@@ -1827,6 +1840,16 @@ async function startServer() {
                 await stopAllPlugins();
             } catch (err) {
                 console.error('[Plugins] Error stopping plugins during shutdown:', err?.message || err);
+            }
+            try {
+                stopAllPreviews();
+            } catch (err) {
+                console.error('[Preview] Error stopping previews during shutdown:', err?.message || err);
+            }
+            try {
+                await stopAllTaskMasterTasksWatchers();
+            } catch (err) {
+                console.error('[TaskMaster] Error stopping tasks watchers during shutdown:', err?.message || err);
             }
             try {
                 await removeLocalServerMarker();

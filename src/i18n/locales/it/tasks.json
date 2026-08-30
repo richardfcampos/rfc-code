@@ -101,6 +101,7 @@
   "kanban": {
     "pending": "📋 Da fare",
     "inProgress": "🚀 In corso",
+    "review": "🔍 Revisione",
     "done": "✅ Completate",
     "blocked": "🚫 Bloccate",
     "deferred": "⏳ Rimandate",
@@ -138,5 +139,35 @@
   "noMatchingTasks": {
     "title": "Nessuna attività corrisponde ai filtri",
     "description": "Prova a modificare la ricerca o i criteri di filtro."
+  },
+  "cockpit": {
+    "title": "Revisione",
+    "evidence": "File modificati",
+    "noEvidence": "Nessuna evidenza di esecuzione per questo task — la decisione resta tua.",
+    "openGitTab": "Il diff completo è nella scheda Git.",
+    "approve": "Approva",
+    "approveConfirm": "Spostare questo task su Completate?",
+    "requestChanges": "Richiedi modifiche",
+    "feedbackPlaceholder": "Cosa deve cambiare prima dell'approvazione?",
+    "feedbackSend": "Invia & sposta su In corso",
+    "sending": "Invio…",
+    "uat": "Anteprima UAT",
+    "uatRun": "Avvia app",
+    "uatStop": "Ferma",
+    "uatInstalling": "Installazione dipendenze…",
+    "uatStarting": "Avvio…",
+    "uatReady": "Pronto",
+    "uatFailed": "Anteprima fallita",
+    "uatOpen": "Apri anteprima",
+    "uatCopy": "Copia URL",
+    "uatLogs": "Log",
+    "cfgTitle": "Setup anteprima",
+    "cfgCommand": "Comando di avvio",
+    "cfgCommandHint": "$PORT e $HOST vengono sostituiti ed esportati come variabili d'ambiente.",
+    "cfgSetup": "Comando di setup (primo avvio)",
+    "cfgBindHost": "Bind host (vuoto = IP tailnet automatico)",
+    "cfgPort": "Porta (vuoto = automatica)",
+    "cfgSave": "Salva & avvia",
+    "cancel": "Annulla"
   }
 }

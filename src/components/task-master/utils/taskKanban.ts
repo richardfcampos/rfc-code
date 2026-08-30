@@ -1,4 +1,5 @@
 import type { TFunction } from 'i18next';
+
 import type { TaskKanbanColumn, TaskMasterTask } from '../types';
 
 const KANBAN_COLUMN_CONFIG = [
@@ -15,6 +16,13 @@ const KANBAN_COLUMN_CONFIG = [
     status: 'in-progress',
     color: 'bg-blue-50 dark:bg-blue-900/50 border-blue-200 dark:border-blue-700',
     headerColor: 'bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200',
+  },
+  {
+    id: 'review',
+    titleKey: 'kanban.review',
+    status: 'review',
+    color: 'bg-purple-50 dark:bg-purple-900/50 border-purple-200 dark:border-purple-700',
+    headerColor: 'bg-purple-100 dark:bg-purple-800 text-purple-800 dark:text-purple-200',
   },
   {
     id: 'done',
@@ -46,7 +54,7 @@ const KANBAN_COLUMN_CONFIG = [
   },
 ] as const;
 
-const CORE_WORKFLOW_STATUSES = new Set(['pending', 'in-progress', 'done']);
+const CORE_WORKFLOW_STATUSES = new Set(['pending', 'in-progress', 'review', 'done']);
 
 export function buildKanbanColumns(tasks: TaskMasterTask[], t: TFunction<'tasks'>): TaskKanbanColumn[] {
   const tasksByStatus = tasks.reduce<Record<string, TaskMasterTask[]>>((accumulator, task) => {
