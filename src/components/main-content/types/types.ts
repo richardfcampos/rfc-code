@@ -61,6 +61,8 @@ export type MainContentProps = {
   onProjectSelect: (project: Project) => void;
   /** Silently re-syncs the sidebar project list after worktree projects change. */
   onProjectsRefresh: () => void;
+  /** Task id from a deep-linked URL, opened once on the tasks tab after tasks load. */
+  initialTaskId?: string | null;
 };
 
 export type MainContentHeaderProps = {

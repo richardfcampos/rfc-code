@@ -58,6 +58,7 @@ function MainContent({
   newSessionTrigger,
   onProjectSelect,
   onProjectsRefresh,
+  initialTaskId,
 }: MainContentProps) {
   const { preferences } = useUiPreferences();
   const { showRawParameters, showThinking, sendByCtrlEnter } = preferences;
@@ -229,7 +230,9 @@ function MainContent({
             </div>
           )}
 
-          {shouldShowTasksTab && <TaskMasterPanel isVisible={activeTab === 'tasks'} />}
+          {shouldShowTasksTab && (
+            <TaskMasterPanel isVisible={activeTab === 'tasks'} initialTaskId={initialTaskId} />
+          )}
 
           {activeTab === 'board' && (
             <div className="h-full overflow-hidden">

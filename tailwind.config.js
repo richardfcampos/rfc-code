@@ -59,6 +59,7 @@ export default {
         success: "hsl(var(--success))",
         warning: "hsl(var(--warning))",
         danger: "hsl(var(--danger))",
+        review: "hsl(var(--review))",
         "border-strong": "hsl(var(--border-strong))",
         faint: "hsl(var(--faint))",
         idle: "hsl(var(--idle))",

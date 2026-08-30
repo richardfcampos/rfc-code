@@ -7,6 +7,7 @@ import {
   FileText,
   GitCommit,
   GitMerge,
+  LayoutDashboard,
   ListTodo,
   MessageSquare,
   MessageSquarePlus,
@@ -216,6 +217,10 @@ export default function CommandPalette({
                 <CommandItem value="Open settings" onSelect={() => run(() => onOpenSettings())}>
                   <Settings className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                   <span className="flex-1">Open settings</span>
+                </CommandItem>
+                <CommandItem value="Open overview dashboard" onSelect={() => run(() => navigate('/overview'))}>
+                  <LayoutDashboard className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                  <span className="flex-1">Open overview</span>
                 </CommandItem>
                 <CommandItem value="Toggle theme dark light mode" onSelect={() => run(toggleDarkMode)}>
                   <SunMoon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />

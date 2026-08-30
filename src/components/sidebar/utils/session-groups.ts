@@ -2,6 +2,7 @@ import type { Project } from '../../../types/app';
 import { getPendingPermissionsForSession } from '../../chat/utils/pending-permission-registry';
 import type { SessionWithProvider } from '../types/types';
 
+import { resolveSessionStatus } from './session-status';
 import { getAllSessions, getSessionDate, getSessionWorktreeLabel } from './utils';
 
 /**
@@ -106,9 +107,14 @@ export const groupSessionEntries = (
 
   for (const entry of entries) {
     const sessionId = String(entry.session.id);
-    if (sessionNeedsUser(sessionId, attentionSessionIds)) {
+    const status = resolveSessionStatus({
+      needsAttention: sessionNeedsUser(sessionId, attentionSessionIds),
+      isRunning: activeSessionIds.has(sessionId),
+    });
+
+    if (status === 'attn') {
       needsYou.push(entry);
-    } else if (activeSessionIds.has(sessionId)) {
+    } else if (status === 'run') {
       running.push(entry);
     } else {
       recent.push(entry);

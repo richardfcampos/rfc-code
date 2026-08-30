@@ -53,6 +53,9 @@
     --success: 142.1 76.2% 36.3%;
     --warning: 32.1 94.6% 43.7%;
     --danger: 0 72.2% 50.6%;
+    /* Review is darkened from the dark-theme purple (262 83% 66%) to clear
+       4.5:1 against this light background — same hue as --review in .dark. */
+    --review: 262 83% 42%;
 
     /* Tint/line overlays — consumed directly, not via hsl(var(--x)).
        Shared across both themes; only the hover/scrim washes flip per theme. */
@@ -147,6 +150,10 @@
     --border: 217.5 9.5% 16.5%;
     --input: 217.5 9.5% 16.5%;
     --ring: 217.2 91.2% 59.8%;
+    /* Same reason as --primary above: the light --review value is too dark
+       to read as body text against this background, so dark mode gets its
+       own, brighter value at the same hue. */
+    --review: 262 83% 66%;
 
     /* Extended neutral tiers */
     --border-strong: 216 8.9% 22%;

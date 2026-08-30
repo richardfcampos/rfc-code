@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 
@@ -11,9 +11,10 @@ import { useWebSocket } from '../../contexts/WebSocketContext';
 import { PaletteOpsProvider, usePaletteOpsRegister } from '../../contexts/PaletteOpsContext';
 import { useDeviceSettings } from '../../hooks/useDeviceSettings';
 import { useSessionProtection } from '../../hooks/useSessionProtection';
-import { useProjectsState } from '../../hooks/useProjectsState';
+import { isValidTab, useProjectsState } from '../../hooks/useProjectsState';
 import { useQueuedMessageAutoSend } from '../../hooks/useQueuedMessageAutoSend';
 import { api } from '../../utils/api';
+import type { AppTab } from '../../types/app';
 
 type RunningSessionApiItem = {
   sessionId?: unknown;
@@ -51,7 +52,8 @@ export default function AppContent() {
 
 function AppContentInner() {
   const navigate = useNavigate();
-  const { sessionId } = useParams<{ sessionId?: string }>();
+  const { sessionId, projectId } = useParams<{ sessionId?: string; projectId?: string }>();
+  const [searchParams] = useSearchParams();
   const { t } = useTranslation('common');
   const { isMobile } = useDeviceSettings({ trackPWA: false });
   const { ws, sendMessage, subscribe } = useWebSocket();
@@ -82,11 +84,25 @@ function AppContentInner() {
     handleNewSession,
   } = useProjectsState({
     sessionId,
+    projectId,
     navigate,
     subscribe,
     isMobile,
     activeSessions: processingSessions,
   });
+
+  // `/project/:projectId?tab=<tab>&task=<id>` deep links into a project's
+  // board: the tab query wins over the persisted tab and syncs it (the
+  // existing localStorage-sync effect inside useProjectsState picks this up),
+  // and the task id is handed to the tasks tab to open once on load.
+  const requestedTab = projectId ? searchParams.get('tab') : null;
+  const initialTaskId = projectId ? searchParams.get('task') : null;
+
+  useEffect(() => {
+    if (requestedTab && isValidTab(requestedTab) && requestedTab !== activeTab) {
+      setActiveTab(requestedTab as AppTab);
+    }
+  }, [requestedTab, activeTab, setActiveTab]);
 
   // Queued messages for sessions that finish while another session (or none)
   // is being viewed are sent from here; the viewed session's composer handles
@@ -296,6 +312,7 @@ function AppContentInner() {
           newSessionTrigger={newSessionTrigger}
           onProjectSelect={handleProjectSelect}
           onProjectsRefresh={() => void refreshProjectsSilently()}
+          initialTaskId={initialTaskId}
         />
       </div>
 

@@ -157,6 +157,11 @@ CREATE TABLE IF NOT EXISTS sessions (
     -- reads the file, prefixes its content to the outgoing prompt, then
     -- clears this column back to NULL. NULL means no primer is pending.
     seed_primer_path TEXT,
+    -- Optional link to a TaskMaster task this session is working on. Kept as
+    -- a soft reference (no SQL foreign key, like profile_id above) since
+    -- TaskMaster tasks live outside this database. NULL means the session is
+    -- not tied to any task, which is the case for every pre-feature session.
+    task_id TEXT,
     isArchived BOOLEAN DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,

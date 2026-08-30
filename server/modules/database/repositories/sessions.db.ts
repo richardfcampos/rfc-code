@@ -20,10 +20,11 @@ export type SessionRow = {
   worktree_path: string | null;
   worktree_branch: string | null;
   seed_primer_path: string | null;
+  task_id: string | null;
 };
 
 const SESSION_ROW_COLUMNS =
-  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, profile_id, caveman_mode, isArchived, created_at, updated_at, worktree_path, worktree_branch, seed_primer_path';
+  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, profile_id, caveman_mode, isArchived, created_at, updated_at, worktree_path, worktree_branch, seed_primer_path, task_id';
 
 const SQLITE_UTC_TIMESTAMP_REGEX = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 
@@ -398,6 +399,18 @@ export const sessionsDb = {
        SET seed_primer_path = ?, updated_at = CURRENT_TIMESTAMP
        WHERE session_id = ?`
     ).run(seedPrimerPath ?? null, sessionId);
+  },
+
+  /**
+   * Links a session to a TaskMaster task, or clears the link when passed null.
+   */
+  setTaskId(sessionId: string, taskId: string | null): void {
+    const db = getConnection();
+    db.prepare(
+      `UPDATE sessions
+       SET task_id = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE session_id = ?`
+    ).run(taskId ?? null, sessionId);
   },
 
   getSessionById(sessionId: string): SessionRow | null {

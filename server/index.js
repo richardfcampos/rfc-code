@@ -15,7 +15,7 @@ import mime from 'mime-types';
 import Database from 'better-sqlite3';
 
 import { AppError, WORKSPACES_ROOT, getOpenCodeDatabasePath, validateWorkspacePath } from '@/shared/utils.js';
-import { closeSessionsWatcher, initializeSessionsWatcher } from '@/modules/providers/index.js';
+import { closeSessionsWatcher, configureRunningSessionsAttention, initializeSessionsWatcher } from '@/modules/providers/index.js';
 import { chatRunRegistry, createWebSocketServer } from '@/modules/websocket/index.js';
 
 import { getConnectableHost } from '../shared/networkHosts.js';
@@ -1666,6 +1666,11 @@ async function startServer() {
             abortSession: abortClaudeSDKSession,
             resolveToolApproval,
         });
+
+        // The running-sessions REST feed reports "waiting for tool approval"
+        // per run; the approvals live in the Claude runtime, so the lookup is
+        // handed over through the same seam.
+        configureRunningSessionsAttention(getPendingApprovalsForSession);
 
         // `/btw` runs one detached Claude turn per question, with no session
         // and no socket behind it, so it takes the SDK through the same seam.

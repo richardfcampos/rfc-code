@@ -224,6 +224,10 @@ export const api = {
         body: JSON.stringify({ templateId, fileName, customizations }),
       }),
 
+    // Load the project's tasks board
+    getTasks: (projectId) =>
+      authenticatedFetch(`/api/taskmaster/tasks/${encodeURIComponent(projectId)}`),
+
     // Update a task
     updateTask: (projectId, taskId, updates) =>
       authenticatedFetch(`/api/taskmaster/update-task/${projectId}/${taskId}`, {
