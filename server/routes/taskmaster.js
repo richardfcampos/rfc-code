@@ -18,6 +18,7 @@ import spawn from 'cross-spawn';
 import { projectsDb } from '../modules/database/index.js';
 import { detectTaskMasterMCPServer } from '../utils/mcp-detector.js';
 import { broadcastTaskMasterProjectUpdate, broadcastTaskMasterTasksUpdate } from '../utils/taskmaster-websocket.js';
+import { ensureTaskMasterTasksWatcher } from '../utils/taskmaster-file-watcher.js';
 
 /**
  * Resolve the absolute project directory from a DB-assigned `projectId`.
@@ -170,6 +171,10 @@ router.get('/tasks/:projectId', async (req, res) => {
 
         const taskMasterPath = path.join(projectPath, '.taskmaster');
         const tasksFilePath = path.join(taskMasterPath, 'tasks', 'tasks.json');
+
+        // Someone is looking at this board: keep it live for edits made
+        // outside the app (task-master CLI, agents, editors).
+        ensureTaskMasterTasksWatcher(req.app.locals.wss, projectId, projectPath);
 
         // Check if tasks file exists
         try {

@@ -69,6 +69,7 @@ import userRoutes from './routes/user.js';
 import pluginsRoutes from './routes/plugins.js';
 import previewRoutes from './routes/preview.js';
 import { sweepOrphanPreviews, stopAllPreviews } from './utils/preview-runner.js';
+import { stopAllTaskMasterTasksWatchers } from './utils/taskmaster-file-watcher.js';
 import providerRoutes from './modules/providers/provider.routes.js';
 import profilesRoutes from './modules/profiles/profiles.routes.js';
 import { ensureDefaultConfigDirSkills } from './modules/bundled-skills/index.js';
@@ -1764,6 +1765,11 @@ async function startServer() {
                 stopAllPreviews();
             } catch (err) {
                 console.error('[Preview] Error stopping previews during shutdown:', err?.message || err);
+            }
+            try {
+                await stopAllTaskMasterTasksWatchers();
+            } catch (err) {
+                console.error('[TaskMaster] Error stopping tasks watchers during shutdown:', err?.message || err);
             }
             try {
                 await removeLocalServerMarker();
