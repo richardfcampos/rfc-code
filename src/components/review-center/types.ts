@@ -22,6 +22,8 @@ export interface ReviewQueueEntry {
   task_stage: Task['stage'];
   task_assignee_profile_id: string | null;
   task_worktree_branch: string | null;
+  /** AI-written summary (what changed / risks / UAT checklist); null until generated. */
+  ai_brief: string | null;
 }
 
 export interface ReviewComment {

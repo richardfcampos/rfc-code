@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Check, GitBranch, RotateCcw } from 'lucide-react';
+import { Check, GitBranch, RotateCcw, Sparkles } from 'lucide-react';
 
 import { Button } from '../../../shared/view/ui';
 import UatPreviewSection from '../../task-master/view/review-cockpit/UatPreviewSection';
@@ -34,13 +34,24 @@ function describeRouting(routing: ReviewCommentRouting | null): string {
 }
 
 export default function ReviewDetailPanel({ reviewId, onResolved }: ReviewDetailPanelProps) {
-  const { detail, isLoading, loadError, loadFileDiff, addComment, approve, requestChanges } =
-    useReviewDetail(reviewId);
+  const {
+    detail,
+    isLoading,
+    loadError,
+    loadFileDiff,
+    addComment,
+    generateBrief,
+    approve,
+    requestChanges,
+  } = useReviewDetail(reviewId);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [diff, setDiff] = useState('');
   const [diffError, setDiffError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isActing, setIsActing] = useState(false);
+  const [isGeneratingBrief, setIsGeneratingBrief] = useState(false);
+  const [briefError, setBriefError] = useState<string | null>(null);
+  const [isBriefOpen, setIsBriefOpen] = useState(true);
   const [isRequestingChanges, setIsRequestingChanges] = useState(false);
   const [changesDraft, setChangesDraft] = useState('');
 
@@ -182,6 +193,52 @@ export default function ReviewDetailPanel({ reviewId, onResolved }: ReviewDetail
           {notice}
         </p>
       )}
+
+      {/* AI brief: what changed / risks / UAT checklist, generated from the
+          branch diff and stored on the review. Evidence, never a gate. */}
+      <div className="border-b border-border bg-card px-3 py-2">
+        <div className="flex items-center justify-between gap-2">
+          <button
+            className="flex items-center gap-1.5 text-xs font-medium text-foreground"
+            onClick={() => setIsBriefOpen((open) => !open)}
+          >
+            <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
+            Resumo da IA
+          </button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={isGeneratingBrief}
+            onClick={() => {
+              setIsGeneratingBrief(true);
+              setBriefError(null);
+              generateBrief()
+                .then(() => setIsBriefOpen(true))
+                .catch((error: unknown) =>
+                  setBriefError(error instanceof Error ? error.message : 'Falha ao gerar o resumo'),
+                )
+                .finally(() => setIsGeneratingBrief(false));
+            }}
+          >
+            {isGeneratingBrief
+              ? 'Gerando…'
+              : detail.review.ai_brief
+                ? 'Regenerar'
+                : 'Gerar resumo'}
+          </Button>
+        </div>
+        {briefError && <p className="mt-1 text-xs text-destructive">{briefError}</p>}
+        {isBriefOpen && detail.review.ai_brief && (
+          <pre className="mt-2 max-h-56 overflow-y-auto whitespace-pre-wrap font-sans text-xs leading-relaxed text-muted-foreground">
+            {detail.review.ai_brief}
+          </pre>
+        )}
+        {isBriefOpen && !detail.review.ai_brief && !isGeneratingBrief && !briefError && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Sem resumo ainda — gere um pra ver o que mudou, riscos e o checklist de UAT.
+          </p>
+        )}
+      </div>
 
       {/* Hands-on UAT: boots the task's worktree (not the project root), so
           the URL serves exactly the branch under review. */}

@@ -155,6 +155,10 @@ export function createSessionMessageSender(deps: SessionMessageSenderDeps): Sess
       projectPath: session.project_path ?? undefined,
       profileId: session.profile_id,
       cavemanMode: session.caveman_mode ?? null,
+      // A routed turn wakes a session with no browser attached, so nobody is
+      // there to answer a permission prompt — it would stall the turn forever.
+      // The human gate is review approval, which this turn is working towards.
+      toolsSettings: { allowedTools: [], disallowedTools: [], skipPermissions: true },
       ...(registration
         ? {
             mcpServers: {

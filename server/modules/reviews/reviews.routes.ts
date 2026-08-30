@@ -46,6 +46,15 @@ export function createReviewsRouter(service: ReviewsService): express.Router {
     }),
   );
 
+  // Generates (or regenerates) the AI brief; slow by nature — one LLM call.
+  router.post(
+    '/:id/brief',
+    asyncHandler(async (req, res) => {
+      const result = await service.generateBrief(req.params.id);
+      res.json(createApiSuccessResponse(result));
+    }),
+  );
+
   router.post(
     '/:id/approve',
     asyncHandler(async (req, res) => {

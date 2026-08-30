@@ -11,6 +11,8 @@ export type TaskReviewRow = {
   state: TaskReviewState;
   created_at: string;
   updated_at: string;
+  /** AI-written summary of the round (what changed / risks / UAT checklist). */
+  ai_brief: string | null;
 };
 
 /** A queue entry: the review plus the columns the queue list renders. */
@@ -28,10 +30,10 @@ export type TaskReviewWithTaskRow = TaskReviewRow & {
  */
 export const LIVE_REVIEW_STATES: TaskReviewState[] = ['open', 'changes_requested'];
 
-const REVIEW_COLUMNS = 'review_id, task_id, state, created_at, updated_at';
+const REVIEW_COLUMNS = 'review_id, task_id, state, created_at, updated_at, ai_brief';
 
 const REVIEW_WITH_TASK_COLUMNS = `
-  r.review_id, r.task_id, r.state, r.created_at, r.updated_at,
+  r.review_id, r.task_id, r.state, r.created_at, r.updated_at, r.ai_brief,
   t.title AS task_title,
   t.project_name AS task_project_name,
   t.stage AS task_stage,
@@ -121,6 +123,15 @@ export const taskReviewsDb = {
     db.prepare(
       'UPDATE task_reviews SET state = ?, updated_at = CURRENT_TIMESTAMP WHERE review_id = ?',
     ).run(state, reviewId);
+    return getReviewById(reviewId);
+  },
+
+  /** Stores (or replaces) the AI brief for a review. */
+  setBrief(reviewId: string, brief: string): TaskReviewRow | null {
+    const db = getConnection();
+    db.prepare(
+      'UPDATE task_reviews SET ai_brief = ?, updated_at = CURRENT_TIMESTAMP WHERE review_id = ?',
+    ).run(brief, reviewId);
     return getReviewById(reviewId);
   },
 

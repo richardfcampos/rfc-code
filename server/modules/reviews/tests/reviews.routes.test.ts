@@ -18,6 +18,7 @@ const REVIEW: TaskReviewWithTaskRow = {
   state: 'open',
   created_at: '2026-08-10T00:00:00.000Z',
   updated_at: '2026-08-10T00:00:00.000Z',
+  ai_brief: null,
   task_title: 'Employee form',
   task_project_name: 'project-1',
   task_stage: 'review',
@@ -52,6 +53,9 @@ function createFakeService(overrides: Partial<ReviewsService> = {}): ReviewsServ
     },
     addComment: async () => {
       throw new Error('Unexpected addComment call');
+    },
+    generateBrief: async () => {
+      throw new Error('Unexpected generateBrief call');
     },
     addCommentForTask: async () => {
       throw new Error('Unexpected addCommentForTask call');

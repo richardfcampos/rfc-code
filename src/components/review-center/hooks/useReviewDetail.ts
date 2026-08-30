@@ -119,6 +119,18 @@ export function useReviewDetail(reviewId: string | null) {
     [reviewId],
   );
 
+  const generateBrief = useCallback(async () => {
+    if (!reviewId) {
+      throw new Error('No review selected');
+    }
+    const result = await post<{ review: ReviewDetail['review'] }>(
+      `/api/reviews/${encodeURIComponent(reviewId)}/brief`,
+      {},
+    );
+    setDetail((previous) => (previous ? { ...previous, review: result.review } : previous));
+    return result;
+  }, [reviewId]);
+
   const approve = useCallback(
     async (options: { removeWorktree?: boolean } = {}) => {
       if (!reviewId) {
@@ -154,6 +166,7 @@ export function useReviewDetail(reviewId: string | null) {
     reload: load,
     loadFileDiff,
     addComment,
+    generateBrief,
     approve,
     requestChanges,
   };

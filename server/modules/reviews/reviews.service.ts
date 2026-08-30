@@ -51,6 +51,12 @@ export type ReviewsServiceDeps = {
   mergeWorktree: (input: MergeWorktreeInput) => Promise<MergeWorktreeResult>;
   delivery: ReviewCommentDeliveryDeps;
   broadcast: (review: TaskReviewWithTaskRow, action: ReviewUpdateAction) => void;
+  /**
+   * One-shot LLM call used for the AI brief. Installed at boot like the
+   * session runtime; null until then, and the brief endpoint reports that
+   * instead of failing silently.
+   */
+  generateText?: ((prompt: string, options: { cwd: string }) => Promise<string>) | null;
 };
 
 export type ReviewDetail = {
@@ -82,6 +88,7 @@ export type ReviewsService = {
    * internal id, so the live review is resolved server-side.
    */
   addCommentForTask(taskId: string, body: Record<string, unknown>): Promise<ReviewCommentResult>;
+  generateBrief(rawId: unknown): Promise<{ review: TaskReviewWithTaskRow }>;
   approve(rawId: unknown, body: Record<string, unknown>): Promise<ReviewApprovalResult>;
   requestChanges(
     rawId: unknown,
@@ -178,6 +185,69 @@ async function getDetail(deps: ReviewsServiceDeps, rawId: unknown): Promise<Revi
     files: await listReviewDiffFiles(context, deps.runGit),
     comments: reviewCommentsDb.listByReview(reviewId),
   };
+}
+
+/** Caps that keep the brief prompt inside a single ephemeral query. */
+const BRIEF_MAX_FILES = 10;
+const BRIEF_MAX_DIFF_CHARS_PER_FILE = 1200;
+
+/**
+ * Writes (or rewrites) the review's AI brief: what changed, risks, and a UAT
+ * checklist, distilled from the branch diff. Persisted on the review row so
+ * reopening the cockpit does not pay for another generation.
+ */
+async function generateBrief(
+  deps: ReviewsServiceDeps,
+  rawId: unknown,
+): Promise<{ review: TaskReviewWithTaskRow }> {
+  const reviewId = requireReviewId(rawId);
+  const generate = deps.generateText;
+  if (!generate) {
+    throw new AppError('AI brief generation is not available on this server', {
+      code: 'BRIEF_NOT_CONFIGURED',
+      statusCode: 503,
+    });
+  }
+
+  const context = await loadContext(deps, requireReview(reviewId));
+  const files = await listReviewDiffFiles(context, deps.runGit);
+
+  let diffContext = '';
+  for (const file of files.slice(0, BRIEF_MAX_FILES)) {
+    try {
+      const { diff } = await readReviewFileDiff(context, file.filePath, deps.runGit);
+      diffContext += `\n--- ${file.filePath} (+${file.additions} -${file.deletions})\n${diff.slice(0, BRIEF_MAX_DIFF_CHARS_PER_FILE)}\n`;
+    } catch {
+      // Binary or vanished mid-read — the file list line still names it.
+    }
+  }
+
+  const prompt = `Você prepara o resumo de um code review para o dono do projeto decidir rápido. Responda em português do Brasil, em markdown curto, EXATAMENTE nesta estrutura, sem nada antes ou depois:
+
+## O que mudou
+(3 a 6 bullets, foco no comportamento visível para o usuário)
+
+## Riscos
+(bullets; se nenhum, escreva "Nenhum risco relevante identificado")
+
+## Checklist de UAT
+(3 a 6 passos concretos de clique/verificação com o app rodando; se a mudança não for testável pela UI, diga o que verificar em vez disso)
+
+TAREFA: ${context.task.title}
+DESCRIÇÃO: ${context.task.description ?? '(sem descrição)'}
+BRANCH: ${context.branch} → ${context.baseBranch}
+ARQUIVOS ALTERADOS (${files.length}):
+${files.map((file) => `- ${file.filePath} (+${file.additions} -${file.deletions})`).join('\n')}
+
+DIFFS (parciais):
+${diffContext}`;
+
+  const brief = (await generate(prompt, { cwd: context.worktreePath })).trim();
+  taskReviewsDb.setBrief(reviewId, brief);
+
+  const review = requireJoinedReview(reviewId);
+  deps.broadcast(review, 'updated');
+  return { review };
 }
 
 async function getFileDiff(
@@ -404,6 +474,7 @@ export function createReviewsService(deps: ReviewsServiceDeps): ReviewsService {
     getFileDiff: (id, file) => getFileDiff(deps, id, file),
     addComment: (id, body) => addComment(deps, id, body),
     addCommentForTask: (taskId, body) => addCommentForTask(deps, taskId, body),
+    generateBrief: (id) => generateBrief(deps, id),
     approve: (id, body) => approve(deps, id, body),
     requestChanges: (id, body) => requestChanges(deps, id, body),
   };

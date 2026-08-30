@@ -1051,6 +1051,15 @@ export const runMigrations = (db: Database) => {
       ON task_reviews(task_id) WHERE state IN ('open', 'changes_requested')
     `);
     db.exec('CREATE INDEX IF NOT EXISTS idx_task_reviews_state ON task_reviews(state, updated_at)');
+    // AI-written review brief (what changed / risks / UAT checklist), generated
+    // on demand from the Review Center. NULL until the reviewer asks for one.
+    addColumnToTableIfNotExists(
+      db,
+      'task_reviews',
+      getTableInfo(db, 'task_reviews').map((column) => column.name),
+      'ai_brief',
+      'TEXT'
+    );
     db.exec(REVIEW_COMMENTS_TABLE_SCHEMA_SQL);
     db.exec(
       'CREATE INDEX IF NOT EXISTS idx_review_comments_review ON review_comments(review_id, file_path)',

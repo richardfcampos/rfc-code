@@ -36,6 +36,9 @@ import {
  */
 let sessionMessageSender: SessionMessageSender | null = null;
 
+/** One-shot LLM entry point for the AI brief; installed at boot like the sender. */
+let briefGenerator: ((prompt: string, options: { cwd: string }) => Promise<string>) | null = null;
+
 /**
  * Moving a card to Done from an approval is a board mutation like any other,
  * so it goes through the tasks service and reaches open boards on the same
@@ -72,6 +75,10 @@ export const reviewsService = createReviewsService({
     },
   },
   broadcast: broadcastReviewUpdate,
+  // Read through a getter so the runtime installed later is picked up.
+  get generateText() {
+    return briefGenerator;
+  },
 });
 
 export const reviewsRoutes = createReviewsRouter(reviewsService);
@@ -92,9 +99,13 @@ let unsubscribeStageListener: (() => void) | null = null;
  * Idempotent: calling it twice replaces the runtime and keeps exactly one
  * stage subscription, so a restarted boot sequence cannot double-open reviews.
  */
-export function configureReviewsRuntime(deps: { spawnFns: SessionMessageSenderDeps['spawnFns'] }): void {
+export function configureReviewsRuntime(deps: {
+  spawnFns: SessionMessageSenderDeps['spawnFns'];
+  generateText?: (prompt: string, options: { cwd: string }) => Promise<string>;
+}): void {
+  briefGenerator = deps.generateText ?? null;
   sessionMessageSender = createSessionMessageSender({
-    ...deps,
+    spawnFns: deps.spawnFns,
     // Wired here rather than required from the caller: the entrypoint already
     // hands the automations module its bridge access the same way, and a
     // routed turn needs the identical port — resolve a session's stdio MCP
