@@ -22,6 +22,14 @@ import {
 export const CODEX_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
     {
+      value: 'gpt-5.6-sol',
+      label: 'gpt-5.6-sol',
+      effort: {
+        default: 'medium',
+        values: [{ value: 'low' }, { value: 'medium' }, { value: 'high' }, { value: 'xhigh' }],
+      },
+    },
+    {
       value: 'gpt-5.5',
       label: 'gpt-5.5',
       effort: {
