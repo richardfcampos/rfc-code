@@ -1,4 +1,5 @@
-import { access } from 'node:fs/promises';
+import { access, mkdir, readdir, stat, symlink } from 'node:fs/promises';
+import path from 'node:path';
 
 import { projectsDb } from '@/modules/database/index.js';
 import {
@@ -36,6 +37,39 @@ const worktreeFileSystem: WorktreeFileSystem = {
     } catch {
       return false;
     }
+  },
+  async listDirectories(directoryPath: string): Promise<string[]> {
+    let entries;
+    try {
+      entries = await readdir(directoryPath, { withFileTypes: true });
+    } catch {
+      return [];
+    }
+    // Dirent types come from lstat, so a symlinked skill folder must be
+    // resolved before it counts as a directory.
+    const names = await Promise.all(
+      entries.map(async (entry) => {
+        if (entry.isDirectory()) {
+          return entry.name;
+        }
+        if (!entry.isSymbolicLink()) {
+          return null;
+        }
+        try {
+          const target = await stat(path.join(directoryPath, entry.name));
+          return target.isDirectory() ? entry.name : null;
+        } catch {
+          return null;
+        }
+      }),
+    );
+    return names.filter((name): name is string => name !== null).sort();
+  },
+  async ensureDirectory(directoryPath: string): Promise<void> {
+    await mkdir(directoryPath, { recursive: true });
+  },
+  async createDirectorySymlink(targetPath: string, linkPath: string): Promise<void> {
+    await symlink(targetPath, linkPath, 'dir');
   },
 };
 

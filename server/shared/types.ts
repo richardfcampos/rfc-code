@@ -812,6 +812,10 @@ export type MergeWorktreeResult = {
  */
 export type WorktreeFileSystem = {
   pathExists(candidatePath: string): Promise<boolean>;
+  /** Names of child directories (symlinks to directories included). Missing dir → []. */
+  listDirectories(directoryPath: string): Promise<string[]>;
+  ensureDirectory(directoryPath: string): Promise<void>;
+  createDirectorySymlink(targetPath: string, linkPath: string): Promise<void>;
 };
 
 /**
