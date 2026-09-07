@@ -695,6 +695,12 @@ export type CreateWorktreeInput = {
   projectPath: string;
   branch: string;
   baseBranch?: string | null;
+  /**
+   * When the requested branch collides (checked out elsewhere or its folder
+   * already exists), pick the next free `<branch>-N` instead of failing.
+   * Meant for auto-derived names; user-typed names should stay strict.
+   */
+  uniqueBranch?: boolean;
 };
 
 /**

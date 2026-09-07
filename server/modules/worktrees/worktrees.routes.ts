@@ -57,8 +57,9 @@ export function createWorktreesRouter(services: WorktreeServices): express.Route
       const projectPath = services.resolveProjectPath(readProjectId(body.project));
       const branch = readRequiredString(body.branch, 'branch');
       const baseBranch = typeof body.baseBranch === 'string' ? body.baseBranch : null;
+      const uniqueBranch = body.uniqueBranch === true;
 
-      const result = await services.createAndOpen({ projectPath, branch, baseBranch });
+      const result = await services.createAndOpen({ projectPath, branch, baseBranch, uniqueBranch });
       res.json(createApiSuccessResponse(result));
     }),
   );

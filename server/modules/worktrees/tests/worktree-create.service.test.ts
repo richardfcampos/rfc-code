@@ -170,3 +170,77 @@ test('createWorktree links the main checkout project skills into the new worktre
     },
   ]);
 });
+
+test('createWorktree without uniqueBranch keeps failing on a checked-out branch', async () => {
+  const { runner } = createFakeRunner(['existing-branch']);
+
+  await assert.rejects(
+    createWorktree(
+      { projectPath: '/home/user/repo', branch: 'existing-branch', uniqueBranch: false },
+      createDependencies(runner),
+    ),
+    (error: unknown) => error instanceof AppError && error.code === 'BRANCH_ALREADY_CHECKED_OUT',
+  );
+});
+
+test('createWorktree with uniqueBranch suffixes a branch checked out elsewhere', async () => {
+  const { calls, runner } = createFakeRunner(['existing-branch']);
+
+  const result = await createWorktree(
+    { projectPath: '/home/user/repo', branch: 'existing-branch', uniqueBranch: true },
+    createDependencies(runner),
+  );
+
+  assert.equal(result.branch, 'existing-branch-2');
+  assert.ok(result.worktreePath.endsWith('existing-branch-2'));
+  const addCall = calls.find((call) => call.args[0] === 'worktree' && call.args[1] === 'add');
+  assert.ok(addCall);
+  assert.deepEqual(addCall.args.slice(3), ['-b', 'existing-branch-2', 'main']);
+});
+
+test('createWorktree with uniqueBranch skips every occupied folder until a free one', async () => {
+  const { runner } = createFakeRunner([]);
+  const occupied = new Set([
+    '/home/user/repo-worktrees/wt-map-league',
+    '/home/user/repo-worktrees/wt-map-league-2',
+  ]);
+  const probed: string[] = [];
+
+  const result = await createWorktree(
+    { projectPath: '/home/user/repo', branch: 'wt/map-league', uniqueBranch: true },
+    {
+      runGit: runner,
+      fileSystem: {
+        pathExists: async (candidate) => {
+          probed.push(candidate);
+          return occupied.has(candidate);
+        },
+        listDirectories: async () => [],
+        ensureDirectory: async () => {},
+        createDirectorySymlink: async () => {},
+      },
+    },
+  );
+
+  assert.equal(result.branch, 'wt/map-league-3');
+  assert.equal(result.worktreePath, '/home/user/repo-worktrees/wt-map-league-3');
+  assert.deepEqual(probed, [
+    '/home/user/repo-worktrees/wt-map-league',
+    '/home/user/repo-worktrees/wt-map-league-2',
+    '/home/user/repo-worktrees/wt-map-league-3',
+  ]);
+});
+
+test('createWorktree with uniqueBranch gives up after the attempt budget', async () => {
+  const { calls, runner } = createFakeRunner([]);
+
+  await assert.rejects(
+    createWorktree(
+      { projectPath: '/home/user/repo', branch: 'wt/busy', uniqueBranch: true },
+      createDependencies(runner, true),
+    ),
+    (error: unknown) => error instanceof AppError && error.code === 'WORKTREE_FOLDER_EXISTS',
+  );
+
+  assert.equal(calls.some((call) => call.args[0] === 'worktree' && call.args[1] === 'add'), false);
+});

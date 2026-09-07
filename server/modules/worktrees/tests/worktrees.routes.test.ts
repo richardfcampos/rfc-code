@@ -113,6 +113,7 @@ test('create route parses input and invokes the create-and-open application serv
   assert.deepEqual(createInputs, [{
     projectPath: '/workspace/repo',
     branch: 'feature/login',
+    uniqueBranch: false,
     baseBranch: 'main',
   }]);
 });

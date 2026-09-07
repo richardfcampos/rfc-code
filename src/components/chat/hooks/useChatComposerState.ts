@@ -828,6 +828,9 @@ export function useChatComposerState({
               project: selectedProject.projectId,
               branch,
               baseBranch: null,
+              // The name is derived from the prompt, so a repeated opener must
+              // land in a fresh `-N` worktree rather than fail on the old one.
+              uniqueBranch: true,
             }),
           });
           const payload = await response.json();
