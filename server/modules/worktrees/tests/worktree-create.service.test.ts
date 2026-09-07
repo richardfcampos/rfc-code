@@ -48,6 +48,9 @@ function createDependencies(runner: ReturnType<typeof createFakeRunner>['runner'
     runGit: runner,
     fileSystem: {
       pathExists: async () => pathExists,
+      listDirectories: async () => [],
+      ensureDirectory: async () => {},
+      createDirectorySymlink: async () => {},
     },
   };
 }
@@ -139,4 +142,31 @@ test('createWorktree rejects an occupied destination without running a mutating 
   );
 
   assert.equal(calls.some((call) => call.args[0] === 'worktree' && call.args[1] === 'add'), false);
+});
+
+test('createWorktree links the main checkout project skills into the new worktree', async () => {
+  const { runner } = createFakeRunner([]);
+  const symlinks: Array<{ target: string; link: string }> = [];
+
+  await createWorktree(
+    { projectPath: '/home/user/repo', branch: 'feature/login' },
+    {
+      runGit: runner,
+      fileSystem: {
+        pathExists: async () => false,
+        listDirectories: async (dir) => (dir === '/home/user/repo/.claude/skills' ? ['map-league'] : []),
+        ensureDirectory: async () => {},
+        createDirectorySymlink: async (target, link) => {
+          symlinks.push({ target, link });
+        },
+      },
+    },
+  );
+
+  assert.deepEqual(symlinks, [
+    {
+      target: '/home/user/repo/.claude/skills/map-league',
+      link: '/home/user/repo-worktrees/feature-login/.claude/skills/map-league',
+    },
+  ]);
 });

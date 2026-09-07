@@ -11,6 +11,7 @@ import {
   listWorktreePorcelainEntries,
   validateWorktreeBranchName,
 } from '@/modules/worktrees/services/worktree-git.service.js';
+import { linkProjectSkillsIntoWorktree } from '@/modules/worktrees/services/worktree-skill-links.service.js';
 
 /**
  * Turns a branch name into a filesystem-safe folder name:
@@ -36,7 +37,8 @@ function sanitizeBranchForDirectoryName(branch: string): string {
  * Creates a new worktree in a sibling folder of the repository:
  * `<repoParent>/<repoName>-worktrees/<branch>`. Existing local branches are
  * checked out directly; unknown branch names are created from `baseBranch`
- * (falling back to the main worktree's branch).
+ * (falling back to the main worktree's branch). Untracked project skills from
+ * the main checkout are linked into the new worktree afterwards.
  */
 export async function createWorktree(
   input: CreateWorktreeInput,
@@ -99,6 +101,8 @@ export async function createWorktree(
       repositoryRoot,
     );
   }
+
+  await linkProjectSkillsIntoWorktree(repositoryRoot, worktreePath, fileSystem);
 
   return { worktreePath, branch, createdBranch: !branchExists };
 }
