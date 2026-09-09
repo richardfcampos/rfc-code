@@ -6,7 +6,7 @@ import { cn } from '../../../../lib/utils';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
 import { resolveSessionStatus } from '../../utils/session-status';
-import { createSessionViewModel } from '../../utils/utils';
+import { createSessionViewModel, formatWorktreeLabel } from '../../utils/utils';
 
 import SidebarSessionRowActions from './SidebarSessionRowActions';
 
@@ -198,7 +198,7 @@ export default function SidebarSessionItem({
                 title={sessionView.worktreeLabel}
               >
                 <GitBranch className="h-2.5 w-2.5 flex-shrink-0" />
-                <span className="truncate">wt/{sessionView.worktreeLabel}</span>
+                <span className="truncate">{formatWorktreeLabel(sessionView.worktreeLabel)}</span>
               </span>
             )}
           </span>

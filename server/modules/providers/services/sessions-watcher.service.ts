@@ -5,6 +5,7 @@ import { promises as fsPromises } from 'node:fs';
 import chokidar, { type FSWatcher } from 'chokidar';
 
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { getProfilesRoot } from '@/modules/profiles/index.js';
 import { sessionSynchronizerService } from '@/modules/providers/services/session-synchronizer.service.js';
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
 import type { LLMProvider } from '@/shared/types.js';
@@ -12,24 +13,42 @@ import { generateDisplayName } from '@/modules/projects/index.js';
 
 type WatcherEventType = 'add' | 'change';
 
-const PROVIDER_WATCH_PATHS: Array<{ provider: LLMProvider; rootPath: string }> = [
-  {
-    provider: 'claude',
-    rootPath: path.join(os.homedir(), '.claude', 'projects'),
-  },
-  {
-    provider: 'cursor',
-    rootPath: path.join(os.homedir(), '.cursor', 'projects'),
-  },
-  {
-    provider: 'codex',
-    rootPath: path.join(os.homedir(), '.codex', 'sessions'),
-  },
-  {
-    provider: 'opencode',
-    rootPath: path.join(os.homedir(), '.local', 'share', 'opencode'),
-  },
-];
+/**
+ * Path segment that marks a provider's transcript directory, in both the
+ * provider's default home and every account profile home (claude/codex share
+ * the layout; cursor keeps `.cursor/projects`; opencode's database sits under
+ * `.local/share/opencode` by default and `data/opencode` inside a profile).
+ */
+const PROVIDER_TRANSCRIPT_MARKERS: Record<LLMProvider, string> = {
+  claude: '/projects/',
+  cursor: '/.cursor/projects/',
+  codex: '/sessions/',
+  opencode: '/opencode/',
+};
+
+const DEFAULT_WATCH_ROOTS: Record<LLMProvider, string> = {
+  claude: path.join(os.homedir(), '.claude', 'projects'),
+  cursor: path.join(os.homedir(), '.cursor', 'projects'),
+  codex: path.join(os.homedir(), '.codex', 'sessions'),
+  opencode: path.join(os.homedir(), '.local', 'share', 'opencode'),
+};
+
+export type WatchRoot = { provider: LLMProvider; rootPath: string };
+
+/**
+ * Directories the watcher has to cover: the provider's default transcript
+ * directory plus the provider's profiles root. Profiles are watched at their
+ * parent so an account added after boot is picked up without a restart; the
+ * marker check in `isWatcherTargetFile` keeps the other files a profile home
+ * holds (history, todos, settings) from reaching the indexer.
+ */
+export function resolveWatchRoots(): WatchRoot[] {
+  const providers = Object.keys(DEFAULT_WATCH_ROOTS) as LLMProvider[];
+  return providers.flatMap((provider) => [
+    { provider, rootPath: DEFAULT_WATCH_ROOTS[provider] },
+    { provider, rootPath: path.join(getProfilesRoot(), provider) },
+  ]);
+}
 
 const WATCHER_IGNORED_PATTERNS = [
   '**/node_modules/**',
@@ -66,7 +85,12 @@ let watcherRescheduleAfterRefresh = false;
 /**
  * Filters watcher events to provider-specific session artifact file types.
  */
-function isWatcherTargetFile(provider: LLMProvider, filePath: string): boolean {
+export function isWatcherTargetFile(provider: LLMProvider, filePath: string): boolean {
+  const posixPath = filePath.split(path.sep).join('/');
+  if (!posixPath.includes(PROVIDER_TRANSCRIPT_MARKERS[provider])) {
+    return false;
+  }
+
   if (provider === 'opencode') {
     return path.basename(filePath) === 'opencode.db';
   }
@@ -167,6 +191,19 @@ async function buildSessionUpsertedEvent(updatedProviderSessionId: string): Prom
   });
 }
 
+/**
+ * Pushes one session's current row to every client, for writers that change a
+ * session outside the transcript watcher (a title settled after the prompt was
+ * sent, for instance). Goes through the same debounced queue as disk events.
+ */
+export function broadcastSessionUpserted(sessionId: string): void {
+  const row = sessionsDb.getSessionById(sessionId);
+  if (!row) {
+    return;
+  }
+  queuePendingWatcherUpdate('change', row.provider as LLMProvider, row.session_id);
+}
+
 async function flushPendingWatcherUpdate(): Promise<void> {
   clearPendingWatcherFlushTimer();
 
@@ -263,7 +300,7 @@ export async function initializeSessionsWatcher(): Promise<void> {
     failures: initialSync.failures,
   });
 
-  for (const { provider, rootPath } of PROVIDER_WATCH_PATHS) {
+  for (const { provider, rootPath } of resolveWatchRoots()) {
     try {
       await fsPromises.mkdir(rootPath, { recursive: true });
 

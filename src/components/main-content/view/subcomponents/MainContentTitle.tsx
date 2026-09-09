@@ -5,7 +5,7 @@ import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo'
 import { SessionAccountSwitcher, SessionProfileBadge } from '../../../profiles';
 import type { AppTab, Project, ProjectSession } from '../../../../types/app';
 import { usePlugins } from '../../../../contexts/PluginsContext';
-import { getSessionWorktreeLabel } from '../../../sidebar/utils/utils';
+import { formatWorktreeLabel, getSessionWorktreeLabel } from '../../../sidebar/utils/utils';
 import type { SessionNavigationOptions } from '../../../chat/types/types';
 
 type MainContentTitleProps = {
@@ -72,7 +72,7 @@ function getMobileSubtitle(session: ProjectSession, project: Project, t: TFuncti
 
   const parts: string[] = [];
   if (worktreeLabel) {
-    parts.push(`wt/${worktreeLabel}`);
+    parts.push(formatWorktreeLabel(worktreeLabel));
   }
   if (messageCount !== null) {
     parts.push(`${messageCount} ${t('mainContent.msgsUnit', 'msgs')}`);

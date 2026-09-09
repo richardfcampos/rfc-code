@@ -2,7 +2,7 @@ import { GitBranch } from 'lucide-react';
 
 import type { ProjectSession } from '../../../../types/app';
 import { cn } from '../../../../lib/utils';
-import { getSessionWorktreeLabel } from '../../../sidebar/utils/utils';
+import { formatWorktreeLabel, getSessionWorktreeLabel } from '../../../sidebar/utils/utils';
 
 type HeaderWorktreeChipProps = {
   selectedSession: ProjectSession | null;
@@ -24,14 +24,14 @@ export default function HeaderWorktreeChip({ selectedSession, className = '' }: 
 
   return (
     <span
-      title={`wt/${worktreeLabel}`}
+      title={formatWorktreeLabel(worktreeLabel)}
       className={cn(
         'inline-flex min-w-0 max-w-[200px] items-center gap-1.5 rounded-ctl border border-border px-2 py-1 font-mono text-[11px] leading-none text-muted-foreground',
         className,
       )}
     >
       <GitBranch className="h-3 w-3 flex-shrink-0" />
-      <span className="truncate">wt/{worktreeLabel}</span>
+      <span className="truncate">{formatWorktreeLabel(worktreeLabel)}</span>
     </span>
   );
 }

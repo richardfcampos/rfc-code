@@ -6,3 +6,5 @@ export { providerMcpService } from './services/mcp.service.js';
 
 export { initializeSessionsWatcher } from './services/sessions-watcher.service.js';
 export { closeSessionsWatcher } from './services/sessions-watcher.service.js';
+export { configureSessionTitleRuntime, ensureSessionTitle } from './services/session-title.service.js';
+export { extractTicketReference } from './services/session-title-derive.js';

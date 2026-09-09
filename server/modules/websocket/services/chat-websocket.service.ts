@@ -15,6 +15,7 @@ import {
   profilesService,
   type HandoffResult,
 } from '@/modules/profiles/index.js';
+import { ensureSessionTitle } from '@/modules/providers/index.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
 import { getGlobalImageAssetsDir, normalizeImageDescriptors } from '@/shared/image-attachments.js';
@@ -360,6 +361,15 @@ async function handleChatSend(
   }
 
   const userPrompt = typeof data.content === 'string' ? data.content : '';
+
+  // The first prompt names the session. Not awaited: the title is settled
+  // (and later refined by a model) beside the turn, never ahead of it.
+  void ensureSessionTitle({
+    sessionId,
+    prompt: userPrompt,
+    cwd: session.worktree_path ?? session.project_path,
+    profileId: profileDecision.profileId,
+  });
 
   // A session born from a cross-provider handoff carries the earlier
   // conversation as a text primer that the target model has never seen; this is

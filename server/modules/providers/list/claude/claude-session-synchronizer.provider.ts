@@ -8,6 +8,7 @@ import { resolveProfileRootForPath, resolveProfileScanRoots } from '@/modules/pr
 // re-exports `worktrees.module.ts`, which pulls in the projects module, which
 // pulls in this providers module back in — a real import cycle that trips a
 // "cannot access before initialization" error on the synchronizer classes.
+import { extractTicketReference } from '@/modules/providers/services/session-title-derive.js';
 import { resolveWorktreeContext } from '@/modules/repo-context/index.js';
 import {
   buildLookupMap,
@@ -228,12 +229,16 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
         const lastPrompt = typeof data.lastPrompt === 'string' ? data.lastPrompt : undefined;
         const claudeRenamedTitle = typeof data.customTitle === 'string' ? data.customTitle : undefined;
 
-        if (
-          (eventType === 'ai-title' && eventSessionId === sessionId && aiTitle?.trim()) ||
-          (eventType === 'last-prompt' && eventSessionId === sessionId && lastPrompt?.trim()) ||
-          (eventType === "custom-title" && eventSessionId === sessionId && claudeRenamedTitle?.trim())
-        ) {
-          return aiTitle || lastPrompt || claudeRenamedTitle;
+        if (eventSessionId !== sessionId) {
+          continue;
+        }
+        if ((eventType === 'ai-title' && aiTitle?.trim()) || (eventType === 'custom-title' && claudeRenamedTitle?.trim())) {
+          return aiTitle || claudeRenamedTitle;
+        }
+        // A raw prompt is the weakest source: the ticket it is about, when it
+        // names one, is a better title than the prompt's first 120 characters.
+        if (eventType === 'last-prompt' && lastPrompt?.trim()) {
+          return extractTicketReference(lastPrompt) ?? lastPrompt;
         }
       }
     } catch {

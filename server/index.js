@@ -15,7 +15,7 @@ import mime from 'mime-types';
 import Database from 'better-sqlite3';
 
 import { AppError, WORKSPACES_ROOT, getOpenCodeDatabasePath, validateWorkspacePath } from '@/shared/utils.js';
-import { closeSessionsWatcher, configureRunningSessionsAttention, initializeSessionsWatcher } from '@/modules/providers/index.js';
+import { closeSessionsWatcher, configureRunningSessionsAttention, configureSessionTitleRuntime, initializeSessionsWatcher } from '@/modules/providers/index.js';
 import { chatRunRegistry, createWebSocketServer } from '@/modules/websocket/index.js';
 
 import { getConnectableHost } from '../shared/networkHosts.js';
@@ -1675,6 +1675,10 @@ async function startServer() {
         // `/btw` runs one detached Claude turn per question, with no session
         // and no socket behind it, so it takes the SDK through the same seam.
         configureBtwRuntime(queryClaudeSDKOnce);
+
+        // A new session's title is one detached turn over its first prompt,
+        // so it borrows the same one-shot entry point.
+        configureSessionTitleRuntime(queryClaudeSDKOnce);
 
         // An automation that prompts an agent starts a real session with no
         // socket behind it, so it dispatches through the same provider runtimes

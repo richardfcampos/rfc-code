@@ -102,6 +102,13 @@ export const getSessionWorktreeLabel = (session: ProjectSession): string | null 
   return segments[segments.length - 1] ?? worktreePath;
 };
 
+/**
+ * Chip text for a worktree label. App-made worktrees already carry the `wt/`
+ * branch prefix, so it is only added for branches (or path fallbacks) without it.
+ */
+export const formatWorktreeLabel = (label: string): string =>
+  label.startsWith('wt/') ? label : `wt/${label}`;
+
 export const createSessionViewModel = (
   session: SessionWithProvider,
   currentTime: Date,
