@@ -59,7 +59,12 @@ export function useTaskMaster() {
 
 export function TaskMasterProvider({ children }: { children: React.ReactNode }) {
   const { latestMessage } = useWebSocket();
-  const { user, token, isLoading: isAuthLoading } = useAuth();
+  const { user, token, isTrusted, isLoading: isAuthLoading } = useAuth();
+
+  // Trusted mode (tailnet-only deployments) authenticates by network perimeter:
+  // there is no login flow, so no JWT token ever exists. Requiring a token here
+  // would permanently skip every TaskMaster fetch on those installs.
+  const isAuthenticated = Boolean(user) && (Boolean(token) || isTrusted);
 
   const [projects, setProjects] = useState<TaskMasterProject[]>([]);
   const [currentProject, setCurrentProjectState] = useState<TaskMasterProject | null>(null);
@@ -129,7 +134,7 @@ export function TaskMasterProvider({ children }: { children: React.ReactNode }) 
 
   const refreshCurrentProjectTaskMaster = useCallback(
     async (projectId: string) => {
-      if (!projectId || !user || !token) {
+      if (!projectId || !isAuthenticated) {
         return;
       }
 
@@ -163,7 +168,7 @@ export function TaskMasterProvider({ children }: { children: React.ReactNode }) 
         handleError('load selected project TaskMaster info', caughtError);
       }
     },
-    [applyTaskMasterInfo, handleError, token, user],
+    [applyTaskMasterInfo, handleError, isAuthenticated],
   );
 
   const setCurrentProject = useCallback(
@@ -188,7 +193,7 @@ export function TaskMasterProvider({ children }: { children: React.ReactNode }) 
   );
 
   const refreshProjects = useCallback(async () => {
-    if (!user || !token) {
+    if (!isAuthenticated) {
       setProjects([]);
       setCurrentProjectState(null);
       setProjectTaskMaster(null);
@@ -264,13 +269,13 @@ export function TaskMasterProvider({ children }: { children: React.ReactNode }) 
     } finally {
       setIsLoading(false);
     }
-  }, [clearError, handleError, refreshCurrentProjectTaskMaster, token, user]);
+  }, [clearError, handleError, isAuthenticated, refreshCurrentProjectTaskMaster]);
 
   const refreshTasks = useCallback(async () => {
     // TaskMaster tasks endpoint now lives under /api/taskmaster/tasks/:projectId.
     const projectId = currentProject?.projectId;
 
-    if (!projectId || !user || !token) {
+    if (!projectId || !isAuthenticated) {
       setTasks([]);
       setNextTask(null);
       return;
@@ -298,10 +303,10 @@ export function TaskMasterProvider({ children }: { children: React.ReactNode }) 
     } finally {
       setIsLoadingTasks(false);
     }
-  }, [clearError, currentProject?.projectId, handleError, token, user]);
+  }, [clearError, currentProject?.projectId, handleError, isAuthenticated]);
 
   const refreshMCPStatus = useCallback(async () => {
-    if (!user || !token) {
+    if (!isAuthenticated) {
       setMcpServerStatus(null);
       return;
     }
@@ -323,20 +328,20 @@ export function TaskMasterProvider({ children }: { children: React.ReactNode }) 
     } finally {
       setIsLoadingMCP(false);
     }
-  }, [clearError, handleError, token, user]);
+  }, [clearError, handleError, isAuthenticated]);
 
   useEffect(() => {
-    if (!isAuthLoading && user && token) {
+    if (!isAuthLoading && isAuthenticated) {
       void refreshProjects();
       void refreshMCPStatus();
     }
-  }, [isAuthLoading, refreshMCPStatus, refreshProjects, token, user]);
+  }, [isAuthLoading, isAuthenticated, refreshMCPStatus, refreshProjects]);
 
   useEffect(() => {
-    if (currentProject?.projectId && user && token) {
+    if (currentProject?.projectId && isAuthenticated) {
       void refreshTasks();
     }
-  }, [currentProject?.projectId, refreshTasks, token, user]);
+  }, [currentProject?.projectId, isAuthenticated, refreshTasks]);
 
   useEffect(() => {
     const message = latestMessage as TaskMasterWebSocketMessage | null;
