@@ -19,21 +19,7 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
     {
       value: 'default',
       label: 'Default (recommended)',
-      description: 'Use the Claude Code default model',
-      effort: {
-        default: 'high',
-        values: [
-          { value: 'low' },
-          { value: 'medium' },
-          { value: 'high' },
-          { value: 'max' },
-        ],
-      },
-    },
-    {
-      value: 'fable',
-      label: 'Fable',
-      description: 'Fable 5 · Most capable for your hardest and longest-running tasks · Uses your limits ~2× faster than Opus',
+      description: 'Use the Claude Code default model (currently Opus 5)',
       effort: {
         default: 'high',
         values: [
@@ -46,22 +32,38 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
       },
     },
     {
-      value: "sonnet",
-      label: "Sonnet",
-      description: "Sonnet 5 · Best for everyday tasks · $2/$10 per Mtok",
+      value: 'fable',
+      label: 'Fable',
+      description: 'Fable 5.1 · Most capable for your hardest and longest-running tasks · $10/$50 per Mtok',
       effort: {
         default: 'high',
         values: [
           { value: 'low' },
           { value: 'medium' },
           { value: 'high' },
+          { value: 'xhigh' },
+          { value: 'max' },
+        ],
+      },
+    },
+    {
+      value: 'sonnet',
+      label: 'Sonnet',
+      description: 'Sonnet 5 · Efficient for routine tasks · $2/$10 per Mtok',
+      effort: {
+        default: 'high',
+        values: [
+          { value: 'low' },
+          { value: 'medium' },
+          { value: 'high' },
+          { value: 'xhigh' },
           { value: 'max' },
         ],
       },
     },
     {
       value: 'sonnet[1m]',
-      label: 'Sonnet (1M context)',
+      label: 'Sonnet 5 (1M context)',
       description: 'Sonnet 5 for long sessions · $2/$10 per Mtok',
       effort: {
         default: 'high',
@@ -69,6 +71,7 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
           { value: 'low' },
           { value: 'medium' },
           { value: 'high' },
+          { value: 'xhigh' },
           { value: 'max' },
         ],
       },
@@ -76,7 +79,7 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
     {
       value: 'opus',
       label: 'Opus',
-      description: 'Opus 5 · Best for everyday, complex tasks · ~2× usage vs Sonnet',
+      description: 'Opus 5 · Best for everyday, complex tasks · $5/$25 per Mtok',
       effort: {
         default: 'high',
         values: [
@@ -90,8 +93,8 @@ export const CLAUDE_FALLBACK_MODELS: ProviderModelsDefinition = {
     },
     {
       value: 'opus[1m]',
-      label: 'Opus (1M context)',
-      description: 'Opus 5 with 1M context · Most capable for complex work · $5/$25 per Mtok',
+      label: 'Opus 5 (1M context)',
+      description: 'Opus 5 with 1M context · Best for everyday, complex tasks · $5/$25 per Mtok',
       effort: {
         default: 'high',
         values: [
