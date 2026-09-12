@@ -22,6 +22,22 @@ import {
 export const CODEX_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
     {
+      value: 'gpt-6-astra',
+      label: 'GPT-6-Astra',
+      description: 'Our most capable model for complex, demanding work.',
+      effort: {
+        default: 'low',
+        values: [
+          { value: 'low', description: 'Fast responses with lighter reasoning' },
+          { value: 'medium', description: 'Balances speed and reasoning depth for everyday tasks' },
+          { value: 'high', description: 'Greater reasoning depth for complex problems' },
+          { value: 'xhigh', description: 'Extra high reasoning depth for complex problems' },
+          { value: 'max', description: 'Maximum reasoning depth for the hardest problems' },
+          { value: 'ultra', description: 'Maximum reasoning with automatic task delegation' },
+        ],
+      },
+    },
+    {
       value: 'gpt-5.6-sol',
       label: 'GPT-5.6-Sol',
       description: 'Latest frontier agentic coding model.',
@@ -97,7 +113,7 @@ export const CODEX_FALLBACK_MODELS: ProviderModelsDefinition = {
       },
     },
   ],
-  DEFAULT: 'gpt-5.6-sol',
+  DEFAULT: 'gpt-6-astra',
 };
 
 type CodexCachedModel = {
