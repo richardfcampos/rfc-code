@@ -20,14 +20,19 @@ import {
 export const OPENCODE_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
     {
-      value: 'anthropic/claude-sonnet-4-5',
-      label: 'Claude Sonnet 4.5',
-      description: 'anthropic - anthropic/claude-sonnet-4-5',
+      value: 'anthropic/claude-sonnet-5',
+      label: 'Claude Sonnet 5',
+      description: 'anthropic - anthropic/claude-sonnet-5',
     },
     {
-      value: 'anthropic/claude-opus-4-1',
-      label: 'Claude Opus 4.1',
-      description: 'anthropic - anthropic/claude-opus-4-1',
+      value: 'anthropic/claude-opus-5',
+      label: 'Claude Opus 5',
+      description: 'anthropic - anthropic/claude-opus-5',
+    },
+    {
+      value: 'anthropic/claude-fable-5-1',
+      label: 'Claude Fable 5.1',
+      description: 'anthropic - anthropic/claude-fable-5-1',
     },
     {
       value: 'anthropic/claude-haiku-4-5',
@@ -35,14 +40,14 @@ export const OPENCODE_FALLBACK_MODELS: ProviderModelsDefinition = {
       description: 'anthropic - anthropic/claude-haiku-4-5',
     },
     {
-      value: 'openai/gpt-5.1',
-      label: 'GPT-5.1',
-      description: 'openai - openai/gpt-5.1',
+      value: 'openai/gpt-5.6',
+      label: 'GPT-5.6',
+      description: 'openai - openai/gpt-5.6',
     },
     {
-      value: 'openai/gpt-5.1-codex',
-      label: 'GPT-5.1 Codex',
-      description: 'openai - openai/gpt-5.1-codex',
+      value: 'openai/gpt-5.5',
+      label: 'GPT-5.5',
+      description: 'openai - openai/gpt-5.5',
     },
     {
       value: 'openai/gpt-5.4-mini',
@@ -50,7 +55,7 @@ export const OPENCODE_FALLBACK_MODELS: ProviderModelsDefinition = {
       description: 'openai - openai/gpt-5.4-mini',
     },
   ],
-  DEFAULT: 'anthropic/claude-sonnet-4-5',
+  DEFAULT: 'anthropic/claude-sonnet-5',
 };
 
 const OPEN_CODE_MODELS_TIMEOUT_MS = 20_000;

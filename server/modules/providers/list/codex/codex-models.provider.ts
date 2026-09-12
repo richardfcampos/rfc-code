@@ -23,38 +23,81 @@ export const CODEX_FALLBACK_MODELS: ProviderModelsDefinition = {
   OPTIONS: [
     {
       value: 'gpt-5.6-sol',
-      label: 'gpt-5.6-sol',
+      label: 'GPT-5.6-Sol',
+      description: 'Latest frontier agentic coding model.',
+      effort: {
+        default: 'low',
+        values: [
+          { value: 'low', description: 'Fast responses with lighter reasoning' },
+          { value: 'medium', description: 'Balances speed and reasoning depth for everyday tasks' },
+          { value: 'high', description: 'Greater reasoning depth for complex problems' },
+          { value: 'xhigh', description: 'Extra high reasoning depth for complex problems' },
+          { value: 'max', description: 'Maximum reasoning depth for the hardest problems' },
+          { value: 'ultra', description: 'Maximum reasoning with automatic task delegation' },
+        ],
+      },
+    },
+    {
+      value: 'gpt-5.6-terra',
+      label: 'GPT-5.6-Terra',
+      description: 'Balanced agentic coding model for everyday work.',
       effort: {
         default: 'medium',
-        values: [{ value: 'low' }, { value: 'medium' }, { value: 'high' }, { value: 'xhigh' }],
+        values: [
+          { value: 'low', description: 'Fast responses with lighter reasoning' },
+          { value: 'medium', description: 'Balances speed and reasoning depth for everyday tasks' },
+          { value: 'high', description: 'Greater reasoning depth for complex problems' },
+          { value: 'xhigh', description: 'Extra high reasoning depth for complex problems' },
+          { value: 'max', description: 'Maximum reasoning depth for the hardest problems' },
+          { value: 'ultra', description: 'Maximum reasoning with automatic task delegation' },
+        ],
+      },
+    },
+    {
+      value: 'gpt-5.6-luna',
+      label: 'GPT-5.6-Luna',
+      description: 'Fast and affordable agentic coding model.',
+      effort: {
+        default: 'medium',
+        values: [
+          { value: 'low', description: 'Fast responses with lighter reasoning' },
+          { value: 'medium', description: 'Balances speed and reasoning depth for everyday tasks' },
+          { value: 'high', description: 'Greater reasoning depth for complex problems' },
+          { value: 'xhigh', description: 'Extra high reasoning depth for complex problems' },
+          { value: 'max', description: 'Maximum reasoning depth for the hardest problems' },
+        ],
       },
     },
     {
       value: 'gpt-5.5',
-      label: 'gpt-5.5',
+      label: 'GPT-5.5',
+      description: 'Frontier model for complex coding, research, and real-world work.',
       effort: {
         default: 'medium',
-        values: [{ value: 'low' }, { value: 'medium' }, { value: 'high' }, { value: 'xhigh' }],
+        values: [
+          { value: 'low', description: 'Fast responses with lighter reasoning' },
+          { value: 'medium', description: 'Balances speed and reasoning depth for everyday tasks' },
+          { value: 'high', description: 'Greater reasoning depth for complex problems' },
+          { value: 'xhigh', description: 'Extra high reasoning depth for complex problems' },
+        ],
       },
     },
     {
-      value: 'gpt-5.4',
-      label: 'gpt-5.4',
+      value: 'gpt-5.2',
+      label: 'GPT-5.2',
+      description: 'Optimized for professional work and long-running agents.',
       effort: {
         default: 'medium',
-        values: [{ value: 'low' }, { value: 'medium' }, { value: 'high' }, { value: 'xhigh' }],
-      },
-    },
-    {
-      value: 'gpt-5.4-mini',
-      label: 'gpt-5.4-mini',
-      effort: {
-        default: 'medium',
-        values: [{ value: 'low' }, { value: 'medium' }, { value: 'high' }, { value: 'xhigh' }],
+        values: [
+          { value: 'low', description: 'Balances speed with some reasoning; useful for straightforward queries and short explanations' },
+          { value: 'medium', description: 'Provides a solid balance of reasoning depth and latency for general-purpose tasks' },
+          { value: 'high', description: 'Maximizes reasoning depth for complex or ambiguous problems' },
+          { value: 'xhigh', description: 'Extra high reasoning for complex problems' },
+        ],
       },
     },
   ],
-  DEFAULT: 'gpt-5.4',
+  DEFAULT: 'gpt-5.6-sol',
 };
 
 type CodexCachedModel = {
