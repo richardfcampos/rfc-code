@@ -38,9 +38,9 @@ async function withBundle(
       `---\nname: ${name}\ndescription: ${description}\n---\n`,
     );
   }
-  // Support dir with no SKILL.md — the "required" case.
-  fs.mkdirSync(path.join(bundleRoot, 'common'), { recursive: true });
-  fs.writeFileSync(path.join(bundleRoot, 'common', 'helper.py'), '# helper\n');
+  // Internal skill every other one may load — the "required" case.
+  fs.mkdirSync(path.join(bundleRoot, 'ak-common'), { recursive: true });
+  fs.writeFileSync(path.join(bundleRoot, 'ak-common', 'helper.py'), '# helper\n');
 
   fs.mkdirSync(profileDir, { recursive: true });
   process.env.BUNDLED_SKILLS_ROOT = bundleRoot;
@@ -61,9 +61,9 @@ test('the bundle lists skills with descriptions and flags support dirs', async (
   await withBundle(() => {
     const skills = listBundledSkills();
 
-    assert.deepEqual(skills.map((s) => s.name), ['alpha', 'beta', 'common']);
+    assert.deepEqual(skills.map((s) => s.name), ['ak-common', 'alpha', 'beta']);
     assert.equal(skills.find((s) => s.name === 'alpha')?.description, 'First skill');
-    assert.equal(skills.find((s) => s.name === 'common')?.required, true);
+    assert.equal(skills.find((s) => s.name === 'ak-common')?.required, true);
     assert.equal(skills.find((s) => s.name === 'alpha')?.required, false);
   });
 });
@@ -93,16 +93,16 @@ test('disabling removes the link', async () => {
     enableAllSkills(profileDir);
     disableSkill(profileDir, 'beta');
 
-    assert.deepEqual(listEnabledSkills(profileDir), ['alpha', 'common']);
+    assert.deepEqual(listEnabledSkills(profileDir), ['ak-common', 'alpha']);
   });
 });
 
 test('a selection always keeps required support dirs linked', async () => {
   await withBundle(({ profileDir }) => {
-    // Asking for only "alpha" must not strip common/, which other skills import.
+    // Asking for only "alpha" must not strip ak-common, which other skills load.
     applySkillSelection(profileDir, ['alpha']);
 
-    assert.deepEqual(listEnabledSkills(profileDir), ['alpha', 'common']);
+    assert.deepEqual(listEnabledSkills(profileDir), ['ak-common', 'alpha']);
   });
 });
 
@@ -215,3 +215,56 @@ test('a missing bundle yields no skills instead of throwing', async () => {
     assert.deepEqual(listEnabledSkills(profileDir), []);
   });
 });
+
+test('a renamed skill keeps its place in the selection', async () => {
+  await withBundle(({ bundleRoot, profileDir }) => {
+    fs.mkdirSync(path.join(bundleRoot, 'ak-alpha'), { recursive: true });
+    fs.writeFileSync(path.join(bundleRoot, 'ak-alpha', 'SKILL.md'), '---\nname: ak:alpha\n---\n');
+
+    // What the profile looks like after the bundle renamed alpha to ak-alpha:
+    // one link under each name the skill has ever had.
+    const skillsDir = resolveProfileSkillsDir(profileDir);
+    fs.mkdirSync(skillsDir, { recursive: true });
+    fs.symlinkSync(path.join(bundleRoot, 'alpha'), path.join(skillsDir, 'alpha'));
+    fs.symlinkSync(path.join(bundleRoot, 'ck-alpha'), path.join(skillsDir, 'ck-alpha'));
+    fs.rmSync(path.join(bundleRoot, 'alpha'), { recursive: true });
+
+    repairSkillLinks(profileDir);
+
+    assert.deepEqual(listEnabledSkills(profileDir), ['ak-alpha']);
+  });
+});
+
+test('a link to a skill the bundle dropped is cleaned up', async () => {
+  await withBundle(({ bundleRoot, profileDir }) => {
+    const skillsDir = resolveProfileSkillsDir(profileDir);
+    fs.mkdirSync(skillsDir, { recursive: true });
+    fs.symlinkSync(path.join(bundleRoot, 'gone'), path.join(skillsDir, 'gone'));
+
+    repairSkillLinks(profileDir);
+
+    assert.equal(fs.existsSync(path.join(skillsDir, 'gone')), false);
+    assert.equal(lstatOrNull(path.join(skillsDir, 'gone')), null);
+  });
+});
+
+test("a dangling link of the user's own is left where it is", async () => {
+  await withBundle(({ profileDir }) => {
+    const skillsDir = resolveProfileSkillsDir(profileDir);
+    fs.mkdirSync(skillsDir, { recursive: true });
+    // An unmounted volume, not our bundle — the target may come back.
+    fs.symlinkSync('/mnt/elsewhere/my-skill', path.join(skillsDir, 'my-skill'));
+
+    repairSkillLinks(profileDir);
+
+    assert.equal(fs.lstatSync(path.join(skillsDir, 'my-skill')).isSymbolicLink(), true);
+  });
+});
+
+function lstatOrNull(target: string): fs.Stats | null {
+  try {
+    return fs.lstatSync(target);
+  } catch {
+    return null;
+  }
+}

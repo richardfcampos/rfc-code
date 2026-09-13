@@ -16,6 +16,8 @@
 
 Skills empacotadas: `BUNDLED_SKILLS_ROOT=<checkout>/skills` — sem cópia; o link-por-perfil e o non-clobber já existem (`server/modules/bundled-skills/`). No nativo, o config dir default é o `~/.claude` REAL do usuário: `ensureDefaultConfigDirSkills()` adiciona links do bundle lá, mas nunca substitui dir real nem link do usuário (testado). Opt-out documentado: `BUNDLED_SKILLS_ROOT=/nonexistent` no env.
 
+Agent kit (agents, rules, output styles, hooks): `AGENT_KIT_ROOT=<checkout>/agent-kit`, mesmo link-por-perfil e non-clobber (`server/modules/bundled-kit/`). Os hooks entram só no `settings.json` dos perfis; no config dir default — que no nativo é o `~/.claude` REAL — apenas os arquivos são linkados, porque registrar hook ali faria os scripts do kit rodarem em toda sessão que o usuário abrir fora do app. Mesmo opt-out: `AGENT_KIT_ROOT=/nonexistent`.
+
 ## Wrapper (por quê)
 
 launchd/systemd não carregam o shell do usuário: PATH mínimo, sem `~/.rfc-code/env`. O plist/unit executa `~/.rfc-code/run/rfc-code-server`, que:

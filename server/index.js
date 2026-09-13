@@ -72,6 +72,7 @@ import { sweepOrphanPreviews, stopAllPreviews } from './utils/preview-runner.js'
 import providerRoutes from './modules/providers/provider.routes.js';
 import profilesRoutes from './modules/profiles/profiles.routes.js';
 import { ensureDefaultConfigDirSkills } from './modules/bundled-skills/index.js';
+import { ensureDefaultConfigDirKit } from './modules/bundled-kit/index.js';
 import { profilesService } from './modules/profiles/profiles.service.js';
 import voiceRoutes from './voice-proxy.js';
 import browserUseRoutes from './modules/browser-use/browser-use.routes.js';
@@ -1667,6 +1668,11 @@ async function startServer() {
         // them. Idempotent, and never replaces a skill the user linked or
         // installed themselves.
         ensureDefaultConfigDirSkills();
+
+        // Same reasoning for the rest of the kit — its agents, rules and
+        // output styles. Its hooks stay out of this directory on purpose; see
+        // ensureDefaultConfigDirKit.
+        ensureDefaultConfigDirKit();
 
         // Profile-bound sessions only see skills and plugins under their own
         // config dir, and those are recorded as absolute paths — a data

@@ -11,6 +11,7 @@ import {
   LAST_SCANNED_AT_SQL,
   NOTIFICATION_CHANNEL_ENDPOINTS_TABLE_SCHEMA_SQL,
   PROFILES_TABLE_SCHEMA_SQL,
+  PROJECT_DIRECTORIES_TABLE_SCHEMA_SQL,
   PROJECTS_TABLE_SCHEMA_SQL,
   PREVIEW_CONFIGS_TABLE_SCHEMA_SQL,
   PUSH_SUBSCRIPTIONS_TABLE_SCHEMA_SQL,
@@ -766,6 +767,11 @@ export const runMigrations = (db: Database) => {
     addCavemanModeToSessions(db);
     addSeedPrimerPathToSessions(db);
     ensureProjectsForSessionPaths(db);
+
+    // Created after the projects rebuild above: the foreign key must point at
+    // the final projects table, not the legacy shape it replaces.
+    db.exec(PROJECT_DIRECTORIES_TABLE_SCHEMA_SQL);
+    db.exec('CREATE INDEX IF NOT EXISTS idx_project_directories_project ON project_directories(project_id)');
 
     db.exec(PROFILES_TABLE_SCHEMA_SQL);
     db.exec('CREATE INDEX IF NOT EXISTS idx_profiles_provider ON profiles(provider)');

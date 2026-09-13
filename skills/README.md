@@ -1,45 +1,58 @@
 # Bundled skills
 
-Agent skills that ship with RFC Code, so a fresh install has the same toolbox
-as the machine this fork is developed on instead of an empty `skills/`
-directory.
+Agent skills that ship with RFC Code, so a fresh install has a populated
+toolbox instead of an empty `skills/` directory. The server links them into
+each account profile's config directory one by one, which is what makes the
+per-profile selection in the skills panel possible — see
+`server/modules/bundled-skills/`.
 
-123 directories: 118 are skills (each with a `SKILL.md`), and five are shared
-material the skills load at runtime — `common/` (imported by any skill that
-needs an API key), `document-skills/` (the `docx`/`pdf`/`pptx`/`xlsx` family),
-`scripts/` and `references/` (used by `skill-creator`), and `ck-help/`.
+145 directories: 106 come from the AgentKit Engineer kit and carry its `ak-`
+prefix, and 39 are skills from other sources that the kit does not ship.
 
 ## Where they came from
 
-Collected from the local `~/.claude*` profile directories. When the same skill
-existed in more than one profile with different contents, the version was
-picked deliberately rather than by whichever was found first:
+`ak-*` is the Engineer kit of [AgentKit](https://agentkit.best), which absorbed
+ClaudeKit — the `ck-` prefixed skills earlier versions of this bundle carried
+are the same skills under their new names, and profiles follow the rename
+automatically (`repairSkillLinks`).
 
-| Skill | Taken from | Why |
-| --- | --- | --- |
-| `skill-creator` | `.claude-pessoal` | Superset — carries `references/output-patterns.md` and `references/workflows.md` that the `.claude` copy keeps in a separate top-level directory |
-| `use-mcp` | `.claude` | Superset (adds `scripts/package-lock.json`) |
-| `cloud-architect` | `.claude-pessoal` | The `.claude-gdc` copy is nested inside itself (`cloud-architect/cloud-architect/…`) — a broken install, not a newer version |
-| `js-specialist` | `.claude-pessoal` | Same nesting defect in `.claude-gdc` |
-| `senior-architect` | `.claude-pessoal` | Same nesting defect in `.claude-gdc` |
+Everything else was collected from the local `~/.claude*` profile directories:
+the gstack family (`ship`, `retro`, `review`, `qa`, `browse`, the `plan-*`
+reviews, …) and a handful of specialist skills the kit dropped
+(`ai-architect`, `cloud-architect`, `container-specialist`, `dba-specialist`,
+`frontend-specialist`, `js-specialist`, `php-specialist`,
+`principal-engineer`, `senior-architect`, `pr-feedback`, `tlc-spec-driven`).
 
-Everything else resolved in this order: `.claude`, `.claude-pessoal`,
-`.claude-gdc`, `.claude-bdc`, `.claude-jet`, `.claude-3`.
+`ak-common` is the one entry linked into every profile whether or not it was
+asked for: it holds the shared material the rest of the kit loads, and offering
+it as a toggle would let someone switch off a dependency and break skills that
+look unrelated to it.
 
 ## Skills that need a build step
 
 `gstack` and `browse` run from a compiled single-file executable that is **not
-committed** — five of them totalled 290 MB, they are built for one platform
-(the ones collected here were macOS arm64), and they would not run inside the
-Linux container anyway. Their TypeScript sources are here; build them on the
-machine that will run them, following each skill's own instructions.
+committed** — five of them totalled 290 MB, they are built for one platform,
+and they would not run inside the Linux container anyway. Their TypeScript
+sources are here; build them on the machine that will run them, following each
+skill's own instructions.
 
 Until they are built, those two skills are the only ones in this directory that
 will not work straight from a clone.
 
-## Adding or refreshing skills
+## Refreshing the AgentKit half
 
-Re-scanning the profile directories is what keeps this current — there is no
-upstream index to sync against. Skills that arrive bundled with a new Claude
-Code or Codex release show up in the profile directories on their own, so a
-re-scan picks them up without anyone maintaining a list by hand.
+The `ak-*` directories are generated, not edited here. Install the CLI, sign in
+with an account that has Engineer Kit access, and emit the kit into a scratch
+project:
+
+```sh
+curl -fsSL https://agentkit.best/install.sh | sh
+ak login --api-key ak_live_... --no-interactive
+mkdir /tmp/ak && cd /tmp/ak && ak kit init engineer --target claude-code --yes
+```
+
+Then replace the `ak-*` directories here with `/tmp/ak/.claude/skills/ak-*`,
+and refresh `../agent-kit/` from the rest of that output — see
+`../agent-kit/README.md`. The non-`ak-` directories are not part of that
+output and must survive the swap; two of them (`retro`, `ship`) share a name
+with a kit skill and are the gstack version, not a stale copy.

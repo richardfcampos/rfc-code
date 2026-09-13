@@ -1,0 +1,174 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "node \"__HOOKS_DIR__/dev-rules-reminder.cjs\"",
+            "type": "command"
+          }
+        ],
+        "matcher": "Write|Edit"
+      },
+      {
+        "hooks": [
+          {
+            "command": "node \"__HOOKS_DIR__/plan-format-kanban.cjs\"",
+            "type": "command"
+          }
+        ],
+        "matcher": "Edit|Write"
+      },
+      {
+        "hooks": [
+          {
+            "command": "node \"__HOOKS_DIR__/session-state.cjs\"",
+            "type": "command"
+          }
+        ],
+        "matcher": "Agent|Task|TodoWrite|TodoRead"
+      },
+      {
+        "hooks": [
+          {
+            "command": "node \"__HOOKS_DIR__/usage-quota-cache-refresh.cjs\"",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "command": "node \"__HOOKS_DIR__/precompact-capture.cjs\"",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "node \"__HOOKS_DIR__/descriptive-name.cjs\"",
+            "type": "command"
+          }
+        ],
+        "matcher": "Write"
+      },
+      {
+        "hooks": [
+          {
+            "command": "node \"__HOOKS_DIR__/privacy-block.cjs\"",
+            "type": "command"
+          }
+        ],
+        "matcher": "Read|Write|Edit|Bash"
+      },
+      {
+        "hooks": [
+          {
+            "command": "node \"__HOOKS_DIR__/scout-block.cjs\"",
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash|Read"
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "node \"__HOOKS_DIR__/session-init.cjs\"",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "node \"__HOOKS_DIR__/cook-after-plan-reminder.cjs\"",
+            "type": "command"
+          },
+          {
+            "command": "node \"__HOOKS_DIR__/session-state.cjs\"",
+            "type": "command"
+          },
+          {
+            "command": "node \"__HOOKS_DIR__/usage-quota-cache-refresh.cjs\"",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "command": "node \"__HOOKS_DIR__/subagent-init.cjs\"",
+            "type": "command"
+          },
+          {
+            "command": "node \"__HOOKS_DIR__/team-context-inject.cjs\"",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "command": "node \"__HOOKS_DIR__/session-state.cjs\"",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "node \"__HOOKS_DIR__/secret-output-guardrail.cjs\"",
+            "type": "command"
+          },
+          {
+            "command": "node \"__HOOKS_DIR__/simplify-gate.cjs\"",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      },
+      {
+        "hooks": [
+          {
+            "command": "node \"__HOOKS_DIR__/secret-output-guardrail.cjs\"",
+            "type": "command"
+          },
+          {
+            "command": "node \"__HOOKS_DIR__/dev-rules-reminder.cjs\"",
+            "type": "command"
+          },
+          {
+            "command": "node \"__HOOKS_DIR__/simplify-gate.cjs\"",
+            "type": "command"
+          },
+          {
+            "command": "node \"__HOOKS_DIR__/usage-quota-cache-refresh.cjs\"",
+            "type": "command"
+          }
+        ],
+        "matcher": "*"
+      }
+    ]
+  }
+}

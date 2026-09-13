@@ -20,6 +20,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+import {
+  pointedIntoBundle,
+  renamedBundleName,
+} from '@/modules/bundled-skills/skill-link-migration.js';
+
 /** A skill the user can turn on or off for a profile. */
 export type BundledSkill = {
   name: string;
@@ -29,13 +34,14 @@ export type BundledSkill = {
 };
 
 /**
- * Directories that carry no `SKILL.md` of their own but that skills import at
- * runtime. They are linked unconditionally: `common/` holds the API key helper
- * several skills import, and the others back `skill-creator`. Offering them as
- * toggles would let someone switch off a dependency and break skills that look
- * unrelated.
+ * Skills that exist only to be loaded by other skills, and are linked whether
+ * or not a profile asked for them.
+ *
+ * `ak-common` holds the shared helpers and conventions the rest of the kit
+ * imports. Offering it as a toggle would let someone switch off a dependency
+ * and break skills that look unrelated to it.
  */
-const REQUIRED_ENTRIES = new Set(['common', 'references', 'scripts', 'ck-help', 'document-skills']);
+const REQUIRED_ENTRIES = new Set(['ak-common']);
 
 export function getBundledSkillsRoot(): string {
   return process.env.BUNDLED_SKILLS_ROOT || '/opt/rfc-code/skills';
@@ -152,12 +158,15 @@ function pointsIntoBundle(linkPath: string): boolean {
 /**
  * Relinks dangling bundle links in a profile, without changing its selection.
  *
+ * Also carries a selection across an upstream rename and drops links to skills
+ * the bundle no longer ships, so an updated bundle does not leave every profile
+ * reporting broken skills.
+ *
  * The links are absolute, so moving the data directory to another machine (or
  * relocating the bundle) leaves every one of them dangling and the profile's
- * sessions with no skills at all. Only names that exist in the bundle are
- * relinked; a dangling link with a foreign name is the user's own (its target
- * may be temporarily unmounted) and is left alone, as are working links and
- * real directories.
+ * sessions with no skills at all. Working links and real directories are left
+ * alone, and so is a dangling link that never pointed into the bundle — that
+ * one is the user's own, and its target may be temporarily unmounted.
  */
 export function repairSkillLinks(profileDir: string): void {
   const skillsDir = resolveProfileSkillsDir(profileDir);
@@ -173,13 +182,29 @@ export function repairSkillLinks(profileDir: string): void {
 
   const bundledNames = new Set(listBundledSkills().map((skill) => skill.name));
   for (const entry of entries) {
-    if (!entry.isSymbolicLink() || !bundledNames.has(entry.name)) {
+    if (!entry.isSymbolicLink()) {
       continue;
     }
-    if (fs.existsSync(path.join(skillsDir, entry.name))) {
+    const link = path.join(skillsDir, entry.name);
+    if (fs.existsSync(link)) {
       continue;
     }
-    enableSkill(profileDir, entry.name);
+
+    if (bundledNames.has(entry.name)) {
+      enableSkill(profileDir, entry.name);
+      continue;
+    }
+
+    // The name is gone from the bundle. Either the skill was renamed upstream
+    // and the selection should follow it, or it was dropped and the link is
+    // now litter that Claude Code reports as a broken skill on every session.
+    const renamed = renamedBundleName(entry.name, bundledNames);
+    if (renamed) {
+      enableSkill(profileDir, renamed);
+    }
+    if (pointedIntoBundle(link, getBundledSkillsRoot())) {
+      fs.unlinkSync(link);
+    }
   }
 }
 
