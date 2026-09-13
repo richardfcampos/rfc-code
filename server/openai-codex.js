@@ -236,6 +236,9 @@ export async function queryCodex(command, options = {}, ws) {
     permissionMode = 'default'
   } = options;
 
+  // Recorded once so run.stopped/run.failed notifications can report how long the run took.
+  const startedAt = Date.now();
+
   const resolvedModel = await providerModelsService.resolveResumeModel(
     'codex',
     sessionId,
@@ -351,7 +354,9 @@ export async function queryCodex(command, options = {}, ws) {
           provider: 'codex',
           sessionId: capturedSessionId || sessionId || null,
           sessionName: sessionSummary,
-          error: terminalFailure
+          error: terminalFailure,
+          projectPath: workingDirectory,
+          startedAt
         });
       }
 
@@ -381,7 +386,9 @@ export async function queryCodex(command, options = {}, ws) {
           provider: 'codex',
           sessionId: capturedSessionId || sessionId || null,
           sessionName: sessionSummary,
-          stopReason: 'completed'
+          stopReason: 'completed',
+          projectPath: workingDirectory,
+          startedAt
         });
       }
     }
@@ -414,7 +421,9 @@ export async function queryCodex(command, options = {}, ws) {
           provider: 'codex',
           sessionId: capturedSessionId || sessionId || null,
           sessionName: sessionSummary,
-          error
+          error,
+          projectPath: workingDirectory,
+          startedAt
         });
       }
     }

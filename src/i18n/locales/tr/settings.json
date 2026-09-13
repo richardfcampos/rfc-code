@@ -144,6 +144,28 @@
       "enabled": "Etkin",
       "test": "Sesi test et"
     },
+    "notifyHub": {
+      "title": "notify-hub push",
+      "description": "Bir çalışma bittiğinde, başarısız olduğunda veya senden bir işlem beklediğinde notify-hub üzerinden telefonuna push bildirimi gönderir. Kenar çubuğundaki zil simgesiyle proje bazında açıp kapatabilirsin.",
+      "url": "URL",
+      "token": "Token",
+      "tokenKeep": "Mevcut token'ı korumak için boş bırak",
+      "timezone": "Saat dilimi",
+      "timezoneHint": "IANA adı, mesajdaki saat için kullanılır",
+      "status": {
+        "configured": "Yapılandırıldı",
+        "notConfigured": "Yapılandırılmadı",
+        "fromEnv": "ortam değişkenlerinden"
+      },
+      "save": "Kaydet",
+      "saving": "Kaydediliyor...",
+      "saved": "Kaydedildi",
+      "test": "Test et",
+      "testing": "Test ediliyor...",
+      "testSent": "Test gönderildi (HTTP {{status}})",
+      "testFailed": "Test başarısız: {{error}}",
+      "loadError": "notify-hub ayarları yüklenemedi."
+    },
     "events": {
       "title": "Etkinlik Türleri",
       "actionRequired": "Aksiyon gerekli",

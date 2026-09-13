@@ -551,6 +551,8 @@ async function queryClaudeSDK(command, options = {}, ws) {
   const { sessionId, sessionSummary } = options;
   let capturedSessionId = sessionId;
   let sessionCreatedSent = false;
+  // Recorded once so run.stopped/run.failed notifications can report how long the run took.
+  const startedAt = Date.now();
 
   const emitNotification = (event) => {
     notifyUserIfEnabled({
@@ -677,7 +679,7 @@ async function queryClaudeSDK(command, options = {}, ws) {
           code: 'permission.required',
           // requestId keys the deferred notify-hub push so resolving this exact
           // approval (see waitForToolApproval cleanup) cancels its pending webhook.
-          meta: { toolName, sessionName: sessionSummary, requestId },
+          meta: { toolName, sessionName: sessionSummary, requestId, projectPath: options.cwd || null },
           severity: 'warning',
           requiresUserAction: true,
           dedupeKey: `claude:permission:${capturedSessionId || sessionId || 'none'}:${requestId}`
@@ -790,7 +792,9 @@ async function queryClaudeSDK(command, options = {}, ws) {
       provider: 'claude',
       sessionId: capturedSessionId || sessionId || null,
       sessionName: sessionSummary,
-      stopReason: wasAborted ? 'aborted' : 'completed'
+      stopReason: wasAborted ? 'aborted' : 'completed',
+      projectPath: options.cwd || null,
+      startedAt
     });
     // Complete
 
@@ -823,7 +827,9 @@ async function queryClaudeSDK(command, options = {}, ws) {
       provider: 'claude',
       sessionId: capturedSessionId || sessionId || null,
       sessionName: sessionSummary,
-      error
+      error,
+      projectPath: options.cwd || null,
+      startedAt
     });
   }
 }

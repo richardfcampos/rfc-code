@@ -559,6 +559,7 @@ export type ProjectRepositoryRow = {
   custom_project_name: string | null;
   isStarred: number;
   isArchived: number;
+  notifyEnabled: number;
 };
 
 /**
@@ -748,6 +749,7 @@ export type WorktreeProjectView = {
   fullPath: string;
   displayName: string;
   isStarred: boolean;
+  notifyEnabled: boolean;
   sessions: [];
   sessionMeta: { hasMore: false; total: 0 };
 };

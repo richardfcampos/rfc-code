@@ -20,6 +20,7 @@ function mapRowToProjectView(row: ProjectRepositoryRow): WorktreeProjectView {
     fullPath: row.project_path,
     displayName: row.custom_project_name || path.basename(row.project_path),
     isStarred: Boolean(row.isStarred),
+    notifyEnabled: Boolean(row.notifyEnabled),
     sessions: [],
     sessionMeta: { hasMore: false, total: 0 },
   };

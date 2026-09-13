@@ -144,6 +144,28 @@
       "enabled": "已啟用",
       "test": "測試聲音"
     },
+    "notifyHub": {
+      "title": "notify-hub 推播",
+      "description": "當執行完成、失敗或需要你處理時，透過 notify-hub 將推播通知傳送到你的手機。可在側邊欄用鈴鐺圖示依專案個別開關。",
+      "url": "URL",
+      "token": "權杖",
+      "tokenKeep": "留空以保留目前的權杖",
+      "timezone": "時區",
+      "timezoneHint": "IANA 名稱，用於訊息中顯示的時間",
+      "status": {
+        "configured": "已設定",
+        "notConfigured": "尚未設定",
+        "fromEnv": "來自環境變數"
+      },
+      "save": "儲存",
+      "saving": "儲存中...",
+      "saved": "已儲存",
+      "test": "測試",
+      "testing": "測試中...",
+      "testSent": "測試已傳送（HTTP {{status}}）",
+      "testFailed": "測試失敗：{{error}}",
+      "loadError": "無法載入 notify-hub 設定。"
+    },
     "events": {
       "title": "事件類型",
       "actionRequired": "需要處理",

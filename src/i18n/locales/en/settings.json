@@ -261,6 +261,28 @@
       "enabled": "Enabled",
       "test": "Test sound"
     },
+    "notifyHub": {
+      "title": "notify-hub push",
+      "description": "Send a push to your phone through your notify-hub when a run finishes, fails, or waits for you. Turn it on per project with the bell in the sidebar.",
+      "url": "URL",
+      "token": "Token",
+      "tokenKeep": "Leave empty to keep the current token",
+      "timezone": "Timezone",
+      "timezoneHint": "IANA name, used for the time in the message",
+      "status": {
+        "configured": "Configured",
+        "notConfigured": "Not configured",
+        "fromEnv": "from environment variables"
+      },
+      "save": "Save",
+      "saving": "Saving...",
+      "saved": "Saved",
+      "test": "Test",
+      "testing": "Testing...",
+      "testSent": "Test sent (HTTP {{status}})",
+      "testFailed": "Test failed: {{error}}",
+      "loadError": "Could not load notify-hub settings."
+    },
     "events": {
       "title": "Event Types",
       "actionRequired": "Action required",

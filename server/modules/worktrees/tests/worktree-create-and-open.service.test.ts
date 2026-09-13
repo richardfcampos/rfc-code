@@ -22,6 +22,7 @@ test('createAndOpenWorktree returns the registered project', async () => {
       fullPath: worktreePath,
       displayName: 'feature/login',
       isStarred: false,
+      notifyEnabled: false,
       sessions: [],
       sessionMeta: { hasMore: false, total: 0 },
     }),

@@ -144,6 +144,28 @@
       "enabled": "已启用",
       "test": "测试声音"
     },
+    "notifyHub": {
+      "title": "notify-hub 推送",
+      "description": "当运行完成、失败或需要你处理时，通过 notify-hub 向手机发送推送通知。可在侧边栏用铃铛图标按项目单独开关。",
+      "url": "URL",
+      "token": "令牌",
+      "tokenKeep": "留空以保留当前令牌",
+      "timezone": "时区",
+      "timezoneHint": "IANA 名称，用于消息中显示的时间",
+      "status": {
+        "configured": "已配置",
+        "notConfigured": "未配置",
+        "fromEnv": "来自环境变量"
+      },
+      "save": "保存",
+      "saving": "保存中...",
+      "saved": "已保存",
+      "test": "测试",
+      "testing": "测试中...",
+      "testSent": "测试已发送（HTTP {{status}}）",
+      "testFailed": "测试失败：{{error}}",
+      "loadError": "无法加载 notify-hub 设置。"
+    },
     "events": {
       "title": "事件类型",
       "actionRequired": "需要处理",

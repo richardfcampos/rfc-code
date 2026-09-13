@@ -43,6 +43,8 @@
     "deleteProject": "Rimuovi progetto dalla barra laterale (Canc)",
     "addToFavorites": "Aggiungi ai preferiti",
     "removeFromFavorites": "Rimuovi dai preferiti",
+    "enableProjectNotifications": "Invia notifiche telefoniche per questo progetto",
+    "disableProjectNotifications": "Interrompi le notifiche telefoniche per questo progetto",
     "editSessionName": "Modifica manualmente il nome della sessione",
     "deleteSession": "Elimina questa sessione permanentemente",
     "activeSessionIndicator": "Sessione attiva di recente (ultimi 10 minuti)",

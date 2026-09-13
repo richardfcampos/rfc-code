@@ -43,6 +43,8 @@
     "deleteProject": "從側邊欄移除專案 (Delete)",
     "addToFavorites": "加入收藏",
     "removeFromFavorites": "從收藏移除",
+    "enableProjectNotifications": "為此專案傳送手機通知",
+    "disableProjectNotifications": "停止為此專案傳送手機通知",
     "editSessionName": "手動編輯工作階段名稱",
     "deleteSession": "永久刪除此工作階段",
     "save": "儲存",

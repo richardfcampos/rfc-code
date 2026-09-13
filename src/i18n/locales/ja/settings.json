@@ -143,6 +143,28 @@
       "enabled": "有効",
       "test": "サウンドをテスト"
     },
+    "notifyHub": {
+      "title": "notify-hub プッシュ通知",
+      "description": "実行が完了・失敗・あなたの対応待ちになったとき、notify-hub経由でスマートフォンにプッシュ通知を送ります。サイドバーのベルでプロジェクトごとにオン/オフを切り替えられます。",
+      "url": "URL",
+      "token": "トークン",
+      "tokenKeep": "空欄のままにすると現在のトークンを保持します",
+      "timezone": "タイムゾーン",
+      "timezoneHint": "IANA名。メッセージ内の時刻表示に使用します",
+      "status": {
+        "configured": "設定済み",
+        "notConfigured": "未設定",
+        "fromEnv": "環境変数から"
+      },
+      "save": "保存",
+      "saving": "保存中...",
+      "saved": "保存しました",
+      "test": "テスト",
+      "testing": "テスト中...",
+      "testSent": "テストを送信しました（HTTP {{status}}）",
+      "testFailed": "テストに失敗しました: {{error}}",
+      "loadError": "notify-hubの設定を読み込めませんでした。"
+    },
     "events": {
       "title": "イベント種別",
       "actionRequired": "対応が必要",

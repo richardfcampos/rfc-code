@@ -1,6 +1,14 @@
 import express from 'express';
 
 import { notificationChannelEndpointsDb, notificationPreferencesDb } from '@/modules/database/index.js';
+import {
+  getNotifyHubConfig,
+  isNotifyHubConfigured,
+  saveNotifyHubConfig,
+  sendNotifyHubTest,
+  toNotifyHubPublicView,
+} from '@/modules/notifications/services/notify-hub-config.service.js';
+import { AppError } from '@/shared/utils.js';
 
 const router = express.Router();
 
@@ -121,6 +129,63 @@ router.delete('/endpoints/:channel/:endpointId', (req, res) => {
   } catch (error) {
     console.error('Error removing notification endpoint:', error);
     return res.status(500).json({ error: 'Failed to remove notification endpoint' });
+  }
+});
+
+router.get('/notify-hub', (req, res) => {
+  try {
+    return res.json({ success: true, config: toNotifyHubPublicView(getNotifyHubConfig()) });
+  } catch (error) {
+    console.error('Error fetching notify-hub config:', error);
+    return res.status(500).json({ error: 'Failed to fetch notify-hub config' });
+  }
+});
+
+router.put('/notify-hub', (req, res) => {
+  try {
+    const { url, token, timezone } = req.body || {};
+    const config = saveNotifyHubConfig({ url, token, timezone });
+    return res.json({ success: true, config: toNotifyHubPublicView(config) });
+  } catch (error) {
+    if (error instanceof AppError) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
+    console.error('Error saving notify-hub config:', error);
+    return res.status(500).json({ error: 'Failed to save notify-hub config' });
+  }
+});
+
+// A stored zone can be stale (env typo, removed tz name); the test push should
+// still go out, so fall back to the server zone instead of failing the request.
+function buildTestTimeFormatter(timezone: string | null): Intl.DateTimeFormat {
+  const options: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
+  try {
+    return new Intl.DateTimeFormat('pt-BR', { ...options, timeZone: timezone || undefined });
+  } catch {
+    return new Intl.DateTimeFormat('pt-BR', options);
+  }
+}
+
+router.post('/notify-hub/test', async (req, res) => {
+  try {
+    const config = getNotifyHubConfig();
+    if (!isNotifyHubConfigured(config)) {
+      return res.status(400).json({ ok: false, error: 'notify-hub não configurado' });
+    }
+
+    const now = new Date();
+    const timeFormatter = buildTestTimeFormatter(config.timezone);
+
+    const result = await sendNotifyHubTest(config, {
+      title: '🔔 RFC Code — teste',
+      message: `Notificações do notify-hub configuradas. ${timeFormatter.format(now)}`,
+      priority: 'default',
+      metadata: { event: 'test', timestamp: now.toISOString() },
+    });
+    return res.json({ success: result.ok, ...result });
+  } catch (error) {
+    console.error('Error sending notify-hub test:', error);
+    return res.status(500).json({ ok: false, error: 'Failed to send notify-hub test' });
   }
 });
 

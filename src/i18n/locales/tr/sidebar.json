@@ -43,6 +43,8 @@
     "deleteProject": "Projeyi kenar çubuğundan kaldır (Delete)",
     "addToFavorites": "Favorilere ekle",
     "removeFromFavorites": "Favorilerden çıkar",
+    "enableProjectNotifications": "Bu proje için telefon bildirimleri gönder",
+    "disableProjectNotifications": "Bu proje için telefon bildirimlerini durdur",
     "editSessionName": "Oturum adını elle düzenle",
     "deleteSession": "Bu oturumu kalıcı olarak sil",
     "activeSessionIndicator": "Yakın zamanda etkin oturum (son 10 dakika)",

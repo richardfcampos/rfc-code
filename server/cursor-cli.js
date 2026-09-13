@@ -32,6 +32,8 @@ function isWorkspaceTrustPrompt(text = '') {
 async function spawnCursor(command, options = {}, ws) {
   return new Promise(async (resolve, reject) => {
     const { sessionId, projectPath, cwd, toolsSettings, skipPermissions, model, sessionSummary, images, profileId } = options;
+    // Recorded once so run.stopped/run.failed notifications can report how long the run took.
+    const startedAt = Date.now();
     const resolvedModel = await providerModelsService.resolveResumeModel('cursor', sessionId, model);
     let capturedSessionId = sessionId; // Track session ID throughout the process
     let sessionCreatedSent = false; // Track if we've already sent session-created event
@@ -114,7 +116,9 @@ async function spawnCursor(command, options = {}, ws) {
             provider: 'cursor',
             sessionId: finalSessionId,
             sessionName: sessionSummary,
-            stopReason: 'completed'
+            stopReason: 'completed',
+            projectPath: workingDir,
+            startedAt
           });
           return;
         }
@@ -124,7 +128,9 @@ async function spawnCursor(command, options = {}, ws) {
           provider: 'cursor',
           sessionId: finalSessionId,
           sessionName: sessionSummary,
-          error: error || `Cursor CLI exited with code ${code}`
+          error: error || `Cursor CLI exited with code ${code}`,
+          projectPath: workingDir,
+          startedAt
         });
       };
 

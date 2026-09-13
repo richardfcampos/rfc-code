@@ -1,5 +1,7 @@
 export {
   buildNotificationPayload,
+  buildRunFailedEvent,
+  buildRunStoppedEvent,
   cancelPendingPermissionWebhook,
   createNotificationEvent,
   notifyUserIfEnabled,

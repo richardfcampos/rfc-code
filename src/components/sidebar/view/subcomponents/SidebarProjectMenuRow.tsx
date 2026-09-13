@@ -1,4 +1,4 @@
-import { Check, Edit3, Star, Trash2, X } from 'lucide-react';
+import { Bell, BellRing, Check, Edit3, Star, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { cn } from '../../../../lib/utils';
@@ -13,6 +13,7 @@ type SidebarProjectMenuRowProps = {
   project: Project;
   isSelected: boolean;
   isStarred: boolean;
+  isNotifyEnabled: boolean;
   isDeleting: boolean;
   isEditing: boolean;
   editingName: string;
@@ -21,6 +22,7 @@ type SidebarProjectMenuRowProps = {
   onEditingNameChange: (value: string) => void;
   onSelect: (project: Project) => void;
   onToggleStar: (projectId: string) => void;
+  onToggleNotify: (projectId: string) => void;
   onStartEditing: (project: Project) => void;
   onCancelEditing: () => void;
   onSaveName: (projectId: string) => void;
@@ -35,6 +37,7 @@ export default function SidebarProjectMenuRow({
   project,
   isSelected,
   isStarred,
+  isNotifyEnabled,
   isDeleting,
   isEditing,
   editingName,
@@ -43,6 +46,7 @@ export default function SidebarProjectMenuRow({
   onEditingNameChange,
   onSelect,
   onToggleStar,
+  onToggleNotify,
   onStartEditing,
   onCancelEditing,
   onSaveName,
@@ -107,6 +111,20 @@ export default function SidebarProjectMenuRow({
         aria-pressed={isStarred}
       >
         <Star className={cn('h-3 w-3', isStarred ? 'fill-current text-warning' : 'text-faint')} />
+      </button>
+
+      <button
+        className={ICON_BUTTON_CLASS}
+        onClick={() => onToggleNotify(project.projectId)}
+        title={isNotifyEnabled ? t('tooltips.disableProjectNotifications') : t('tooltips.enableProjectNotifications')}
+        aria-label={isNotifyEnabled ? t('tooltips.disableProjectNotifications') : t('tooltips.enableProjectNotifications')}
+        aria-pressed={isNotifyEnabled}
+      >
+        {isNotifyEnabled ? (
+          <BellRing className="h-3 w-3 text-primary" />
+        ) : (
+          <Bell className="h-3 w-3 text-faint" />
+        )}
       </button>
 
       <button

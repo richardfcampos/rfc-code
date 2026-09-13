@@ -40,6 +40,7 @@ type SessionUpsertedEvent = ServerEvent & {
     fullPath: string;
     displayName: string;
     isStarred: boolean;
+    notifyEnabled?: boolean;
   } | null;
 };
 
@@ -123,6 +124,7 @@ const projectsHaveChanges = (
       nextProject.displayName !== prevProject.displayName ||
       nextProject.fullPath !== prevProject.fullPath ||
       Boolean(nextProject.isStarred) !== Boolean(prevProject.isStarred) ||
+      Boolean(nextProject.notifyEnabled) !== Boolean(prevProject.notifyEnabled) ||
       serialize(nextProject.sessionMeta) !== serialize(prevProject.sessionMeta) ||
       serialize(nextProject.sessions) !== serialize(prevProject.sessions) ||
       serialize(nextProject.taskmaster) !== serialize(prevProject.taskmaster)
@@ -329,6 +331,7 @@ const projectFromRegistration = (project: Project): Project => ({
   fullPath: project.fullPath || project.path || '',
   displayName: project.displayName,
   isStarred: project.isStarred,
+  notifyEnabled: project.notifyEnabled,
   sessions: project.sessions ?? [],
   sessionMeta: project.sessionMeta ?? { hasMore: false, total: countLoadedProjectSessions(project) },
   taskmaster: project.taskmaster,
@@ -543,6 +546,7 @@ export function useProjectsState({
         fullPath: project.fullPath || project.path || '',
         displayName: project.displayName,
         isStarred: Boolean(project.isStarred),
+        notifyEnabled: Boolean(project.notifyEnabled),
       },
       timestamp: now,
     };
@@ -755,6 +759,7 @@ export function useProjectsState({
             fullPath: upsert.project.fullPath,
             displayName: upsert.project.displayName,
             isStarred: upsert.project.isStarred,
+            notifyEnabled: upsert.project.notifyEnabled,
             sessions: [],
             sessionMeta: { hasMore: false, total: 0 },
           } as Project;

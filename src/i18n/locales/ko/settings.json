@@ -143,6 +143,28 @@
       "enabled": "사용",
       "test": "소리 테스트"
     },
+    "notifyHub": {
+      "title": "notify-hub 푸시",
+      "description": "실행이 끝나거나, 실패하거나, 사용자 확인이 필요할 때 notify-hub를 통해 휴대폰으로 푸시 알림을 보냅니다. 사이드바의 벨 아이콘으로 프로젝트별로 켜고 끌 수 있습니다.",
+      "url": "URL",
+      "token": "토큰",
+      "tokenKeep": "비워두면 현재 토큰을 유지합니다",
+      "timezone": "시간대",
+      "timezoneHint": "IANA 이름, 메시지의 시간 표시에 사용됩니다",
+      "status": {
+        "configured": "설정됨",
+        "notConfigured": "설정 안 됨",
+        "fromEnv": "환경 변수에서"
+      },
+      "save": "저장",
+      "saving": "저장 중...",
+      "saved": "저장됨",
+      "test": "테스트",
+      "testing": "테스트 중...",
+      "testSent": "테스트 전송됨 (HTTP {{status}})",
+      "testFailed": "테스트 실패: {{error}}",
+      "loadError": "notify-hub 설정을 불러오지 못했습니다."
+    },
     "events": {
       "title": "이벤트 유형",
       "actionRequired": "작업 필요",

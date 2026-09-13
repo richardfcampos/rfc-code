@@ -220,8 +220,9 @@ const notificationChannels = [
     isEnabled: (preferences) => Boolean(preferences?.channels?.desktop),
     send: ({ userId, payload }) => sendDesktopNotificationToClients(userId, payload)
   },
-  // Enabled by container env (NOTIFY_URL/NOTIFY_TOKEN), not user preferences, so
-  // the phone push works even when in-app/web-push channels are off.
+  // Gated by its own config (Settings > Notifications, env fallback) and by the
+  // event's project bell, not by user channel preferences, so the phone push
+  // works even when in-app/web-push channels are off.
   webhookNotifyChannel
 ];
 
@@ -250,40 +251,52 @@ function notifyUserIfEnabled({ userId, event }) {
   }
 }
 
-function notifyRunStopped({ userId, provider, sessionId = null, stopReason = 'completed', sessionName = null }) {
-  notifyUserIfEnabled({
-    userId,
-    event: createNotificationEvent({
-      provider,
-      sessionId,
-      kind: 'stop',
-      code: 'run.stopped',
-      meta: { stopReason, sessionName },
-      severity: 'info',
-      dedupeKey: `${provider}:run:stop:${sessionId || 'none'}:${stopReason}`
-    })
+// Pure builders (no DB/preference side effects) so notifyRunStopped/notifyRunFailed
+// stay testable without stubbing notifyUserIfEnabled's DB reads.
+function buildRunStoppedEvent({ provider, sessionId = null, stopReason = 'completed', sessionName = null, projectPath = null, startedAt = null }) {
+  return createNotificationEvent({
+    provider,
+    sessionId,
+    kind: 'stop',
+    code: 'run.stopped',
+    meta: { stopReason, sessionName, projectPath, startedAt },
+    severity: 'info',
+    dedupeKey: `${provider}:run:stop:${sessionId || 'none'}:${stopReason}`
   });
 }
 
-function notifyRunFailed({ userId, provider, sessionId = null, error, sessionName = null }) {
+function buildRunFailedEvent({ provider, sessionId = null, error, sessionName = null, projectPath = null, startedAt = null }) {
   const errorMessage = normalizeErrorMessage(error);
 
+  return createNotificationEvent({
+    provider,
+    sessionId,
+    kind: 'error',
+    code: 'run.failed',
+    meta: { error: errorMessage, sessionName, projectPath, startedAt },
+    severity: 'error',
+    dedupeKey: `${provider}:run:error:${sessionId || 'none'}:${errorMessage}`
+  });
+}
+
+function notifyRunStopped({ userId, provider, sessionId = null, stopReason = 'completed', sessionName = null, projectPath = null, startedAt = null }) {
   notifyUserIfEnabled({
     userId,
-    event: createNotificationEvent({
-      provider,
-      sessionId,
-      kind: 'error',
-      code: 'run.failed',
-      meta: { error: errorMessage, sessionName },
-      severity: 'error',
-      dedupeKey: `${provider}:run:error:${sessionId || 'none'}:${errorMessage}`
-    })
+    event: buildRunStoppedEvent({ provider, sessionId, stopReason, sessionName, projectPath, startedAt })
+  });
+}
+
+function notifyRunFailed({ userId, provider, sessionId = null, error, sessionName = null, projectPath = null, startedAt = null }) {
+  notifyUserIfEnabled({
+    userId,
+    event: buildRunFailedEvent({ provider, sessionId, error, sessionName, projectPath, startedAt })
   });
 }
 
 export {
   buildNotificationPayload,
+  buildRunFailedEvent,
+  buildRunStoppedEvent,
   cancelPendingPermissionWebhook,
   createNotificationEvent,
   notifyUserIfEnabled,

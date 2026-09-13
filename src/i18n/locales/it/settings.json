@@ -143,6 +143,28 @@
       "enabled": "Attivato",
       "test": "Prova suono"
     },
+    "notifyHub": {
+      "title": "Push notify-hub",
+      "description": "Invia una notifica push al tuo telefono tramite il tuo notify-hub quando un'esecuzione termina, fallisce o attende un tuo intervento. Attivalo per progetto con la campanella nella barra laterale.",
+      "url": "URL",
+      "token": "Token",
+      "tokenKeep": "Lascia vuoto per mantenere il token attuale",
+      "timezone": "Fuso orario",
+      "timezoneHint": "Nome IANA, usato per l'orario nel messaggio",
+      "status": {
+        "configured": "Configurato",
+        "notConfigured": "Non configurato",
+        "fromEnv": "dalle variabili d'ambiente"
+      },
+      "save": "Salva",
+      "saving": "Salvataggio...",
+      "saved": "Salvato",
+      "test": "Testa",
+      "testing": "Test in corso...",
+      "testSent": "Test inviato (HTTP {{status}})",
+      "testFailed": "Test fallito: {{error}}",
+      "loadError": "Impossibile caricare le impostazioni di notify-hub."
+    },
     "events": {
       "title": "Tipi di evento",
       "actionRequired": "Azione richiesta",
