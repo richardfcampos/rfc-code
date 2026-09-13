@@ -169,8 +169,19 @@ skills/*/*/dist/
 skills/*/bin/gstack-global-discover
 skills/**/node_modules/
 skills/**/__pycache__/
+
+# The kit's hooks log next to themselves unless CK_HOOK_LOG_DIR points
+# elsewhere, which it does for profile sessions — this catches a stray run.
+agent-kit/.logs/
 skills/**/*.pyc
 
 # Generated claude.ai/design upload bundle
 .design-sync/
 .gstack/
+
+# Task files
+# tasks.json
+# tasks/ 
+
+# CodeGraph local index
+.codegraph/

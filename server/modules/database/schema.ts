@@ -96,6 +96,21 @@ CREATE TABLE IF NOT EXISTS projects (
 );
 `;
 
+// Extra working directories attached to a project. The project's own
+// `project_path` stays the single working directory the agent starts in; these
+// rows only widen what it may read and edit, mirroring the CLI's `--add-dir`.
+// One row per directory (rather than a JSON column) so the pair is unique by
+// construction and a project delete cascades its directories away.
+export const PROJECT_DIRECTORIES_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS project_directories (
+    project_id TEXT NOT NULL,
+    directory_path TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (project_id, directory_path),
+    FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE
+);
+`;
+
 export const PROFILES_TABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS profiles (
     id TEXT PRIMARY KEY NOT NULL,
@@ -597,6 +612,9 @@ CREATE INDEX IF NOT EXISTS idx_notification_channel_endpoints_enabled ON notific
 ${PROJECTS_TABLE_SCHEMA_SQL}
 -- NOTE: These indexes are created in migrations after legacy table-shape repairs.
 -- Creating them here can fail on upgraded installs where projects lacks those columns.
+
+${PROJECT_DIRECTORIES_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_project_directories_project ON project_directories(project_id);
 
 ${PROFILES_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_profiles_provider ON profiles(provider);

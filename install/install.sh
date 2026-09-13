@@ -857,6 +857,7 @@ add_env DATABASE_PATH "$PREFIX/data/db/auth.db"
 add_env PROFILES_ROOT "$PREFIX/data/profiles"
 add_env WORKSPACES_ROOT "$WORKSPACES_ROOT"
 add_env BUNDLED_SKILLS_ROOT "$REPO_ROOT/skills"
+add_env AGENT_KIT_ROOT "$REPO_ROOT/agent-kit"
 # Written explicitly on every install: the code default points at the path the
 # Docker image used, which does not exist natively — relying on it would leave
 # the compression switch enabled in the UI and inert in practice.

@@ -32,6 +32,12 @@ import {
   type BundledSkill,
 } from '@/modules/bundled-skills/index.js';
 import {
+  applyKitHooks,
+  isAgentKitAvailable,
+  linkKitContent,
+  resolveAgentKitEnv,
+} from '@/modules/bundled-kit/index.js';
+import {
   applyRtkMode,
   disableCavemanPlugin,
   enableCavemanPlugin,
@@ -70,6 +76,22 @@ export const AGENT_TOOLING_PROVIDER: LLMProvider = 'claude';
 
 export function supportsAgentTooling(provider: LLMProvider): boolean {
   return provider === AGENT_TOOLING_PROVIDER;
+}
+
+/**
+ * Puts the bundled agent kit in place for one profile's config directory.
+ *
+ * Only Claude Code reads agents, rules and hooks out of a config dir, so the
+ * other providers get the skills and nothing else. Idempotent: it relinks and
+ * re-registers rather than appending, which is what lets it double as the
+ * repair path for a profile created before the kit shipped.
+ */
+function installAgentKit(provider: LLMProvider, profileDir: string): void {
+  if (!supportsAgentTooling(provider) || !isAgentKitAvailable()) {
+    return;
+  }
+  linkKitContent(profileDir);
+  applyKitHooks(profileDir, true);
 }
 
 export interface ProfileAuthStatus {
@@ -169,6 +191,7 @@ export const profilesService = {
     // finds skills under this config dir, so without this a fresh account sees
     // none at all and the skills panel would be the only way to get any.
     enableAllSkills(profileDir);
+    installAgentKit(provider, profileDir);
 
     const row = profilesRepository.insert({ id, provider, name, slug });
     return toView(row);
@@ -346,8 +369,17 @@ export const profilesService = {
       return {};
     }
 
+    // The kit's hooks keep their session state under the profile's config dir
+    // rather than the invoking user's home, so two accounts cannot read each
+    // other's. Independent of the compression level, hence merged separately,
+    // and skipped entirely without a kit — there would be no hook to read it.
+    const kitEnv =
+      row && isAgentKitAvailable()
+        ? resolveAgentKitEnv(resolveProfileDir(row.provider, row.slug))
+        : {};
+
     const mode = resolveExplicitCavemanMode(sessionCavemanMode, row?.caveman_mode);
-    return mode ? resolveCavemanEnv(mode) : {};
+    return { ...kitEnv, ...(mode ? resolveCavemanEnv(mode) : {}) };
   },
 
   /**
@@ -410,6 +442,7 @@ export const profilesService = {
       const profileDir = resolveProfileDir(row.provider, row.slug);
       try {
         repairSkillLinks(profileDir);
+        installAgentKit(row.provider, profileDir);
         repairPluginConfigPaths(profileDir);
       } catch {
         // One unreadable profile dir should not stop the others from healing.

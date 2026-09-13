@@ -3,8 +3,19 @@
  *
  * Covers the two optional add-ons a Claude Code session can run with: caveman
  * (response compression, scoped per session through an env var) and RTK
- * (command rewriting, scoped per profile through a hook in settings.json).
+ * (command rewriting, scoped per profile through a hook in settings.json), plus
+ * the shared reader and writer for the `settings.json` they both persist into —
+ * which the bundled agent kit registers its own hooks through as well.
  */
+
+export {
+  readSettings,
+  updateSettings,
+  writeSettings,
+  type HookEntry,
+  type HookMatcher,
+  type SettingsShape,
+} from '@/modules/agent-tooling/profile-settings.js';
 
 export {
   CAVEMAN_MODES,
