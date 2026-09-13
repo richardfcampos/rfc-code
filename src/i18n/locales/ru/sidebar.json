@@ -43,6 +43,8 @@
     "deleteProject": "Убрать проект из боковой панели (Delete)",
     "addToFavorites": "Добавить в избранное",
     "removeFromFavorites": "Удалить из избранного",
+    "enableProjectNotifications": "Отправлять push-уведомления на телефон для этого проекта",
+    "disableProjectNotifications": "Остановить push-уведомления на телефон для этого проекта",
     "editSessionName": "Вручную редактировать имя сеанса",
     "deleteSession": "Удалить этот сеанс навсегда",
     "activeSessionIndicator": "Недавно активный сеанс (последние 10 минут)",

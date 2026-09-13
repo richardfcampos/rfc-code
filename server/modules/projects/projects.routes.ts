@@ -7,6 +7,7 @@ import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils
 import { getArchivedProjectsWithSessions, getProjectSessionsPage, getProjectsWithSessions } from '@/modules/projects/services/projects-with-sessions-fetch.service.js';
 import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
 import { applyLegacyStarredProjectIds, toggleProjectStar } from '@/modules/projects/services/project-star.service.js';
+import { toggleProjectNotify } from '@/modules/projects/services/project-notify.service.js';
 
 const router = express.Router();
 
@@ -244,6 +245,15 @@ router.post(
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
     const { isStarred } = toggleProjectStar(projectId);
     res.json({ success: true, isStarred });
+  }),
+);
+
+router.post(
+  '/:projectId/toggle-notify',
+  asyncHandler(async (req, res) => {
+    const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
+    const { notifyEnabled } = toggleProjectNotify(projectId);
+    res.json({ success: true, notifyEnabled });
   }),
 );
 

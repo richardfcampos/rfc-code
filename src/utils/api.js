@@ -149,6 +149,10 @@ export const api = {
     authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/toggle-star`, {
       method: 'POST',
     }),
+  toggleProjectNotify: (projectId) =>
+    authenticatedFetch(`/api/projects/${encodeURIComponent(projectId)}/toggle-notify`, {
+      method: 'POST',
+    }),
   readFile: (projectId, filePath) =>
     authenticatedFetch(`/api/projects/${projectId}/file?filePath=${encodeURIComponent(filePath)}`),
   readFileBlob: (projectId, filePath) =>

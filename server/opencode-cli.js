@@ -126,6 +126,8 @@ function readOpenCodeTokenUsage(sessionId) {
 async function spawnOpenCode(command, options = {}, ws) {
   return new Promise((resolve, reject) => {
     const { sessionId, projectPath, cwd, model, effort, sessionSummary, images, permissionMode, profileId } = options;
+    // Recorded once so run.stopped/run.failed notifications can report how long the run took.
+    const startedAt = Date.now();
     const workingDir = cwd || projectPath || process.cwd();
     const processKey = sessionId || Date.now().toString();
     let capturedSessionId = sessionId || null;
@@ -151,6 +153,8 @@ async function spawnOpenCode(command, options = {}, ws) {
           sessionId: finalSessionId,
           sessionName: sessionSummary,
           stopReason: 'completed',
+          projectPath: workingDir,
+          startedAt,
         });
         return;
       }
@@ -161,6 +165,8 @@ async function spawnOpenCode(command, options = {}, ws) {
         sessionId: finalSessionId,
         sessionName: sessionSummary,
         error: error || `OpenCode CLI exited with code ${code}`,
+        projectPath: workingDir,
+        startedAt,
       });
     };
 

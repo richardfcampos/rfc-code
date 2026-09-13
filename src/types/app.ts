@@ -75,6 +75,7 @@ export interface Project {
   fullPath: string;
   path?: string;
   isStarred?: boolean;
+  notifyEnabled?: boolean;
   sessions?: ProjectSession[];
   sessionMeta?: ProjectSessionMeta;
   taskmaster?: ProjectTaskmasterInfo;

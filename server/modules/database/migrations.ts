@@ -101,7 +101,7 @@ const migrateLegacyWorkspaceTableIntoProjects = (db: Database): void => {
 
   console.log('Running migration: Migrating workspace_original_paths data into projects');
   db.exec(`
-    INSERT INTO projects (project_id, project_path, custom_project_name, isStarred, isArchived)
+    INSERT INTO projects (project_id, project_path, custom_project_name, isStarred, isArchived, notifyEnabled)
     SELECT
       CASE
         WHEN workspace_id IS NULL OR trim(workspace_id) = ''
@@ -111,6 +111,7 @@ const migrateLegacyWorkspaceTableIntoProjects = (db: Database): void => {
       workspace_path,
       custom_workspace_name,
       COALESCE(isStarred, 0),
+      0,
       0
     FROM workspace_original_paths
     WHERE workspace_path IS NOT NULL AND trim(workspace_path) <> ''
@@ -137,6 +138,7 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
     addColumnToTableIfNotExists(db, 'projects', columnNames, 'custom_project_name', 'TEXT DEFAULT NULL');
     addColumnToTableIfNotExists(db, 'projects', columnNames, 'isStarred', 'BOOLEAN DEFAULT 0');
     addColumnToTableIfNotExists(db, 'projects', columnNames, 'isArchived', 'BOOLEAN DEFAULT 0');
+    addColumnToTableIfNotExists(db, 'projects', columnNames, 'notifyEnabled', 'BOOLEAN DEFAULT 0');
     db.exec(`
       UPDATE projects
       SET project_id = ${SQLITE_UUID_SQL}
@@ -163,6 +165,8 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
 
   const isArchivedExpression = columnNames.includes('isArchived') ? 'COALESCE(isArchived, 0)' : '0';
 
+  const notifyEnabledExpression = columnNames.includes('notifyEnabled') ? 'COALESCE(notifyEnabled, 0)' : '0';
+
   const projectIdExpression = columnNames.includes('project_id')
     ? `CASE
          WHEN project_id IS NULL OR trim(project_id) = ''
@@ -181,7 +185,8 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
         project_path TEXT NOT NULL UNIQUE,
         custom_project_name TEXT DEFAULT NULL,
         isStarred BOOLEAN DEFAULT 0,
-        isArchived BOOLEAN DEFAULT 0
+        isArchived BOOLEAN DEFAULT 0,
+        notifyEnabled BOOLEAN DEFAULT 0
       )
     `);
     db.exec(`
@@ -191,6 +196,7 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
           ${customProjectNameExpression} AS custom_project_name,
           ${isStarredExpression} AS isStarred,
           ${isArchivedExpression} AS isArchived,
+          ${notifyEnabledExpression} AS notifyEnabled,
           ${projectIdExpression} AS candidate_project_id,
           rowid AS source_rowid
         FROM projects
@@ -202,6 +208,7 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
           custom_project_name,
           isStarred,
           isArchived,
+          notifyEnabled,
           candidate_project_id,
           source_rowid,
           ROW_NUMBER() OVER (PARTITION BY project_path ORDER BY source_rowid) AS project_path_rank
@@ -217,7 +224,8 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
           project_path,
           custom_project_name,
           isStarred,
-          isArchived
+          isArchived,
+          notifyEnabled
         FROM deduped_paths
         WHERE project_path_rank = 1
       )
@@ -226,14 +234,16 @@ const rebuildProjectsTableWithPrimaryKeySchema = (db: Database): void => {
         project_path,
         custom_project_name,
         isStarred,
-        isArchived
+        isArchived,
+        notifyEnabled
       )
       SELECT
         project_id,
         project_path,
         custom_project_name,
         isStarred,
-        isArchived
+        isArchived,
+        notifyEnabled
       FROM prepared_rows
     `);
     db.exec('DROP TABLE projects');

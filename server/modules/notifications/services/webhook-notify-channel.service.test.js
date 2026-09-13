@@ -1,19 +1,27 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import { mkdtemp, rm } from 'node:fs/promises';
 import http from 'node:http';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test, { mock } from 'node:test';
 
 import {
-  buildNotificationPayload,
-  createNotificationEvent,
-} from '@/modules/notifications/services/notification-orchestrator.service.js';
+  appConfigDb,
+  closeConnection,
+  initializeDatabase,
+  projectsDb,
+  sessionsDb,
+} from '@/modules/database/index.js';
+import { createNotificationEvent } from '@/modules/notifications/services/notification-orchestrator.service.js';
 import {
-  buildWebhookRequestBody,
   cancelPendingPermissionWebhook,
   isWebhookConfigured,
   PERMISSION_PENDING_THRESHOLD_MS,
   sendWebhookNotification,
 } from '@/modules/notifications/services/webhook-notify-channel.service.js';
+
+const PROJECT_PATH = '/workspace/notify-hub-project';
 
 function restoreEnv(key, previous) {
   if (previous === undefined) {
@@ -23,45 +31,86 @@ function restoreEnv(key, previous) {
   }
 }
 
-// Builds events exactly as the real emit sites do (notifyRunStopped/Failed and
-// the Claude canUseTool permission prompt), so the webhook is exercised against
-// genuine orchestrator payloads rather than hand-rolled shapes.
-function stopEvent() {
+// Both gates now read sqlite (app_config for the hub, projects for the bell),
+// so every test runs against an isolated DB file like the repository tests do.
+async function withIsolatedDatabase(runTest) {
+  const previousDatabasePath = process.env.DATABASE_PATH;
+  const previousUrl = process.env.NOTIFY_URL;
+  const previousToken = process.env.NOTIFY_TOKEN;
+  const previousTimezone = process.env.NOTIFY_TIMEZONE;
+  const tempDirectory = await mkdtemp(path.join(tmpdir(), 'notify-hub-channel-db-'));
+
+  closeConnection();
+  process.env.DATABASE_PATH = path.join(tempDirectory, 'auth.db');
+  // The env fallback is exercised explicitly where it matters; elsewhere the
+  // developer's own NOTIFY_* must not leak into the assertions.
+  delete process.env.NOTIFY_URL;
+  delete process.env.NOTIFY_TOKEN;
+  delete process.env.NOTIFY_TIMEZONE;
+  await initializeDatabase();
+
+  try {
+    await runTest();
+  } finally {
+    closeConnection();
+    restoreEnv('DATABASE_PATH', previousDatabasePath);
+    restoreEnv('NOTIFY_URL', previousUrl);
+    restoreEnv('NOTIFY_TOKEN', previousToken);
+    restoreEnv('NOTIFY_TIMEZONE', previousTimezone);
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+}
+
+function configureHub(url, token = 'db-token') {
+  appConfigDb.set('notify_hub_url', url);
+  appConfigDb.set('notify_hub_token', token);
+  appConfigDb.set('notify_hub_timezone', 'America/Sao_Paulo');
+}
+
+function createProject(projectPath, notifyEnabled) {
+  projectsDb.createProjectPath(projectPath);
+  const row = projectsDb.getProjectPath(projectPath);
+  projectsDb.updateProjectNotifyEnabledById(row.project_id, notifyEnabled);
+  return projectsDb.getProjectPath(projectPath);
+}
+
+// Events are built through the orchestrator's factory so the channel is
+// exercised against genuine emit-site shapes, not hand-rolled objects.
+function stopEvent(meta = {}) {
   return createNotificationEvent({
     provider: 'claude',
     sessionId: null,
     kind: 'stop',
     code: 'run.stopped',
-    meta: { stopReason: 'completed', sessionName: 'My Session' },
+    meta: { stopReason: 'completed', sessionName: 'My Session', projectPath: PROJECT_PATH, startedAt: null, ...meta },
     severity: 'info',
   });
 }
 
-function failEvent() {
-  return createNotificationEvent({
-    provider: 'claude',
-    sessionId: null,
-    kind: 'error',
-    code: 'run.failed',
-    meta: { error: 'boom', sessionName: 'My Session' },
-    severity: 'error',
-  });
-}
-
-function permissionEvent(requestId) {
+function permissionEvent(requestId, meta = {}) {
   return createNotificationEvent({
     provider: 'claude',
     sessionId: null,
     kind: 'action_required',
     code: 'permission.required',
-    meta: { toolName: 'Bash', sessionName: 'My Session', requestId },
+    meta: { toolName: 'Bash', sessionName: 'My Session', requestId, projectPath: PROJECT_PATH, ...meta },
     severity: 'warning',
     requiresUserAction: true,
   });
 }
 
-// Spins up a throwaway HTTP server that records each inbound request, points the
-// channel env at it, and restores env + closes the server afterwards.
+function stubFetch(calls) {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options });
+    return new Response('ok');
+  };
+  return () => {
+    globalThis.fetch = originalFetch;
+  };
+}
+
+// Throwaway HTTP server recording inbound requests, pointed at by the DB config.
 async function withNotifyHubServer(run) {
   const requests = [];
   const server = http.createServer((req, res) => {
@@ -84,224 +133,218 @@ async function withNotifyHubServer(run) {
   await once(server, 'listening');
   const { port } = server.address();
 
-  const previousUrl = process.env.NOTIFY_URL;
-  const previousToken = process.env.NOTIFY_TOKEN;
-  process.env.NOTIFY_URL = `http://127.0.0.1:${port}`;
-  process.env.NOTIFY_TOKEN = 'test-token';
-
   try {
-    await run(requests);
+    await run(requests, `http://127.0.0.1:${port}`);
   } finally {
-    restoreEnv('NOTIFY_URL', previousUrl);
-    restoreEnv('NOTIFY_TOKEN', previousToken);
     server.close();
     await once(server, 'close');
   }
 }
 
-test('run.stopped posts the notify-hub wire format (POST + bearer + body)', async () => {
-  await withNotifyHubServer(async (requests) => {
-    const event = stopEvent();
-    const payload = buildNotificationPayload(event);
+test('nothing is sent when notify-hub is not configured', async () => {
+  await withIsolatedDatabase(async () => {
+    createProject(PROJECT_PATH, true);
+    const calls = [];
+    const restoreFetch = stubFetch(calls);
 
-    await sendWebhookNotification({ event, payload });
+    try {
+      assert.equal(isWebhookConfigured(), false);
+      assert.equal(sendWebhookNotification({ event: stopEvent() }), undefined);
+      await Promise.resolve();
+      assert.equal(calls.length, 0);
+    } finally {
+      restoreFetch();
+    }
+  });
+});
 
-    assert.equal(requests.length, 1);
-    assert.equal(requests[0].method, 'POST');
-    assert.equal(requests[0].authorization, 'Bearer test-token');
-    assert.match(requests[0].contentType, /application\/json/);
-    assert.deepEqual(requests[0].body, {
-      title: 'My Session',
-      message: 'Claude: completed',
-      priority: 'default',
+test('a project with the bell off is never pushed', async () => {
+  await withIsolatedDatabase(async () => {
+    configureHub('http://127.0.0.1:1');
+    createProject(PROJECT_PATH, false);
+    const calls = [];
+    const restoreFetch = stubFetch(calls);
+
+    try {
+      assert.equal(isWebhookConfigured(), true);
+      assert.equal(sendWebhookNotification({ event: stopEvent() }), undefined);
+      await Promise.resolve();
+      assert.equal(calls.length, 0);
+    } finally {
+      restoreFetch();
+    }
+  });
+});
+
+test('an event that resolves to no project is never pushed', async () => {
+  await withIsolatedDatabase(async () => {
+    configureHub('http://127.0.0.1:1');
+    const calls = [];
+    const restoreFetch = stubFetch(calls);
+
+    try {
+      const orphan = stopEvent({ projectPath: null });
+      assert.equal(sendWebhookNotification({ event: orphan }), undefined);
+
+      const unknownProject = stopEvent({ projectPath: '/workspace/never-registered' });
+      assert.equal(sendWebhookNotification({ event: unknownProject }), undefined);
+
+      await Promise.resolve();
+      assert.equal(calls.length, 0);
+    } finally {
+      restoreFetch();
+    }
+  });
+});
+
+test('the bell on posts the PT-BR body with the token from the DB, not from env', async () => {
+  await withIsolatedDatabase(async () => {
+    await withNotifyHubServer(async (requests, url) => {
+      configureHub(url, 'db-token');
+      // A stale env pair must lose to what the operator saved in Settings.
+      process.env.NOTIFY_URL = 'http://127.0.0.1:1';
+      process.env.NOTIFY_TOKEN = 'env-token';
+      createProject(PROJECT_PATH, true);
+
+      await sendWebhookNotification({ event: stopEvent() });
+
+      assert.equal(requests.length, 1);
+      assert.equal(requests[0].method, 'POST');
+      assert.equal(requests[0].authorization, 'Bearer db-token');
+      assert.match(requests[0].contentType, /application\/json/);
+      assert.equal(requests[0].body.title, '✅ notify-hub-project — concluído');
+      assert.equal(requests[0].body.priority, 'default');
+      assert.match(requests[0].body.message, /^Fim \d{2}:\d{2}\nSessão: My Session$/);
+      assert.equal(requests[0].body.metadata.event, 'end');
+      assert.equal(requests[0].body.metadata.projectPath, PROJECT_PATH);
     });
   });
 });
 
-test('run.failed posts with high priority and the error message', async () => {
-  await withNotifyHubServer(async (requests) => {
-    const event = failEvent();
-    const payload = buildNotificationPayload(event);
+test('the project is recovered from sessions.project_path when the event has none', async () => {
+  await withIsolatedDatabase(async () => {
+    await withNotifyHubServer(async (requests, url) => {
+      configureHub(url);
+      // createSession registers the project row too; only the bell is ours to set.
+      sessionsDb.createSession('provider-session-1', 'claude', PROJECT_PATH);
+      const project = projectsDb.getProjectPath(PROJECT_PATH);
+      projectsDb.updateProjectNotifyEnabledById(project.project_id, true);
 
-    await sendWebhookNotification({ event, payload });
+      const event = createNotificationEvent({
+        provider: 'claude',
+        sessionId: 'provider-session-1',
+        kind: 'error',
+        code: 'run.failed',
+        meta: { error: 'boom', sessionName: null },
+        severity: 'error',
+      });
 
-    assert.equal(requests.length, 1);
-    assert.deepEqual(requests[0].body, {
-      title: 'My Session',
-      message: 'Claude: Run Failed: boom',
-      priority: 'high',
+      await sendWebhookNotification({ event });
+
+      assert.equal(requests.length, 1);
+      assert.equal(requests[0].body.title, '❌ notify-hub-project — falhou');
+      assert.equal(requests[0].body.priority, 'high');
+      assert.match(requests[0].body.message, /Erro: boom$/);
     });
   });
-});
-
-test('request body maps priority per event code', () => {
-  assert.equal(buildWebhookRequestBody(stopEvent(), { title: 't', body: 'b' }).priority, 'default');
-  assert.equal(buildWebhookRequestBody(failEvent(), { title: 't', body: 'b' }).priority, 'high');
-  assert.equal(buildWebhookRequestBody(permissionEvent('r'), { title: 't', body: 'b' }).priority, 'high');
-
-  assert.deepEqual(buildWebhookRequestBody(stopEvent(), { title: 'Sess', body: 'msg' }), {
-    title: 'Sess',
-    message: 'msg',
-    priority: 'default',
-  });
-});
-
-test('channel is disabled and posts nothing when env is absent', async () => {
-  const previousUrl = process.env.NOTIFY_URL;
-  const previousToken = process.env.NOTIFY_TOKEN;
-  delete process.env.NOTIFY_URL;
-  delete process.env.NOTIFY_TOKEN;
-
-  const originalFetch = globalThis.fetch;
-  let fetchCalls = 0;
-  globalThis.fetch = async () => {
-    fetchCalls += 1;
-    return new Response('ok');
-  };
-
-  try {
-    assert.equal(isWebhookConfigured(), false);
-
-    const event = stopEvent();
-    const result = sendWebhookNotification({
-      event,
-      payload: buildWebhookRequestBody(event, { title: 't', body: 'b' }),
-    });
-
-    assert.equal(result, undefined);
-    await Promise.resolve();
-    assert.equal(fetchCalls, 0);
-  } finally {
-    globalThis.fetch = originalFetch;
-    restoreEnv('NOTIFY_URL', previousUrl);
-    restoreEnv('NOTIFY_TOKEN', previousToken);
-  }
 });
 
 test('a down notify-hub never rejects into the session (fire-and-forget)', async () => {
-  const previousUrl = process.env.NOTIFY_URL;
-  const previousToken = process.env.NOTIFY_TOKEN;
-  // Port 1 is privileged/unbound: the connection is refused promptly.
-  process.env.NOTIFY_URL = 'http://127.0.0.1:1';
-  process.env.NOTIFY_TOKEN = 'test-token';
-
-  try {
-    const event = stopEvent();
-    const payload = buildWebhookRequestBody(event, { title: 't', body: 'b' });
+  await withIsolatedDatabase(async () => {
+    // Port 1 is privileged/unbound: the connection is refused promptly.
+    configureHub('http://127.0.0.1:1');
+    createProject(PROJECT_PATH, true);
 
     await assert.doesNotReject(async () => {
-      await sendWebhookNotification({ event, payload });
+      await sendWebhookNotification({ event: stopEvent() });
     });
-  } finally {
-    restoreEnv('NOTIFY_URL', previousUrl);
-    restoreEnv('NOTIFY_TOKEN', previousToken);
-  }
+  });
 });
 
-test('permission.required posts only once still pending past the threshold', async () => {
-  const previousUrl = process.env.NOTIFY_URL;
-  const previousToken = process.env.NOTIFY_TOKEN;
-  process.env.NOTIFY_URL = 'http://127.0.0.1:1';
-  process.env.NOTIFY_TOKEN = 'test-token';
+test('a deferred permission fires only if still pending and the bell is still on', async () => {
+  await withIsolatedDatabase(async () => {
+    configureHub('http://127.0.0.1:1');
+    const project = createProject(PROJECT_PATH, true);
+    const calls = [];
+    const restoreFetch = stubFetch(calls);
+    mock.timers.enable({ apis: ['setTimeout'] });
 
-  const originalFetch = globalThis.fetch;
-  const calls = [];
-  globalThis.fetch = async (url, options) => {
-    calls.push({ url, options });
-    return new Response('ok');
-  };
-  mock.timers.enable({ apis: ['setTimeout'] });
+    try {
+      sendWebhookNotification({ event: permissionEvent('req-threshold') });
 
-  try {
-    const event = permissionEvent('req-threshold');
-    const payload = buildWebhookRequestBody(event, {
-      title: 'Sess',
-      body: 'Claude: Action Required: Tool "Bash" needs approval',
-    });
+      mock.timers.tick(PERMISSION_PENDING_THRESHOLD_MS - 1);
+      assert.equal(calls.length, 0);
 
-    sendWebhookNotification({ event, payload });
+      mock.timers.tick(1);
+      await new Promise((resolve) => setImmediate(resolve));
 
-    mock.timers.tick(PERMISSION_PENDING_THRESHOLD_MS - 1);
-    assert.equal(calls.length, 0);
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0].options.method, 'POST');
+      assert.equal(calls[0].options.headers.Authorization, 'Bearer db-token');
+      const body = JSON.parse(calls[0].options.body);
+      assert.equal(body.title, '🙋 notify-hub-project — precisa de você');
+      assert.equal(body.priority, 'high');
+      assert.match(body.message, /Ferramenta "Bash" aguarda aprovação$/);
 
-    mock.timers.tick(1);
-    await new Promise((resolve) => setImmediate(resolve));
+      // The bell can be switched off during the 60s window: the gate is re-read
+      // at fire time, so the second approval must stay silent.
+      projectsDb.updateProjectNotifyEnabledById(project.project_id, false);
+      sendWebhookNotification({ event: permissionEvent('req-turned-off') });
+      mock.timers.tick(PERMISSION_PENDING_THRESHOLD_MS + 1);
+      await new Promise((resolve) => setImmediate(resolve));
 
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].options.method, 'POST');
-    assert.equal(calls[0].options.headers.Authorization, 'Bearer test-token');
-    assert.equal(JSON.parse(calls[0].options.body).priority, 'high');
-  } finally {
-    mock.timers.reset();
-    globalThis.fetch = originalFetch;
-    restoreEnv('NOTIFY_URL', previousUrl);
-    restoreEnv('NOTIFY_TOKEN', previousToken);
-  }
+      assert.equal(calls.length, 1);
+    } finally {
+      mock.timers.reset();
+      restoreFetch();
+    }
+  });
 });
 
 test('resolving a permission before the threshold cancels its webhook', async () => {
-  const previousUrl = process.env.NOTIFY_URL;
-  const previousToken = process.env.NOTIFY_TOKEN;
-  process.env.NOTIFY_URL = 'http://127.0.0.1:1';
-  process.env.NOTIFY_TOKEN = 'test-token';
+  await withIsolatedDatabase(async () => {
+    configureHub('http://127.0.0.1:1');
+    createProject(PROJECT_PATH, true);
+    const calls = [];
+    const restoreFetch = stubFetch(calls);
+    mock.timers.enable({ apis: ['setTimeout'] });
 
-  const originalFetch = globalThis.fetch;
-  const calls = [];
-  globalThis.fetch = async (url, options) => {
-    calls.push({ url, options });
-    return new Response('ok');
-  };
-  mock.timers.enable({ apis: ['setTimeout'] });
+    try {
+      sendWebhookNotification({ event: permissionEvent('req-cancel') });
+      cancelPendingPermissionWebhook('req-cancel');
 
-  try {
-    const event = permissionEvent('req-cancel');
-    const payload = buildWebhookRequestBody(event, { title: 'Sess', body: 'approve' });
+      mock.timers.tick(PERMISSION_PENDING_THRESHOLD_MS + 1000);
+      await new Promise((resolve) => setImmediate(resolve));
 
-    sendWebhookNotification({ event, payload });
-    cancelPendingPermissionWebhook('req-cancel');
-
-    mock.timers.tick(PERMISSION_PENDING_THRESHOLD_MS + 1000);
-    await new Promise((resolve) => setImmediate(resolve));
-
-    assert.equal(calls.length, 0);
-  } finally {
-    mock.timers.reset();
-    globalThis.fetch = originalFetch;
-    restoreEnv('NOTIFY_URL', previousUrl);
-    restoreEnv('NOTIFY_TOKEN', previousToken);
-  }
+      assert.equal(calls.length, 0);
+    } finally {
+      mock.timers.reset();
+      restoreFetch();
+    }
+  });
 });
 
 test('non-webhook event codes are ignored', async () => {
-  const previousUrl = process.env.NOTIFY_URL;
-  const previousToken = process.env.NOTIFY_TOKEN;
-  process.env.NOTIFY_URL = 'http://127.0.0.1:1';
-  process.env.NOTIFY_TOKEN = 'test-token';
+  await withIsolatedDatabase(async () => {
+    configureHub('http://127.0.0.1:1');
+    createProject(PROJECT_PATH, true);
+    const calls = [];
+    const restoreFetch = stubFetch(calls);
 
-  const originalFetch = globalThis.fetch;
-  let fetchCalls = 0;
-  globalThis.fetch = async () => {
-    fetchCalls += 1;
-    return new Response('ok');
-  };
+    try {
+      const event = createNotificationEvent({
+        provider: 'claude',
+        sessionId: null,
+        kind: 'action_required',
+        code: 'agent.notification',
+        meta: { message: 'hi', projectPath: PROJECT_PATH },
+      });
 
-  try {
-    const event = createNotificationEvent({
-      provider: 'claude',
-      sessionId: null,
-      kind: 'action_required',
-      code: 'agent.notification',
-      meta: { message: 'hi' },
-    });
-
-    const result = sendWebhookNotification({ event, payload: { title: 't', body: 'b' } });
-
-    assert.equal(result, undefined);
-    await Promise.resolve();
-    assert.equal(fetchCalls, 0);
-  } finally {
-    globalThis.fetch = originalFetch;
-    restoreEnv('NOTIFY_URL', previousUrl);
-    restoreEnv('NOTIFY_TOKEN', previousToken);
-  }
+      assert.equal(sendWebhookNotification({ event }), undefined);
+      await Promise.resolve();
+      assert.equal(calls.length, 0);
+    } finally {
+      restoreFetch();
+    }
+  });
 });

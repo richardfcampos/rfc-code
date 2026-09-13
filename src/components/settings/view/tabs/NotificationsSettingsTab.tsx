@@ -5,6 +5,8 @@ import { Button } from '../../../../shared/view/ui';
 import { playChatCompletionSound } from '../../../../utils/notificationSound';
 import type { NotificationPreferencesState } from '../../types/types';
 
+import NotifyHubSettingsCard from './notifications-settings/NotifyHubSettingsCard';
+
 type NotificationsSettingsTabProps = {
   notificationPreferences: NotificationPreferencesState;
   onNotificationPreferencesChange: (value: NotificationPreferencesState) => void;
@@ -196,6 +198,8 @@ export default function NotificationsSettingsTab({
           {t('notifications.sound.test', { defaultValue: 'Test sound' })}
         </Button>
       </div>
+
+      <NotifyHubSettingsCard />
 
       <div className="space-y-4 rounded-lg border border-border bg-card p-4">
         <h4 className="font-medium text-foreground">{t('notifications.events.title')}</h4>

@@ -29,6 +29,7 @@ type ProjectApiView = {
   customName: string | null;
   isArchived: boolean;
   isStarred: boolean;
+  notifyEnabled: boolean;
   sessions: [];
   sessionMeta: {
     hasMore: false;
@@ -77,6 +78,7 @@ function mapProjectRowToApiView(projectRow: ProjectRepositoryRow): ProjectApiVie
     customName: projectRow.custom_project_name,
     isArchived: Boolean(projectRow.isArchived),
     isStarred: Boolean(projectRow.isStarred),
+    notifyEnabled: Boolean(projectRow.notifyEnabled),
     sessions: [],
     sessionMeta: {
       hasMore: false,

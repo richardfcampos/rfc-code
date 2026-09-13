@@ -23,6 +23,8 @@ import {
   sortProjects,
 } from '../utils/utils';
 
+import { useOptimisticProjectToggle } from './useOptimisticProjectToggle';
+
 type SnippetHighlight = {
   start: number;
   end: number;
@@ -522,6 +524,16 @@ export function useSidebarController({
     [resolveProjectStarState],
   );
 
+  const projectNotifyToggle = useOptimisticProjectToggle({
+    projects,
+    readFlag: (project) => Boolean(project.notifyEnabled),
+    request: api.toggleProjectNotify,
+    responseKey: 'notifyEnabled',
+    onError: () => alert(t('messages.updateProjectError')),
+  });
+  const isProjectNotifyEnabled = projectNotifyToggle.isEnabled;
+  const toggleNotifyProject = projectNotifyToggle.toggle;
+
   const getProjectSessions = useCallback((project: Project) => getAllSessions(project), []);
 
   const loadMoreSessionsForProject = useCallback(async (projectId: string) => {
@@ -957,6 +969,8 @@ export function useSidebarController({
     handleSessionClick,
     toggleStarProject,
     isProjectStarred,
+    toggleNotifyProject,
+    isProjectNotifyEnabled,
     getProjectSessions,
     loadMoreSessionsForProject,
     startEditing,

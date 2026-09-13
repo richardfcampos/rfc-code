@@ -43,6 +43,8 @@
     "deleteProject": "사이드바에서 프로젝트 제거 (Delete)",
     "addToFavorites": "즐겨찾기에 추가",
     "removeFromFavorites": "즐겨찾기에서 제거",
+    "enableProjectNotifications": "이 프로젝트의 휴대폰 알림 보내기",
+    "disableProjectNotifications": "이 프로젝트의 휴대폰 알림 중지",
     "editSessionName": "세션 이름 직접 편집",
     "deleteSession": "이 세션 영구 삭제",
     "activeSessionIndicator": "최근 활성 세션 (지난 10분)",

@@ -143,6 +143,28 @@
       "enabled": "Activé",
       "test": "Tester le son"
     },
+    "notifyHub": {
+      "title": "Push notify-hub",
+      "description": "Envoie une notification push sur ton téléphone via ton notify-hub quand une exécution se termine, échoue ou attend une action de ta part. Active-le par projet avec la cloche dans la barre latérale.",
+      "url": "URL",
+      "token": "Jeton",
+      "tokenKeep": "Laisser vide pour conserver le jeton actuel",
+      "timezone": "Fuseau horaire",
+      "timezoneHint": "Nom IANA, utilisé pour l'heure dans le message",
+      "status": {
+        "configured": "Configuré",
+        "notConfigured": "Non configuré",
+        "fromEnv": "depuis les variables d'environnement"
+      },
+      "save": "Enregistrer",
+      "saving": "Enregistrement...",
+      "saved": "Enregistré",
+      "test": "Tester",
+      "testing": "Test en cours...",
+      "testSent": "Test envoyé (HTTP {{status}})",
+      "testFailed": "Échec du test : {{error}}",
+      "loadError": "Impossible de charger les paramètres notify-hub."
+    },
     "events": {
       "title": "Types d'événements",
       "actionRequired": "Action requise",

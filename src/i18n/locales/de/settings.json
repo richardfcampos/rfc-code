@@ -143,6 +143,28 @@
       "enabled": "Aktiviert",
       "test": "Ton testen"
     },
+    "notifyHub": {
+      "title": "notify-hub Push",
+      "description": "Sende eine Push-Benachrichtigung an dein Handy über deinen notify-hub, wenn ein Lauf abgeschlossen ist, fehlschlägt oder auf dich wartet. Aktiviere es pro Projekt mit der Glocke in der Seitenleiste.",
+      "url": "URL",
+      "token": "Token",
+      "tokenKeep": "Leer lassen, um das aktuelle Token zu behalten",
+      "timezone": "Zeitzone",
+      "timezoneHint": "IANA-Name, wird für die Uhrzeit in der Nachricht verwendet",
+      "status": {
+        "configured": "Konfiguriert",
+        "notConfigured": "Nicht konfiguriert",
+        "fromEnv": "aus Umgebungsvariablen"
+      },
+      "save": "Speichern",
+      "saving": "Speichern...",
+      "saved": "Gespeichert",
+      "test": "Testen",
+      "testing": "Wird getestet...",
+      "testSent": "Test gesendet (HTTP {{status}})",
+      "testFailed": "Test fehlgeschlagen: {{error}}",
+      "loadError": "notify-hub-Einstellungen konnten nicht geladen werden."
+    },
     "events": {
       "title": "Ereignistypen",
       "actionRequired": "Aktion erforderlich",

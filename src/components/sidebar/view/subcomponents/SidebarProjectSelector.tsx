@@ -19,9 +19,11 @@ export type SidebarProjectSelectorProps = {
   mcpServerStatus: MCPServerStatus;
   isRefreshing: boolean;
   isProjectStarred: (projectId: string) => boolean;
+  isProjectNotifyEnabled: (projectId: string) => boolean;
   onEditingNameChange: (value: string) => void;
   onProjectSelect: (project: Project) => void;
   onToggleStarProject: (projectId: string) => void;
+  onToggleNotifyProject: (projectId: string) => void;
   onStartEditingProject: (project: Project) => void;
   onCancelEditingProject: () => void;
   onSaveProjectName: (projectId: string) => void;
@@ -44,9 +46,11 @@ export default function SidebarProjectSelector({
   mcpServerStatus,
   isRefreshing,
   isProjectStarred,
+  isProjectNotifyEnabled,
   onEditingNameChange,
   onProjectSelect,
   onToggleStarProject,
+  onToggleNotifyProject,
   onStartEditingProject,
   onCancelEditingProject,
   onSaveProjectName,
@@ -154,6 +158,7 @@ export default function SidebarProjectSelector({
                   project={project}
                   isSelected={selectedProject?.projectId === project.projectId}
                   isStarred={isProjectStarred(project.projectId)}
+                  isNotifyEnabled={isProjectNotifyEnabled(project.projectId)}
                   isDeleting={deletingProjects.has(project.projectId)}
                   isEditing={editingProject === project.projectId}
                   editingName={editingName}
@@ -165,6 +170,7 @@ export default function SidebarProjectSelector({
                     setIsOpen(false);
                   }}
                   onToggleStar={onToggleStarProject}
+                  onToggleNotify={onToggleNotifyProject}
                   onStartEditing={onStartEditingProject}
                   onCancelEditing={onCancelEditingProject}
                   onSaveName={onSaveProjectName}

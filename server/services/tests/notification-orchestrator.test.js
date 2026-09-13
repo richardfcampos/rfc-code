@@ -15,7 +15,7 @@ import {
   userDb,
 } from '../../modules/database/index.js';
 
-import { notifyRunStopped } from '../notification-orchestrator.js';
+import { buildRunFailedEvent, buildRunStoppedEvent, notifyRunStopped } from '../notification-orchestrator.js';
 
 async function withIsolatedDatabase(runTest) {
   const previousDatabasePath = process.env.DATABASE_PATH;
@@ -77,4 +77,42 @@ test('push payload uses the app session id when notified with a provider session
   } finally {
     webPush.sendNotification = originalSendNotification;
   }
+});
+
+test('buildRunStoppedEvent carries projectPath and startedAt into meta for the notify-hub channel', () => {
+  const startedAt = Date.now();
+  const event = buildRunStoppedEvent({
+    provider: 'claude',
+    sessionId: 'session-1',
+    stopReason: 'completed',
+    sessionName: 'Demo session',
+    projectPath: '/workspace/demo',
+    startedAt,
+  });
+
+  assert.equal(event.meta.projectPath, '/workspace/demo');
+  assert.equal(event.meta.startedAt, startedAt);
+});
+
+test('buildRunStoppedEvent defaults projectPath and startedAt to null when omitted', () => {
+  const event = buildRunStoppedEvent({ provider: 'claude', sessionId: 'session-1' });
+
+  assert.equal(event.meta.projectPath, null);
+  assert.equal(event.meta.startedAt, null);
+});
+
+test('buildRunFailedEvent carries projectPath and startedAt into meta for the notify-hub channel', () => {
+  const startedAt = Date.now();
+  const event = buildRunFailedEvent({
+    provider: 'codex',
+    sessionId: 'session-2',
+    error: new Error('boom'),
+    sessionName: 'Demo session',
+    projectPath: '/workspace/demo',
+    startedAt,
+  });
+
+  assert.equal(event.meta.projectPath, '/workspace/demo');
+  assert.equal(event.meta.startedAt, startedAt);
+  assert.equal(event.meta.error, 'boom');
 });

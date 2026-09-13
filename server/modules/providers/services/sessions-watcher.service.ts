@@ -161,6 +161,7 @@ async function buildSessionUpsertedEvent(updatedProviderSessionId: string): Prom
         fullPath: project.project_path,
         displayName,
         isStarred: Boolean(project.isStarred),
+        notifyEnabled: Boolean(project.notifyEnabled),
       }
       : null,
     timestamp: new Date().toISOString(),

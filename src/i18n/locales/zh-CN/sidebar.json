@@ -43,6 +43,8 @@
     "deleteProject": "从侧边栏移除项目 (Delete)",
     "addToFavorites": "添加到收藏",
     "removeFromFavorites": "从收藏移除",
+    "enableProjectNotifications": "为此项目发送手机通知",
+    "disableProjectNotifications": "停止为此项目发送手机通知",
     "editSessionName": "手动编辑会话名称",
     "deleteSession": "永久删除此会话",
     "activeSessionIndicator": "最近活跃的会话（最近 10 分钟）",

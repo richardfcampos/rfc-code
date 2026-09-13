@@ -83,6 +83,7 @@ test('create route parses input and invokes the create-and-open application serv
           fullPath: '/workspace/repo-worktrees/feature-login',
           displayName: 'repo worktree',
           isStarred: false,
+          notifyEnabled: false,
           sessions: [],
           sessionMeta: { hasMore: false, total: 0 },
         },

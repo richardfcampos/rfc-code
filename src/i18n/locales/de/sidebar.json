@@ -43,6 +43,8 @@
     "deleteProject": "Projekt aus Seitenleiste entfernen (Entf)",
     "addToFavorites": "Zu Favoriten hinzufügen",
     "removeFromFavorites": "Aus Favoriten entfernen",
+    "enableProjectNotifications": "Telefonbenachrichtigungen für dieses Projekt senden",
+    "disableProjectNotifications": "Telefonbenachrichtigungen für dieses Projekt stoppen",
     "editSessionName": "Sitzungsname manuell bearbeiten",
     "deleteSession": "Diese Sitzung dauerhaft löschen",
     "activeSessionIndicator": "Kürzlich aktive Sitzung (letzte 10 Minuten)",
