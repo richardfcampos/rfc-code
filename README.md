@@ -1,7 +1,7 @@
 <div align="center">
  <img src="public/logo.svg" alt="CloudCLI UI" width="64" height="64">
  <h1>Cloud CLI (aka Claude Code UI)</h1>
- <p>A desktop and mobile UI for <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>, <a href="https://docs.cursor.com/en/cli/overview">Cursor CLI</a>, and <a href="https://developers.openai.com/codex">Codex</a>.<br>Use it locally or remotely to view your active projects and sessions from everywhere.</p>
+ <p>A desktop and mobile UI for <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>, <a href="https://developers.openai.com/codex">Codex</a>, <a href="https://docs.cursor.com/en/cli/overview">Cursor CLI</a> and <a href="https://opencode.ai">OpenCode</a>.<br>Use it locally or remotely to view your active projects and sessions from everywhere.</p>
 </div>
 
 > **RFC Code** is a modified version based on [CloudCLI UI](https://github.com/siteboon/claudecodeui) (`siteboon/claudecodeui`), licensed under AGPL-3.0. This fork is an independent, self-hosted personal project and is not affiliated with, endorsed by, or published by CloudCLI or Siteboon — their names and marks are used here only to comply with AGPL-3.0 Section 7 attribution requirements, not to claim association.
@@ -29,28 +29,54 @@
 <tr>
 <td align="center">
 <h3>Desktop View</h3>
-<img src="public/screenshots/desktop-main.png" alt="Desktop Interface" width="400">
+<img src="public/screenshots/desktop-main.png" alt="Desktop chat with the project sidebar and tab bar" width="400">
 <br>
-<em>Main interface showing project overview and chat</em>
+<em>Chat with a Claude session; tabs for Shell, Files, Source Control, Collab, Board, Reviews, Team, Browser and Tasks</em>
 </td>
 <td align="center">
 <h3>Mobile Experience</h3>
-<img src="public/screenshots/mobile-chat.png" alt="Mobile Interface" width="250">
+<img src="public/screenshots/mobile-chat.png" alt="Mobile chat view" width="200">
 <br>
-<em>Responsive mobile design with touch navigation</em>
+<em>Same session on a phone</em>
+</td>
+</tr>
+<tr>
+<td align="center">
+<h3>Overview</h3>
+<img src="public/screenshots/overview.png" alt="Overview dashboard" width="400">
+<br>
+<em>Running sessions, tasks and per-project boards across every project</em>
+</td>
+<td align="center">
+<h3>Task Board</h3>
+<img src="public/screenshots/tasks-board.png" alt="TaskMaster kanban" width="400">
+<br>
+<em>TaskMaster kanban with the review column and task dependencies</em>
+</td>
+</tr>
+<tr>
+<td align="center">
+<h3>Collab</h3>
+<img src="public/screenshots/collab.png" alt="Collaborations list" width="400">
+<br>
+<em>Multi-agent debates between account profiles, with round budget and verdict</em>
+</td>
+<td align="center">
+<h3>Source Control &amp; Worktrees</h3>
+<img src="public/screenshots/source-control-worktrees.png" alt="Source control tab" width="400">
+<br>
+<em>Stage, commit, push, branches and worktrees</em>
 </td>
 </tr>
 <tr>
 <td align="center" colspan="2">
-<h3>CLI Selection</h3>
-<img src="public/screenshots/cli-selection.png" alt="CLI Selection" width="400">
+<h3>Model Picker</h3>
+<img src="public/screenshots/cli-selection.png" alt="Model picker across providers" width="400">
 <br>
-<em>Select between Claude Code, Cursor CLI and Codex</em>
+<em>One picker for Claude, Codex, Cursor and OpenCode models, plus the account profile to run as</em>
 </td>
 </tr>
 </table>
-
-
 
 </div>
 
@@ -66,6 +92,26 @@
 - **Plugin System** - Extend CloudCLI with custom plugins — add new tabs, backend services, and integrations. [Build your own →](https://github.com/cloudcli-ai/cloudcli-plugin-starter)
 - **TaskMaster AI Integration** *(Optional)* - Advanced project management with AI-powered task planning, PRD parsing, and workflow automation
 - **Model Compatibility** - Works with Claude and GPT model families (the full list of supported models is available at runtime via `GET /api/providers/:provider/models`)
+
+## What RFC Code adds on top of CloudCLI UI
+
+Everything below is fork-specific. The upstream sections further down (CloudCLI Cloud, npm package, desktop app, plugins) describe the original project and still apply where noted.
+
+- **Four agents** - Claude Code, Codex, Cursor CLI and OpenCode share one chat, session list and model picker (`server/modules/providers/`).
+- **Account profiles and mid-session handoff** - several accounts per provider, each with its own isolated config directory. A running session can be handed to another account between turns without losing the conversation; when the target speaks a different provider the transcript is summarized into a primer instead.
+- **Task board** - TaskMaster kanban with a proper *review* column, task detail drawer (description, attachments, evidence log), decomposition into subtasks with dependencies, and a live refresh whenever `tasks.json` changes on disk. `task-master init` is idempotent and repairs model roles that have no API key to the `claude-code` provider.
+- **Review Center and review cockpit** - review queue with per-line diff comments, approve-and-merge, and request-changes that routes feedback back to the agent through TaskMaster. The cockpit's UAT block boots the project's dev server (per-project recipe, auto-detected from `package.json`) and hands back a tailnet-reachable URL with a log tail. Design notes in [docs/designs/review-cockpit-uat-runner.md](docs/designs/review-cockpit-uat-runner.md).
+- **Overview dashboard** - `/overview` shows running sessions, a flat task list and a mini kanban per project, colour-coded and filterable, with deep links straight to a task or its review cockpit.
+- **Collab and council** - multi-agent rounds (debate, review, vote, council) between Claude and Codex participants, with a per-run token/turn/timeout budget. Council turns carry a structured contract (evidence, risks, tests, disagreements, confidence) that is summarized above the transcript.
+- **Team view** - read-only live graph of the running sessions and the handoff messages flowing between them.
+- **Agent bridge (MCP)** - an agent inside a session can drive its own project's task board, decompose and delegate work, send and answer handoff messages and pick an account profile, through a stdio MCP server (`server/agent-bridge-mcp.ts` -> `/api/agent-bridge`). A `maestro` skill is bundled for leader sessions and a `task-board` skill for workers.
+- **Automations** - cron, board-column change, inbound webhook and plan-usage triggers fire an action: prompt an agent, create a task or send a push. Every firing is idempotent, retried three times and auditable. See [server/modules/automations/README.md](server/modules/automations/README.md).
+- **Worktrees** - create and merge git worktrees from the UI. A new worktree gets the project's untracked skills, its gitignored agent config (`CLAUDE.md`, `.cursor/`, `.mcp.json`) symlinked back to the main checkout, a non-colliding branch name and, when the source repository is indexed, its own CodeGraph index.
+- **CodeGraph** - projects report whether a `.codegraph/` index exists; the sidebar shows a badge or a click-to-index action, and `AGENTS.md` tells every agent to query it before grepping.
+- **Bundled skills and AgentKit kit** - 145 skills ship in [`skills/`](skills/README.md) (106 from the AgentKit Engineer kit, 39 gstack and specialist skills) and the kit's agents, rules, hooks, output styles and status line ship in [`agent-kit/`](agent-kit/README.md). Both are linked into each profile at runtime and toggled per profile in the skills panel. Projects can also widen an agent's working set with extra directories, like the CLI's `--add-dir`.
+- **Notifications** - a bell on the project row opts that project into phone pushes through a self-hosted [notify-hub](https://github.com/richardfcampos/notify-hub); URL, token and timezone are set in Settings > Notifications, with a test button.
+- **Voice** - mic input and read-aloud through any OpenAI-compatible audio backend (OpenAI, Groq, or a local Speaches / LocalAI / Kokoro server), toggled per user in Settings > Voice.
+- **Native install** - runs as a systemd or launchd user service instead of a container, so it keeps the host's filesystem, credentials and already-installed agent CLIs. Trusted (login-free) mode is allowed only on loopback or a declared tailnet bind. An Nginx sub-path template lives in [docs/nginx-subpath-template.conf](docs/nginx-subpath-template.conf).
 
 
 ## Quick Start
@@ -105,9 +151,21 @@ This fork runs as a native system service instead of a Docker container, so it k
 ./install/install.sh
 ```
 
-Registers a macOS LaunchAgent or a Linux systemd user unit (`loginctl enable-linger`) so the service starts on login/boot and restarts on crash. Config lives in `~/.rfc-code/env`, data (DB + profiles) in `~/.rfc-code/data`. To remove it, run `./install/uninstall.sh` (data is kept).
+Registers a macOS LaunchAgent or a Linux systemd user unit (`loginctl enable-linger`) so the service starts on login/boot and restarts on crash. It listens on `127.0.0.1:7789` by default. Config lives in `~/.rfc-code/env` (every variable is documented in [install/templates/env.example](install/templates/env.example)), data (DB + profiles) in `~/.rfc-code/data`. To remove it, run `./install/uninstall.sh` (data is kept).
+
+| Flag | Effect |
+|---|---|
+| `--workspaces-root <path>` | Parent directory of the projects shown in the UI (default `$HOME`) |
+| `--bind <addr>` / `--port <n>` | Listen address and port (default `127.0.0.1:7789`). A tailnet IP also needs `AUTH_TRUSTED_NATIVE_BIND=1` in the env file; wildcard binds are refused in trusted mode |
+| `--agents <list>` / `--no-agents` | Which agent CLIs to install when missing |
+| `--fix-codex-sandbox` | Allow relaxing the kernel user-namespace restriction (see below) |
+| `--yes` / `--dry-run` | Skip prompts / print every mutating action instead of running it |
 
 The four agent CLIs the app drives — `claude`, `codex`, `cursor-agent`, `opencode` — are installed when missing, and any you already have is left untouched. Use `--agents=codex,opencode` for a subset or `--no-agents` to install none. `cursor-agent` has no npm package, so it can only come from the vendor's `curl https://cursor.com/install | bash`: the installer prints that command and runs it only when you confirm at the prompt, pass `--yes` from a terminal, or name it in `--agents`; an unattended run skips it and tells you how to install it by hand.
+
+Optional integrations are switched on by uncommenting variables in `~/.rfc-code/env`: `VOICE_API_BASE_URL` and friends for voice, `NOTIFY_URL` / `NOTIFY_TOKEN` for the push channel, `BUNDLED_SKILLS_ROOT` and `AGENT_KIT_ROOT` to relocate or disable the bundled skills and kit.
+
+Coming from the retired Docker deploy? `install/migrate-from-docker.sh --data-root <old data root> --projects-map /projects=<real path>` copies the DB and profiles into the native layout and rewrites the container-only absolute paths. The source is never modified.
 
 > **Linux + codex:** codex sandboxes everything it runs inside an unprivileged user namespace, which Ubuntu 24.04+ blocks by default (`kernel.apparmor_restrict_unprivileged_userns=1`). The installer probes it (`codex sandbox -P :read-only -- true`) and, if it fails, explains the consequence — collaboration participants backed by codex cannot read the repository yet still answer, so the result looks informed but is ungrounded — and prints the `sysctl` commands. It only applies them with `--fix-codex-sandbox` or your confirmation at the prompt, and re-runs the probe afterwards; an unattended run just warns and continues. Note that this lowers a host-wide kernel restriction, not a codex-specific one.
 
@@ -138,7 +196,7 @@ Use it to open CloudCLI Cloud environments, switch between local and remote work
 
 ## Which option is right for you?
 
-CloudCLI UI is the open source UI layer that powers CloudCLI Cloud. You can self-host it on your own machine, run it in a Docker sandbox for isolation, or use CloudCLI Cloud for a fully managed environment.
+CloudCLI UI is the open source UI layer that powers CloudCLI Cloud. You can self-host it on your own machine, run it in a Docker sandbox for isolation, or use CloudCLI Cloud for a fully managed environment. The table describes the upstream options; the fork's native install behaves like the npm column but also drives OpenCode and adds the features listed above.
 
 | | Self-Hosted (npm) | Self-Hosted (Docker Sandbox) *(Experimental)* | CloudCLI Cloud |
 |---|---|---|---|
@@ -168,14 +226,14 @@ CloudCLI UI is the open source UI layer that powers CloudCLI Cloud. You can self
 
 To use Claude Code's full functionality, you'll need to manually enable tools:
 
-1. **Open Tools Settings** - Click the gear icon in the sidebar
-2. **Enable Selectively** - Turn on only the tools you need
-3. **Apply Settings** - Your preferences are saved locally
+1. **Open Settings** - Click the gear icon at the bottom of the sidebar, then **Agents**
+2. **Pick the agent** - Claude, Cursor, Codex or OpenCode each have their own **Permissions** tab
+3. **Enable Selectively** - Turn on only the tools you need; the choice is saved per account profile
 
 <div align="center">
 
-![Tools Settings Modal](public/screenshots/tools-modal.png)
-*Tools Settings interface - enable only what you need*
+![Settings modal](public/screenshots/tools-modal.png)
+*Settings > Agents: account, permissions, MCP servers and skills per agent*
 
 </div>
 
@@ -271,11 +329,14 @@ CloudCLI UI - (https://cloudcli.ai).
 - **[Claude Code](https://docs.anthropic.com/en/docs/claude-code)** - Anthropic's official CLI
 - **[Cursor CLI](https://docs.cursor.com/en/cli/overview)** - Cursor's official CLI
 - **[Codex](https://developers.openai.com/codex)** - OpenAI Codex
+- **[OpenCode](https://opencode.ai)** - open source coding agent
 - **[React](https://react.dev/)** - User interface library
 - **[Vite](https://vitejs.dev/)** - Fast build tool and dev server
 - **[Tailwind CSS](https://tailwindcss.com/)** - Utility-first CSS framework
 - **[CodeMirror](https://codemirror.net/)** - Advanced code editor
 - **[TaskMaster AI](https://github.com/eyaltoledano/claude-task-master)** *(Optional)* - AI-powered project management and task planning
+- **[AgentKit](https://agentkit.best)** - Engineer kit bundled as skills, agents, rules and hooks
+- **[CodeGraph](https://www.npmjs.com/package/@colbymchenry/codegraph)** - code knowledge graph the agents query before grepping
 
 
 ### Sponsors
@@ -283,5 +344,5 @@ CloudCLI UI - (https://cloudcli.ai).
 ---
 
 <div align="center">
- <strong>Made with care for the Claude Code, Cursor and Codex community.</strong>
+ <strong>Made with care for the Claude Code, Codex, Cursor and OpenCode community.</strong>
 </div>
