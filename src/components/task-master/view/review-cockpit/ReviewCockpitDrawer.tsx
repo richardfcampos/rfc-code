@@ -45,7 +45,7 @@ export default function ReviewCockpitDrawer({ task, isOpen, onClose }: ReviewCoc
   const [busyAction, setBusyAction] = useState<'approve' | 'feedback' | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const projectId = typeof currentProject?.name === 'string' ? currentProject.name : '';
+  const projectId = currentProject?.projectId ?? '';
 
   useEffect(() => {
     setFeedbackText('');
