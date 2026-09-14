@@ -70,6 +70,8 @@ export default function TaskDetailModal({
 
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  // Status the user just picked, shown while the CLI round-trip is in flight.
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [showTestStrategy, setShowTestStrategy] = useState(false);
   const [editableTask, setEditableTask] = useState<TaskMasterTask | null>(task);
@@ -133,6 +135,7 @@ export default function TaskDetailModal({
       return;
     }
 
+    setPendingStatus(nextStatus);
     try {
       const response = await api.taskmaster.updateTask(currentProject.projectId, task.id, { status: nextStatus });
       if (!response.ok) {
@@ -142,9 +145,14 @@ export default function TaskDetailModal({
 
       await refreshTasks();
       onStatusChange?.(task.id, nextStatus);
+      // The task prop is a snapshot taken on open; closing lets the board show
+      // the card in its new column instead of a select that snaps back.
+      onClose();
     } catch (error) {
       console.error('Failed to update task status:', error);
       alert(error instanceof Error ? error.message : 'Failed to update task status');
+    } finally {
+      setPendingStatus(null);
     }
   };
 
@@ -225,11 +233,12 @@ export default function TaskDetailModal({
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
               <select
-                value={task.status ?? 'pending'}
+                value={pendingStatus ?? task.status ?? 'pending'}
+                disabled={pendingStatus !== null}
                 onChange={(event) => {
                   void handleStatusSelect(event.target.value);
                 }}
-                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-gray-900 disabled:opacity-60 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
               >
                 {STATUS_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>

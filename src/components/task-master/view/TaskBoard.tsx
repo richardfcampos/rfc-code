@@ -57,6 +57,8 @@ export default function TaskBoard({
     setViewMode,
     showFilters,
     setShowFilters,
+    hideClosedAfterDays,
+    setHideClosedAfterDays,
     statuses,
     priorities,
     filteredTasks,
@@ -154,6 +156,8 @@ export default function TaskBoard({
           setSortField(field);
           setSortOrder(order);
         }}
+        hideClosedAfterDays={hideClosedAfterDays}
+        onHideClosedAfterDaysChange={setHideClosedAfterDays}
         statuses={statuses}
         priorities={priorities}
         onClearFilters={clearFilters}

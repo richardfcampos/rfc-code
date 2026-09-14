@@ -1,6 +1,9 @@
 import { useTranslation } from 'react-i18next';
 import type { TaskBoardSortField, TaskBoardSortOrder } from '../../types';
 
+/** Age thresholds (days) offered for hiding done/cancelled tasks; 0 = never. */
+const HIDE_CLOSED_OPTIONS = [0, 1, 7, 14, 30];
+
 type TaskFiltersPanelProps = {
   showFilters: boolean;
   statusFilter: string;
@@ -10,6 +13,8 @@ type TaskFiltersPanelProps = {
   sortField: TaskBoardSortField;
   sortOrder: TaskBoardSortOrder;
   onSortConfigChange: (field: TaskBoardSortField, order: TaskBoardSortOrder) => void;
+  hideClosedAfterDays: number;
+  onHideClosedAfterDaysChange: (days: number) => void;
   statuses: string[];
   priorities: string[];
   filteredTaskCount: number;
@@ -26,6 +31,8 @@ export default function TaskFiltersPanel({
   sortField,
   sortOrder,
   onSortConfigChange,
+  hideClosedAfterDays,
+  onHideClosedAfterDaysChange,
   statuses,
   priorities,
   filteredTaskCount,
@@ -91,6 +98,23 @@ export default function TaskFiltersPanel({
             <option value="status-desc">{t('sort.statusDesc')}</option>
             <option value="priority-asc">{t('sort.priorityAsc')}</option>
             <option value="priority-desc">{t('sort.priorityDesc')}</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+            {t('filters.hideClosedAfter')}
+          </label>
+          <select
+            value={hideClosedAfterDays}
+            onChange={(event) => onHideClosedAfterDaysChange(Number(event.target.value))}
+            className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 dark:border-gray-600 dark:bg-gray-800"
+          >
+            {HIDE_CLOSED_OPTIONS.map((days) => (
+              <option key={days} value={days}>
+                {days === 0 ? t('filters.hideClosedNever') : t('filters.hideClosedDays', { count: days })}
+              </option>
+            ))}
           </select>
         </div>
       </div>

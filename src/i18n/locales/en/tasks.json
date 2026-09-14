@@ -80,7 +80,11 @@
     "allStatuses": "All Statuses",
     "allPriorities": "All Priorities",
     "showing": "Showing {{filtered}} of {{total}} tasks",
-    "clearFilters": "Clear Filters"
+    "clearFilters": "Clear Filters",
+    "hideClosedAfter": "Hide done/cancelled after",
+    "hideClosedNever": "Never",
+    "hideClosedDays_one": "{{count}} day",
+    "hideClosedDays_other": "{{count}} days"
   },
   "sort": {
     "id": "ID",

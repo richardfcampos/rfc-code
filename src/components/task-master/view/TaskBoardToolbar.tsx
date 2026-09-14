@@ -35,6 +35,8 @@ type TaskBoardToolbarProps = {
   sortOrder: TaskBoardSortOrder;
   onSortChange: (field: TaskBoardSortField) => void;
   onSortConfigChange: (field: TaskBoardSortField, order: TaskBoardSortOrder) => void;
+  hideClosedAfterDays: number;
+  onHideClosedAfterDaysChange: (days: number) => void;
   statuses: string[];
   priorities: string[];
   onClearFilters: () => void;
@@ -64,6 +66,8 @@ export default function TaskBoardToolbar({
   sortOrder,
   onSortChange,
   onSortConfigChange,
+  hideClosedAfterDays,
+  onHideClosedAfterDaysChange,
   statuses,
   priorities,
   onClearFilters,
@@ -253,6 +257,8 @@ export default function TaskBoardToolbar({
         sortField={sortField}
         sortOrder={sortOrder}
         onSortConfigChange={onSortConfigChange}
+        hideClosedAfterDays={hideClosedAfterDays}
+        onHideClosedAfterDaysChange={onHideClosedAfterDaysChange}
         statuses={statuses}
         priorities={priorities}
         filteredTaskCount={filteredTaskCount}

@@ -1,8 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+
 import type { TaskBoardSortField, TaskBoardSortOrder, TaskBoardView, TaskKanbanColumn, TaskMasterTask } from '../types';
 import { buildKanbanColumns } from '../utils/taskKanban';
 import { sortTasks, toggleSortOrder } from '../utils/taskSorting';
+import { isStaleClosedTask } from '../utils/taskStaleness';
+
+const HIDE_CLOSED_STORAGE_KEY = 'taskmaster.hideClosedAfterDays';
 
 type UseTaskBoardStateOptions = {
   tasks: TaskMasterTask[];
@@ -34,6 +38,16 @@ export function useTaskBoardState({ tasks, defaultView = 'kanban' }: UseTaskBoar
   const [sortOrder, setSortOrder] = useState<TaskBoardSortOrder>('asc');
   const [viewMode, setViewMode] = useState<TaskBoardView>(defaultView);
   const [showFilters, setShowFilters] = useState(false);
+  // Days after which done/cancelled tasks drop off the board (0 = never).
+  // A board preference rather than a filter, so it survives reloads.
+  const [hideClosedAfterDays, setHideClosedAfterDaysState] = useState<number>(() => {
+    const stored = Number(localStorage.getItem(HIDE_CLOSED_STORAGE_KEY));
+    return Number.isFinite(stored) && stored > 0 ? stored : 0;
+  });
+  const setHideClosedAfterDays = (days: number) => {
+    setHideClosedAfterDaysState(days);
+    localStorage.setItem(HIDE_CLOSED_STORAGE_KEY, String(days));
+  };
 
   const statuses = useMemo(() => {
     return [...new Set(tasks.map((task) => task.status).filter(Boolean))] as string[];
@@ -44,7 +58,11 @@ export function useTaskBoardState({ tasks, defaultView = 'kanban' }: UseTaskBoar
   }, [tasks]);
 
   const filteredTasks = useMemo(() => {
+    const now = Date.now();
     const filtered = tasks.filter((task) => {
+      if (isStaleClosedTask(task, hideClosedAfterDays, now)) {
+        return false;
+      }
       const status = task.status ?? 'pending';
       const priority = task.priority ?? 'medium';
 
@@ -55,7 +73,7 @@ export function useTaskBoardState({ tasks, defaultView = 'kanban' }: UseTaskBoar
     });
 
     return sortTasks(filtered, sortField, sortOrder);
-  }, [tasks, searchTerm, statusFilter, priorityFilter, sortField, sortOrder]);
+  }, [tasks, searchTerm, statusFilter, priorityFilter, sortField, sortOrder, hideClosedAfterDays]);
 
   const kanbanColumns = useMemo<TaskKanbanColumn[]>(() => {
     return buildKanbanColumns(filteredTasks, t);
@@ -87,6 +105,8 @@ export function useTaskBoardState({ tasks, defaultView = 'kanban' }: UseTaskBoar
     setViewMode,
     showFilters,
     setShowFilters,
+    hideClosedAfterDays,
+    setHideClosedAfterDays,
     statuses,
     priorities,
     filteredTasks,
