@@ -28,6 +28,10 @@ async function createProject(config: unknown | null = DEFAULT_INIT_CONFIG): Prom
   return projectPath;
 }
 
+async function readTasksFile(projectPath: string): Promise<{ master: { tasks: unknown[] } }> {
+  return JSON.parse(await readFile(path.join(projectPath, '.taskmaster', 'tasks', 'tasks.json'), 'utf8'));
+}
+
 async function readConfig(projectPath: string): Promise<typeof DEFAULT_INIT_CONFIG> {
   return JSON.parse(await readFile(path.join(projectPath, '.taskmaster', 'config.json'), 'utf8'));
 }
@@ -145,6 +149,8 @@ test('initializeTaskMaster runs a non-interactive init when .taskmaster is missi
     assert.ok(!spawns[0].args.includes('--rules'), 'rules mode rewrites .mcp.json');
     assert.ok(spawns[0].args.includes('--git-tasks'), 'tasks must stay committable');
     assert.equal((await readConfig(projectPath)).models.main.provider, 'claude-code');
+    assert.equal(result.tasksFileCreated, true, 'the CLI never writes tasks.json');
+    assert.deepEqual((await readTasksFile(projectPath)).master.tasks, []);
   } finally {
     await rm(projectPath, { recursive: true, force: true });
   }
@@ -183,6 +189,8 @@ test('initializeTaskMaster skips init but still repairs providers on an initiali
     assert.equal(spawned, false);
     assert.equal(result.initialized, false);
     assert.equal(result.providersUpdated, true);
+    assert.equal(result.tasksFileCreated, true, 'a bare .taskmaster folder gets its tasks.json');
+    assert.deepEqual((await readTasksFile(projectPath)).master.tasks, []);
   } finally {
     await rm(projectPath, { recursive: true, force: true });
   }
@@ -195,6 +203,22 @@ test('initializeTaskMaster rejects when the init process fails', async () => {
       initializeTaskMaster(projectPath, { env: {}, spawnFn: fakeSpawn({ exitCode: 1 }) as never }),
       /exited with code 1/,
     );
+  } finally {
+    await rm(projectPath, { recursive: true, force: true });
+  }
+});
+
+test('initializeTaskMaster leaves an existing tasks.json untouched', async () => {
+  const projectPath = await createProject();
+  const existing = { master: { tasks: [{ id: 1, title: 'Keep me', status: 'pending' }], metadata: {} } };
+  try {
+    await mkdir(path.join(projectPath, '.taskmaster', 'tasks'), { recursive: true });
+    await writeFile(path.join(projectPath, '.taskmaster', 'tasks', 'tasks.json'), JSON.stringify(existing));
+
+    const result = await initializeTaskMaster(projectPath, { env: {}, spawnFn: fakeSpawn() as never });
+
+    assert.equal(result.tasksFileCreated, false);
+    assert.deepEqual(await readTasksFile(projectPath), existing);
   } finally {
     await rm(projectPath, { recursive: true, force: true });
   }

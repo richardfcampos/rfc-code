@@ -1,4 +1,4 @@
-import { access, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 // cross-spawn: drop-in spawn with Windows .cmd/PATHEXT resolution — required
@@ -23,6 +23,7 @@ type TaskMasterConfig = {
 
 export type TaskMasterInitResult = {
   initialized: boolean;
+  tasksFileCreated: boolean;
   providersUpdated: boolean;
   output: string;
 };
@@ -46,6 +47,11 @@ const INIT_ARGS = ['init', '-y', '--no-aliases', '--skip-install', '--git-tasks'
 // Files the CLI appends to or creates even without `--rules`; restored after
 // init so a project only gains .taskmaster/ from the app.
 const PRESERVED_FILES = ['.gitignore', '.env.example', 'CLAUDE.md'];
+
+// `task-master init` creates `.taskmaster/tasks/` but not the `tasks.json`
+// inside it (verified with 0.43.1), and the app treats a folder without that
+// file as unconfigured. Seeded in the tagged format the CLI writes itself.
+const TASKS_FILE = path.join('.taskmaster', 'tasks', 'tasks.json');
 
 // Providers that shell out to a locally installed agent CLI and need no API key.
 const CLI_PROVIDERS = new Set(['claude-code', 'codex-cli', 'gemini-cli', 'grok-cli']);
@@ -159,6 +165,32 @@ export async function ensureTaskMasterCliProviders(
   return true;
 }
 
+/**
+ * Creates an empty `.taskmaster/tasks/tasks.json` when the project has none,
+ * so detection reports the project as configured and the CLI has a file to
+ * append to. Returns true when the file was created.
+ */
+async function ensureTasksFile(projectPath: string): Promise<boolean> {
+  const tasksPath = path.join(projectPath, TASKS_FILE);
+  try {
+    await access(tasksPath);
+    return false;
+  } catch {
+    // Missing: seed it below.
+  }
+
+  const now = new Date().toISOString();
+  const emptyTasks = {
+    master: {
+      tasks: [],
+      metadata: { created: now, updated: now, description: 'Tasks for master context' },
+    },
+  };
+  await mkdir(path.dirname(tasksPath), { recursive: true });
+  await writeFile(tasksPath, `${JSON.stringify(emptyTasks, null, 2)}\n`, 'utf8');
+  return true;
+}
+
 async function hasTaskMasterDirectory(projectPath: string): Promise<boolean> {
   try {
     await access(path.join(projectPath, '.taskmaster'));
@@ -219,9 +251,10 @@ function runInit(projectPath: string, spawnFn: SpawnLike): Promise<string> {
 
 /**
  * Idempotent TaskMaster bootstrap for a project directory: runs the
- * non-interactive init when `.taskmaster` is missing, then makes sure the
- * model config only references providers the machine can actually use.
- * Safe to call on an already initialized project — it only repairs config.
+ * non-interactive init when `.taskmaster` is missing, seeds the tasks file
+ * the CLI leaves out, then makes sure the model config only references
+ * providers the machine can actually use. Safe to call on an already
+ * initialized project — it only fills in what is missing.
  */
 export async function initializeTaskMaster(
   projectPath: string,
@@ -242,6 +275,7 @@ export async function initializeTaskMaster(
     initialized = true;
   }
 
+  const tasksFileCreated = await ensureTasksFile(projectPath);
   const providersUpdated = await ensureTaskMasterCliProviders(projectPath, env);
-  return { initialized, providersUpdated, output };
+  return { initialized, tasksFileCreated, providersUpdated, output };
 }

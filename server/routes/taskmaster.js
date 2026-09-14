@@ -509,14 +509,16 @@ router.post('/init/:projectId', async (req, res) => {
             });
         }
 
-        // Idempotent: creates .taskmaster when missing, then repairs the model
-        // config so it only uses providers this machine has credentials for.
+        // Idempotent: creates .taskmaster when missing, seeds tasks.json, then
+        // repairs the model config so it only uses providers this machine has
+        // credentials for.
         const result = await initializeTaskMaster(projectPath);
+        const changed = result.initialized || result.tasksFileCreated || result.providersUpdated;
 
         // Broadcast TaskMaster project update via WebSocket. The WebSocket
         // payload keeps using `projectId` so the frontend can match
         // notifications against the current selection.
-        if (req.app.locals.wss && (result.initialized || result.providersUpdated)) {
+        if (req.app.locals.wss && changed) {
             broadcastTaskMasterProjectUpdate(
                 req.app.locals.wss,
                 projectId,
@@ -528,8 +530,9 @@ router.post('/init/:projectId', async (req, res) => {
             projectId,
             projectPath,
             initialized: result.initialized,
+            tasksFileCreated: result.tasksFileCreated,
             providersUpdated: result.providersUpdated,
-            message: result.initialized
+            message: result.initialized || result.tasksFileCreated
                 ? 'TaskMaster initialized successfully'
                 : 'TaskMaster already initialized',
             output: result.output,
