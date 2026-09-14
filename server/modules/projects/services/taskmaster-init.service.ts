@@ -1,4 +1,4 @@
-import { access, readFile, writeFile } from 'node:fs/promises';
+import { access, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 // cross-spawn: drop-in spawn with Windows .cmd/PATHEXT resolution — required
@@ -38,7 +38,14 @@ export const TASK_MASTER_BIN = 'task-master';
 
 // Non-interactive init: the default `task-master init` opens a Solo/Hamster
 // picker and git prompts on stdin, which hang when driven by the server.
-const INIT_ARGS = ['init', '-y', '--rules', 'claude', '--no-aliases', '--skip-install', '--no-git-tasks'];
+// No `--rules`: that mode rewrites the project's .mcp.json and stamps
+// `type: stdio` on HTTP servers, breaking them. `--git-tasks` keeps
+// .taskmaster/tasks out of .gitignore so tasks travel with the repo.
+const INIT_ARGS = ['init', '-y', '--no-aliases', '--skip-install', '--git-tasks'];
+
+// Files the CLI appends to or creates even without `--rules`; restored after
+// init so a project only gains .taskmaster/ from the app.
+const PRESERVED_FILES = ['.gitignore', '.env.example', 'CLAUDE.md'];
 
 // Providers that shell out to a locally installed agent CLI and need no API key.
 const CLI_PROVIDERS = new Set(['claude-code', 'codex-cli', 'gemini-cli', 'grok-cli']);
@@ -161,6 +168,29 @@ async function hasTaskMasterDirectory(projectPath: string): Promise<boolean> {
   }
 }
 
+async function snapshotFiles(projectPath: string): Promise<Map<string, string | null>> {
+  const snapshot = new Map<string, string | null>();
+  for (const name of PRESERVED_FILES) {
+    try {
+      snapshot.set(name, await readFile(path.join(projectPath, name), 'utf8'));
+    } catch {
+      snapshot.set(name, null);
+    }
+  }
+  return snapshot;
+}
+
+async function restoreFiles(projectPath: string, snapshot: Map<string, string | null>): Promise<void> {
+  for (const [name, content] of snapshot) {
+    const filePath = path.join(projectPath, name);
+    if (content === null) {
+      await rm(filePath, { force: true });
+    } else {
+      await writeFile(filePath, content, 'utf8');
+    }
+  }
+}
+
 function runInit(projectPath: string, spawnFn: SpawnLike): Promise<string> {
   return new Promise((resolve, reject) => {
     const child = spawnFn(TASK_MASTER_BIN, INIT_ARGS, {
@@ -203,7 +233,12 @@ export async function initializeTaskMaster(
   let initialized = false;
   let output = '';
   if (!(await hasTaskMasterDirectory(projectPath))) {
-    output = await runInit(projectPath, spawnFn);
+    const snapshot = await snapshotFiles(projectPath);
+    try {
+      output = await runInit(projectPath, spawnFn);
+    } finally {
+      await restoreFiles(projectPath, snapshot);
+    }
     initialized = true;
   }
 

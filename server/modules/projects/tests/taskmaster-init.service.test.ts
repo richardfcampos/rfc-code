@@ -142,8 +142,30 @@ test('initializeTaskMaster runs a non-interactive init when .taskmaster is missi
     assert.equal(spawns[0].cwd, projectPath);
     assert.ok(spawns[0].args.includes('init'));
     assert.ok(spawns[0].args.includes('-y'), 'init must not prompt');
-    assert.ok(spawns[0].args.includes('--rules') && spawns[0].args.includes('claude'));
+    assert.ok(!spawns[0].args.includes('--rules'), 'rules mode rewrites .mcp.json');
+    assert.ok(spawns[0].args.includes('--git-tasks'), 'tasks must stay committable');
     assert.equal((await readConfig(projectPath)).models.main.provider, 'claude-code');
+  } finally {
+    await rm(projectPath, { recursive: true, force: true });
+  }
+});
+
+test('initializeTaskMaster restores .gitignore after the CLI appends to it', async () => {
+  const projectPath = await createProject(null);
+  try {
+    await writeFile(path.join(projectPath, '.gitignore'), 'node_modules/\n');
+    await initializeTaskMaster(projectPath, {
+      env: {},
+      spawnFn: fakeSpawn({
+        onSpawn: async (_args, cwd) => {
+          await mkdir(path.join(cwd, '.taskmaster'), { recursive: true });
+          await writeFile(path.join(cwd, '.taskmaster', 'config.json'), JSON.stringify(DEFAULT_INIT_CONFIG));
+          await writeFile(path.join(cwd, '.gitignore'), 'node_modules/\n# Task files\ntasks.json\ntasks/\n');
+        },
+      }) as never,
+    });
+
+    assert.equal(await readFile(path.join(projectPath, '.gitignore'), 'utf8'), 'node_modules/\n');
   } finally {
     await rm(projectPath, { recursive: true, force: true });
   }
