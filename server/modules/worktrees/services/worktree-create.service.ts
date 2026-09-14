@@ -11,6 +11,7 @@ import {
   listWorktreePorcelainEntries,
   validateWorktreeBranchName,
 } from '@/modules/worktrees/services/worktree-git.service.js';
+import { linkAgentConfigFilesIntoWorktree } from '@/modules/worktrees/services/worktree-agent-config-links.service.js';
 import { linkProjectSkillsIntoWorktree } from '@/modules/worktrees/services/worktree-skill-links.service.js';
 
 /**
@@ -90,7 +91,8 @@ async function probeWorktreeCandidate(
  * checked out directly; unknown branch names are created from `baseBranch`
  * (falling back to the main worktree's branch). With `uniqueBranch`, a name
  * that collides is suffixed `-2`, `-3`, … until a free one is found. Untracked
- * project skills from the main checkout are linked into the new worktree
+ * project skills and gitignored agent-config files (CLAUDE.md, .cursor/,
+ * .mcp.json) from the main checkout are linked into the new worktree
  * afterwards.
  */
 export async function createWorktree(
@@ -162,6 +164,7 @@ export async function createWorktree(
   }
 
   await linkProjectSkillsIntoWorktree(repositoryRoot, worktreePath, fileSystem);
+  await linkAgentConfigFilesIntoWorktree(repositoryRoot, worktreePath, fileSystem);
   dependencies.armCodegraphIndex?.(repositoryRoot, worktreePath);
 
   return { worktreePath, branch, createdBranch: !branchExists };

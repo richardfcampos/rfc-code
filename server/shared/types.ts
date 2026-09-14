@@ -824,6 +824,7 @@ export type WorktreeFileSystem = {
   listDirectories(directoryPath: string): Promise<string[]>;
   ensureDirectory(directoryPath: string): Promise<void>;
   createDirectorySymlink(targetPath: string, linkPath: string): Promise<void>;
+  createFileSymlink(targetPath: string, linkPath: string): Promise<void>;
 };
 
 /**

@@ -71,6 +71,9 @@ const worktreeFileSystem: WorktreeFileSystem = {
   async createDirectorySymlink(targetPath: string, linkPath: string): Promise<void> {
     await symlink(targetPath, linkPath, 'dir');
   },
+  async createFileSymlink(targetPath: string, linkPath: string): Promise<void> {
+    await symlink(targetPath, linkPath, 'file');
+  },
 };
 
 /**

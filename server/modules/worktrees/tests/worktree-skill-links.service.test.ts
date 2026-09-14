@@ -34,6 +34,7 @@ function createFakeFs(options: {
       }
       fs.symlinks.push({ target, link });
     },
+    createFileSymlink: async () => {},
   };
   return fs;
 }

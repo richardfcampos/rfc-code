@@ -51,6 +51,7 @@ function createDependencies(runner: ReturnType<typeof createFakeRunner>['runner'
       listDirectories: async () => [],
       ensureDirectory: async () => {},
       createDirectorySymlink: async () => {},
+      createFileSymlink: async () => {},
     },
   };
 }
@@ -159,6 +160,7 @@ test('createWorktree links the main checkout project skills into the new worktre
         createDirectorySymlink: async (target, link) => {
           symlinks.push({ target, link });
         },
+        createFileSymlink: async () => {},
       },
     },
   );
@@ -168,6 +170,43 @@ test('createWorktree links the main checkout project skills into the new worktre
       target: '/home/user/repo/.claude/skills/map-league',
       link: '/home/user/repo-worktrees/feature-login/.claude/skills/map-league',
     },
+  ]);
+});
+
+test('createWorktree links the main checkout gitignored agent-config files into the new worktree', async () => {
+  const { runner } = createFakeRunner([]);
+  const dirSymlinks: Array<{ target: string; link: string }> = [];
+  const fileSymlinks: Array<{ target: string; link: string }> = [];
+  const sourceEntries = new Set([
+    '/home/user/repo/CLAUDE.md',
+    '/home/user/repo/.cursor',
+    '/home/user/repo/.mcp.json',
+  ]);
+
+  await createWorktree(
+    { projectPath: '/home/user/repo', branch: 'feature/login' },
+    {
+      runGit: runner,
+      fileSystem: {
+        pathExists: async (candidate) => sourceEntries.has(candidate),
+        listDirectories: async () => [],
+        ensureDirectory: async () => {},
+        createDirectorySymlink: async (target, link) => {
+          dirSymlinks.push({ target, link });
+        },
+        createFileSymlink: async (target, link) => {
+          fileSymlinks.push({ target, link });
+        },
+      },
+    },
+  );
+
+  assert.deepEqual(dirSymlinks, [
+    { target: '/home/user/repo/.cursor', link: '/home/user/repo-worktrees/feature-login/.cursor' },
+  ]);
+  assert.deepEqual(fileSymlinks, [
+    { target: '/home/user/repo/CLAUDE.md', link: '/home/user/repo-worktrees/feature-login/CLAUDE.md' },
+    { target: '/home/user/repo/.mcp.json', link: '/home/user/repo-worktrees/feature-login/.mcp.json' },
   ]);
 });
 
@@ -218,6 +257,7 @@ test('createWorktree with uniqueBranch skips every occupied folder until a free 
         listDirectories: async () => [],
         ensureDirectory: async () => {},
         createDirectorySymlink: async () => {},
+        createFileSymlink: async () => {},
       },
     },
   );
@@ -228,6 +268,10 @@ test('createWorktree with uniqueBranch skips every occupied folder until a free 
     '/home/user/repo-worktrees/wt-map-league',
     '/home/user/repo-worktrees/wt-map-league-2',
     '/home/user/repo-worktrees/wt-map-league-3',
+    // Post-creation agent-config link checks (source not present here).
+    '/home/user/repo/CLAUDE.md',
+    '/home/user/repo/.cursor',
+    '/home/user/repo/.mcp.json',
   ]);
 });
 
