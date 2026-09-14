@@ -19,6 +19,11 @@ import { projectsDb } from '../modules/database/index.js';
 import { detectTaskMasterMCPServer } from '../utils/mcp-detector.js';
 import { broadcastTaskMasterProjectUpdate, broadcastTaskMasterTasksUpdate } from '../utils/taskmaster-websocket.js';
 import { ensureTaskMasterTasksWatcher } from '../utils/taskmaster-file-watcher.js';
+import {
+    TASK_MASTER_BIN,
+    ensureTaskMasterCliProviders,
+    initializeTaskMaster,
+} from '../modules/projects/services/taskmaster-init.service.js';
 
 /**
  * Resolve the absolute project directory from a DB-assigned `projectId`.
@@ -504,69 +509,32 @@ router.post('/init/:projectId', async (req, res) => {
             });
         }
 
-        // Check if TaskMaster is already initialized
-        const taskMasterPath = path.join(projectPath, '.taskmaster');
-        try {
-            await fsPromises.access(taskMasterPath, fs.constants.F_OK);
-            return res.status(400).json({
-                error: 'TaskMaster already initialized',
-                message: 'TaskMaster is already configured for this project'
-            });
-        } catch (error) {
-            // Directory doesn't exist, we can proceed
+        // Idempotent: creates .taskmaster when missing, then repairs the model
+        // config so it only uses providers this machine has credentials for.
+        const result = await initializeTaskMaster(projectPath);
+
+        // Broadcast TaskMaster project update via WebSocket. The WebSocket
+        // payload keeps using `projectId` so the frontend can match
+        // notifications against the current selection.
+        if (req.app.locals.wss && (result.initialized || result.providersUpdated)) {
+            broadcastTaskMasterProjectUpdate(
+                req.app.locals.wss,
+                projectId,
+                { hasTaskmaster: true, status: 'initialized' }
+            );
         }
 
-        // Run taskmaster init command
-        const initProcess = spawn('npx', ['task-master', 'init'], {
-            cwd: projectPath,
-            stdio: ['pipe', 'pipe', 'pipe']
+        res.json({
+            projectId,
+            projectPath,
+            initialized: result.initialized,
+            providersUpdated: result.providersUpdated,
+            message: result.initialized
+                ? 'TaskMaster initialized successfully'
+                : 'TaskMaster already initialized',
+            output: result.output,
+            timestamp: new Date().toISOString()
         });
-
-        let stdout = '';
-        let stderr = '';
-
-        initProcess.stdout.on('data', (data) => {
-            stdout += data.toString();
-        });
-
-        initProcess.stderr.on('data', (data) => {
-            stderr += data.toString();
-        });
-
-        initProcess.on('close', (code) => {
-            if (code === 0) {
-                // Broadcast TaskMaster project update via WebSocket. The
-                // WebSocket payload keeps using `projectId` so the frontend
-                // can match notifications against the current selection.
-                if (req.app.locals.wss) {
-                    broadcastTaskMasterProjectUpdate(
-                        req.app.locals.wss,
-                        projectId,
-                        { hasTaskmaster: true, status: 'initialized' }
-                    );
-                }
-
-                res.json({
-                    projectId,
-                    projectPath,
-                    message: 'TaskMaster initialized successfully',
-                    output: stdout,
-                    timestamp: new Date().toISOString()
-                });
-            } else {
-                console.error('TaskMaster init failed:', stderr);
-                res.status(500).json({
-                    error: 'Failed to initialize TaskMaster',
-                    message: stderr || stdout,
-                    code
-                });
-            }
-        });
-
-        // Send 'yes' responses to automated prompts
-        initProcess.stdin.write('yes\n');
-        initProcess.stdin.end();
-
     } catch (error) {
         console.error('TaskMaster init error:', error);
         res.status(500).json({
@@ -600,8 +568,11 @@ router.post('/add-task/:projectId', async (req, res) => {
             });
         }
 
+        // Fresh inits default to hosted providers; swap to CLI ones when no keys exist.
+        await ensureTaskMasterCliProviders(projectPath);
+
         // Build the task-master add-task command
-        const args = ['task-master-ai', 'add-task'];
+        const args = ['add-task'];
         
         if (prompt) {
             args.push('--prompt', prompt);
@@ -619,7 +590,7 @@ router.post('/add-task/:projectId', async (req, res) => {
         }
 
         // Run task-master add-task command
-        const addTaskProcess = spawn('npx', args, {
+        const addTaskProcess = spawn(TASK_MASTER_BIN, args, {
             cwd: projectPath,
             stdio: ['pipe', 'pipe', 'pipe']
         });
@@ -695,9 +666,12 @@ router.put('/update-task/:projectId/:taskId', async (req, res) => {
             });
         }
 
+        // Fresh inits default to hosted providers; swap to CLI ones when no keys exist.
+        await ensureTaskMasterCliProviders(projectPath);
+
         // If only updating status, use set-status command
         if (status && Object.keys(req.body).length === 1) {
-            const setStatusProcess = spawn('npx', ['task-master-ai', 'set-status', `--id=${taskId}`, `--status=${status}`], {
+            const setStatusProcess = spawn(TASK_MASTER_BIN, ['set-status', `--id=${taskId}`, `--status=${status}`], {
                 cwd: projectPath,
                 stdio: ['pipe', 'pipe', 'pipe']
             });
@@ -764,7 +738,7 @@ router.put('/update-task/:projectId/:taskId', async (req, res) => {
             }
             const prompt = promptParts.join('\n\n');
 
-            const updateProcess = spawn('npx', ['task-master-ai', 'update-task', `--id=${taskId}`, `--prompt=${prompt}`], {
+            const updateProcess = spawn(TASK_MASTER_BIN, ['update-task', `--id=${taskId}`, `--prompt=${prompt}`], {
                 cwd: projectPath,
                 stdio: ['pipe', 'pipe', 'pipe']
             });
@@ -846,8 +820,11 @@ router.post('/parse-prd/:projectId', async (req, res) => {
             });
         }
 
+        // Fresh inits default to hosted providers; swap to CLI ones when no keys exist.
+        await ensureTaskMasterCliProviders(projectPath);
+
         // Build the command args
-        const args = ['task-master-ai', 'parse-prd', prdPath];
+        const args = ['parse-prd', prdPath];
         
         if (numTasks) {
             args.push('--num-tasks', numTasks.toString());
@@ -860,7 +837,7 @@ router.post('/parse-prd/:projectId', async (req, res) => {
         args.push('--research'); // Use research for better PRD parsing
 
         // Run task-master parse-prd command
-        const parsePRDProcess = spawn('npx', args, {
+        const parsePRDProcess = spawn(TASK_MASTER_BIN, args, {
             cwd: projectPath,
             stdio: ['pipe', 'pipe', 'pipe']
         });

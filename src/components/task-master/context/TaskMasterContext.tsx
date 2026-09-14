@@ -315,7 +315,10 @@ export function TaskMasterProvider({ children }: { children: React.ReactNode }) 
       setIsLoadingMCP(true);
       clearError();
 
-      const response = await api.get('/mcp-utils/taskmaster-server');
+      // Scope to the current project so its own .mcp.json counts as configured.
+      const projectId = currentProjectIdRef.current;
+      const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
+      const response = await api.get(`/mcp-utils/taskmaster-server${query}`);
       if (!response.ok) {
         throw new Error(`Failed to load MCP status: ${response.status}`);
       }
@@ -340,8 +343,9 @@ export function TaskMasterProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (currentProject?.projectId && isAuthenticated) {
       void refreshTasks();
+      void refreshMCPStatus();
     }
-  }, [currentProject?.projectId, isAuthenticated, refreshTasks]);
+  }, [currentProject?.projectId, isAuthenticated, refreshMCPStatus, refreshTasks]);
 
   useEffect(() => {
     const message = latestMessage as TaskMasterWebSocketMessage | null;

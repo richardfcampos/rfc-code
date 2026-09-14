@@ -39,9 +39,11 @@
   },
   "setupModal": {
     "title": "TaskMaster Setup",
-    "subtitle": "Interactive CLI for {{projectName}}",
-    "willStart": "TaskMaster initialization will start automatically",
+    "subtitle": "Initializing TaskMaster for {{projectName}}",
+    "willStart": "Running task-master init and configuring CLI-based AI providers...",
     "completed": "TaskMaster setup completed! You can now close this window.",
+    "failed": "TaskMaster setup failed: {{message}}",
+    "retryButton": "Retry",
     "closeButton": "Close",
     "closeContinueButton": "Close & Continue"
   },
