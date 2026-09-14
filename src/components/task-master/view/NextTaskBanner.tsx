@@ -67,7 +67,10 @@ export default function NextTaskBanner({ onShowAllTasks = null, onStartTask = nu
   }
 
   const hasTasks = Array.isArray(tasks) && tasks.length > 0;
-  const hasTaskMaster = Boolean(projectTaskMaster?.hasTaskmaster || currentProject.taskmaster?.hasTaskmaster);
+  const taskMasterInfo = projectTaskMaster ?? currentProject.taskmaster ?? null;
+  // A bare `.taskmaster/` folder without `tasks/tasks.json` is not usable yet;
+  // treat it as unconfigured so the Initialize call-to-action still shows.
+  const hasTaskMaster = Boolean(taskMasterInfo?.hasTaskmaster && taskMasterInfo.hasEssentialFiles !== false);
 
   const handleSetupRefresh = () => {
     void refreshProjects();
@@ -179,35 +182,58 @@ export default function NextTaskBanner({ onShowAllTasks = null, onStartTask = nu
     );
   }
 
-  if (hasTasks) {
-    const completedTasks = tasks.filter((task) => task.status === 'done').length;
-
+  if (!hasTasks) {
     return (
-      <div className={cn('bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800 rounded-lg p-3 mb-4', className)}>
-        <div className="flex items-center justify-between">
+      <div className={cn('bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700 rounded-lg p-3 mb-4', className)}>
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <CheckCircle className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-            <span className="text-sm font-medium text-gray-900 dark:text-white">
-              {completedTasks === tasks.length ? 'All tasks complete' : 'No pending tasks'}
-            </span>
+            <List className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+            <span className="text-sm font-medium text-gray-900 dark:text-white">No tasks yet</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-600 dark:text-gray-400">
-              {completedTasks}/{tasks.length}
-            </span>
-            {onShowAllTasks && (
-              <button
-                onClick={onShowAllTasks}
-                className="rounded bg-purple-600 px-2 py-1 text-xs text-white transition-colors hover:bg-purple-700"
-              >
-                Review
-              </button>
-            )}
-          </div>
+          {onShowAllTasks && (
+            <button
+              onClick={onShowAllTasks}
+              className="rounded bg-blue-600 px-2 py-1 text-xs text-white transition-colors hover:bg-blue-700"
+            >
+              Open Tasks
+            </button>
+          )}
         </div>
       </div>
     );
   }
 
-  return null;
+  const completedTasks = tasks.filter((task) => task.status === 'done').length;
+  const reviewTasks = tasks.filter((task) => task.status === 'review').length;
+  const summaryLabel = completedTasks === tasks.length
+    ? 'All tasks complete'
+    : reviewTasks > 0
+      ? `${reviewTasks} ${reviewTasks === 1 ? 'task' : 'tasks'} awaiting review`
+      : 'No pending tasks';
+
+  return (
+    <div className={cn('bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800 rounded-lg p-3 mb-4', className)}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <CheckCircle className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+          <span className="text-sm font-medium text-gray-900 dark:text-white">
+            {summaryLabel}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-600 dark:text-gray-400">
+            {completedTasks}/{tasks.length}
+          </span>
+          {onShowAllTasks && (
+            <button
+              onClick={onShowAllTasks}
+              className="rounded bg-purple-600 px-2 py-1 text-xs text-white transition-colors hover:bg-purple-700"
+            >
+              Review
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }

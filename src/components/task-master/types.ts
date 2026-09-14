@@ -51,6 +51,7 @@ export type PrdFile = {
 
 export type TaskMasterProjectInfo = {
   hasTaskmaster?: boolean;
+  hasEssentialFiles?: boolean;
   status?: string;
   metadata?: Record<string, unknown>;
   [key: string]: unknown;
