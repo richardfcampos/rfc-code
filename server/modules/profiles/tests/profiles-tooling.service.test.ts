@@ -108,12 +108,16 @@ test('a bad mode is rejected and nothing is written to disk', async () => {
   await withProfilesEnvironment((profilesRoot) => {
     const profile = profilesService.createProfile({ provider: 'claude', name: 'A' });
     const settingsPath = path.join(profilesRoot, 'claude', profile.slug, 'settings.json');
+    // Creation may already have installed the CodeGraph hooks; the bad mode
+    // must leave whatever is there byte-for-byte untouched.
+    const before = fs.existsSync(settingsPath) ? fs.readFileSync(settingsPath, 'utf8') : null;
 
     assert.throws(
       () => profilesService.updateToolingModes(profile.id, { rtkMode: 'turbo' }),
       /Unsupported RTK mode/,
     );
-    assert.equal(fs.existsSync(settingsPath), false);
+    const after = fs.existsSync(settingsPath) ? fs.readFileSync(settingsPath, 'utf8') : null;
+    assert.equal(after, before);
     assert.equal(profilesService.getProfile(profile.id).rtkMode, null);
   });
 });

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
@@ -65,5 +65,34 @@ test('buildCodexClientOptions returns undefined when there is no profile', async
   await withProfilesEnvironment(() => {
     assert.equal(buildCodexClientOptions(undefined), undefined);
     assert.equal(buildCodexClientOptions(null), undefined);
+  });
+});
+
+// A working directory hands the session the shared project memory; without a
+// Claude profile to own it, that is Claude Code's default config dir.
+test('buildCodexClientOptions points RFC_MEMORY_DIR at the shared memory for the working directory', async () => {
+  await withProfilesEnvironment(() => {
+    const options = buildCodexClientOptions(null, '/srv/code/app-worktrees/wt.x');
+    assert.equal(
+      options.env.RFC_MEMORY_DIR,
+      path.join(homedir(), '.claude', 'projects', '-srv-code-app-worktrees-wt-x', 'memory'),
+    );
+    assert.equal(options.env.PATH, process.env.PATH);
+  });
+});
+
+test('buildCodexClientOptions uses the default Claude profile memory when one is set', async () => {
+  await withProfilesEnvironment((profilesRoot) => {
+    const claude = profilesService.createProfile({ provider: 'claude', name: 'Main' });
+    profilesService.setDefaultProfile(claude.id, true);
+    const codex = profilesService.createProfile({ provider: 'codex', name: 'Codex' });
+
+    const options = buildCodexClientOptions(codex.id, '/srv/code/app');
+
+    assert.equal(options.env.CODEX_HOME, path.join(profilesRoot, 'codex', codex.slug));
+    assert.equal(
+      options.env.RFC_MEMORY_DIR,
+      path.join(profilesRoot, 'claude', claude.slug, 'projects', '-srv-code-app', 'memory'),
+    );
   });
 });

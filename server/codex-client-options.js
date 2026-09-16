@@ -18,12 +18,22 @@
  * `process.env` exactly as upstream did.
  */
 
-import { profilesService } from './modules/profiles/index.js';
+import { profilesService, resolveSharedMemoryDir, SHARED_MEMORY_ENV } from './modules/profiles/index.js';
 
-export function buildCodexClientOptions(profileId) {
+/**
+ * `workingDirectory` additionally hands the session the shared project memory
+ * through `RFC_MEMORY_DIR` (the profile's global AGENTS.md tells Codex how to
+ * use it), so a Codex session sees what Claude sessions on the same
+ * repository learned.
+ */
+export function buildCodexClientOptions(profileId, workingDirectory) {
   const profileEnv = profilesService.resolveEnv(profileId);
-  if (Object.keys(profileEnv).length === 0) {
+  const memoryEnv = workingDirectory
+    ? { [SHARED_MEMORY_ENV]: resolveSharedMemoryDir(workingDirectory) }
+    : {};
+  const overrides = { ...profileEnv, ...memoryEnv };
+  if (Object.keys(overrides).length === 0) {
     return undefined;
   }
-  return { env: { ...process.env, ...profileEnv } };
+  return { env: { ...process.env, ...overrides } };
 }

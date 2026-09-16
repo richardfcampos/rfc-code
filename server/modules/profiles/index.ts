@@ -11,6 +11,12 @@ export {
   resolveProviderEnv,
 } from '@/modules/profiles/profile-env.js';
 export {
+  claudeProjectSlug,
+  resolveClaudeMemoryDir,
+  resolveSharedMemoryDir,
+  SHARED_MEMORY_ENV,
+} from '@/modules/profiles/profile-memory.js';
+export {
   resolveProfileIdForPath,
   resolveProfileRootForPath,
   resolveProfileScanRoots,

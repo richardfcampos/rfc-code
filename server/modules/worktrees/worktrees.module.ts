@@ -1,4 +1,5 @@
 import { access, mkdir, readdir, stat, symlink } from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 
 import { projectsDb } from '@/modules/database/index.js';
@@ -21,6 +22,8 @@ import { listWorktrees } from '@/modules/worktrees/services/worktree-list.servic
 import { mergeWorktree } from '@/modules/worktrees/services/worktree-merge.service.js';
 import { openWorktreeAsProject } from '@/modules/worktrees/services/worktree-open.service.js';
 import { removeWorktree } from '@/modules/worktrees/services/worktree-remove.service.js';
+import { linkClaudeMemoryIntoWorktree } from '@/modules/worktrees/services/worktree-memory-links.service.js';
+import { profilesService, resolveProfileDir } from '@/modules/profiles/index.js';
 import { createWorktreesRouter } from '@/modules/worktrees/worktrees.routes.js';
 
 /**
@@ -101,6 +104,15 @@ const create: WorktreeServices['create'] = (input) => createWorktree(input, {
   fileSystem: worktreeFileSystem,
   armCodegraphIndex: (repositoryRoot, worktreePath) => {
     void startWorktreeCodegraphIndex(repositoryRoot, worktreePath);
+  },
+  linkClaudeMemory: (repositoryRoot, worktreePath) => {
+    // Every config dir a Claude session in this worktree may run under: the
+    // profile-less default plus each registered Claude profile.
+    const configDirs = [
+      path.join(os.homedir(), '.claude'),
+      ...profilesService.listProfiles('claude').map((profile) => resolveProfileDir('claude', profile.slug)),
+    ];
+    void linkClaudeMemoryIntoWorktree(repositoryRoot, worktreePath, configDirs, worktreeFileSystem);
   },
 });
 

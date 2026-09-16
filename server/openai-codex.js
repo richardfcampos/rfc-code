@@ -262,7 +262,7 @@ export async function queryCodex(command, options = {}, ws) {
   const abortController = new AbortController();
 
   try {
-    codex = new Codex(buildCodexClientOptions(profileId));
+    codex = new Codex(buildCodexClientOptions(profileId, workingDirectory));
 
     const threadOptions = {
       workingDirectory,

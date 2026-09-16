@@ -48,3 +48,18 @@ export {
   resolveSettingsPath,
   type RtkMode,
 } from '@/modules/agent-tooling/rtk-settings.js';
+
+export {
+  applyCodegraphHooks,
+  CODEGRAPH_GUARD_HOOK_COMMAND,
+  CODEGRAPH_PERMISSION_ALLOW,
+  CODEGRAPH_PROMPT_HOOK_COMMAND,
+  isCodegraphAvailable,
+  setCodegraphAvailableForTests,
+} from '@/modules/agent-tooling/codegraph-settings.js';
+
+export {
+  applyCodexGlobalInstructions,
+  buildCodexManagedBlock,
+  mergeManagedBlock,
+} from '@/modules/agent-tooling/codex-instructions.js';

@@ -38,6 +38,8 @@ import {
   resolveAgentKitEnv,
 } from '@/modules/bundled-kit/index.js';
 import {
+  applyCodegraphHooks,
+  applyCodexGlobalInstructions,
   applyRtkMode,
   disableCavemanPlugin,
   enableCavemanPlugin,
@@ -167,6 +169,20 @@ function allocateSlug(provider: LLMProvider, name: string): string {
   return candidate;
 }
 
+/**
+ * Per-provider guidance that must reach every session of a profile: the
+ * CodeGraph hooks in a Claude profile's settings.json, the managed block in a
+ * Codex profile's global AGENTS.md. Idempotent, so it runs on creation and on
+ * every startup repair.
+ */
+function applyProviderInstructions(provider: LLMProvider, profileDir: string): void {
+  if (provider === 'claude') {
+    applyCodegraphHooks(profileDir);
+  } else if (provider === 'codex') {
+    applyCodexGlobalInstructions(profileDir);
+  }
+}
+
 export const profilesService = {
   createProfile(input: CreateProfileInput): ProfileView {
     const provider = assertSupportedProvider(input.provider);
@@ -192,6 +208,7 @@ export const profilesService = {
     // none at all and the skills panel would be the only way to get any.
     enableAllSkills(profileDir);
     installAgentKit(provider, profileDir);
+    applyProviderInstructions(provider, profileDir);
 
     const row = profilesRepository.insert({ id, provider, name, slug });
     return toView(row);
@@ -444,6 +461,7 @@ export const profilesService = {
         repairSkillLinks(profileDir);
         installAgentKit(row.provider, profileDir);
         repairPluginConfigPaths(profileDir);
+        applyProviderInstructions(row.provider, profileDir);
       } catch {
         // One unreadable profile dir should not stop the others from healing.
       }

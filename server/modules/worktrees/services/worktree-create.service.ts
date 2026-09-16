@@ -104,6 +104,9 @@ export async function createWorktree(
     // there inherit the repository's CodeGraph index. Never awaited — index
     // failures must not fail worktree creation.
     armCodegraphIndex?: (repositoryRoot: string, worktreePath: string) => void;
+    // Fire-and-forget as well: points the worktree's Claude auto-memory at the
+    // repository's so sessions there share what earlier ones learned.
+    linkClaudeMemory?: (repositoryRoot: string, worktreePath: string) => void;
   },
 ): Promise<CreateWorktreeResult> {
   const { fileSystem, runGit } = dependencies;
@@ -166,6 +169,7 @@ export async function createWorktree(
   await linkProjectSkillsIntoWorktree(repositoryRoot, worktreePath, fileSystem);
   await linkAgentConfigFilesIntoWorktree(repositoryRoot, worktreePath, fileSystem);
   dependencies.armCodegraphIndex?.(repositoryRoot, worktreePath);
+  dependencies.linkClaudeMemory?.(repositoryRoot, worktreePath);
 
   return { worktreePath, branch, createdBranch: !branchExists };
 }
