@@ -7,6 +7,11 @@ After=network-online.target
 ExecStart=__WRAPPER__
 Restart=on-failure
 RestartSec=5
+# Spare the server when the host runs out of memory: a kill drops every open
+# session at once. Children would inherit this score, so the installer writes
+# `claude` and `bash` shims that hand a killable score back to sessions,
+# terminals and the MCP servers they spawn.
+OOMScoreAdjust=-900
 
 [Install]
 WantedBy=default.target

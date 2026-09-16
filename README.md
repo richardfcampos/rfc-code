@@ -69,7 +69,7 @@ cd rfc-code
 ./install/install.sh
 ```
 
-The installer builds the app, registers a macOS LaunchAgent or a Linux systemd user unit (with `loginctl enable-linger`) so the service starts on boot and restarts on crash, and installs any of the four agent CLIs that are missing. It listens on `127.0.0.1:7789`. Config lives in `~/.rfc-code/env`, data (database and profiles) in `~/.rfc-code/data`. `./install/uninstall.sh` removes the service and keeps the data.
+The installer builds the app, registers a macOS LaunchAgent or a Linux systemd user unit (with `loginctl enable-linger`) so the service starts on boot and restarts on crash, and installs any of the four agent CLIs that are missing. On Linux the unit also runs with `OOMScoreAdjust=-900`, with `claude` and `bash` shims in `~/.rfc-code/bin` handing a killable score back to sessions, terminals and MCP servers — when memory runs out, a runaway child dies instead of the server and every open session with it. It listens on `127.0.0.1:7789`. Config lives in `~/.rfc-code/env`, data (database and profiles) in `~/.rfc-code/data`. `./install/uninstall.sh` removes the service and keeps the data.
 
 | Flag | Effect |
 |---|---|

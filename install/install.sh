@@ -228,7 +228,7 @@ step "Preflight"
 
 [ -f "$REPO_ROOT/package.json" ] || die "no package.json in $REPO_ROOT — run this from the RFC Code checkout"
 [ -d "$TEMPLATE_DIR" ] || die "missing templates directory: $TEMPLATE_DIR"
-for tpl in env.example rfc-code-server.sh ai.rfc-code.server.plist rfc-code.service; do
+for tpl in env.example rfc-code-server.sh ai.rfc-code.server.plist rfc-code.service oom-shim.sh; do
 	[ -f "$TEMPLATE_DIR/$tpl" ] || die "missing template: $TEMPLATE_DIR/$tpl"
 done
 
@@ -801,6 +801,15 @@ add_path_dir() {
 	if [ -z "$PATH_PREPEND" ]; then PATH_PREPEND=$1; else PATH_PREPEND="$PATH_PREPEND:$1"; fi
 }
 
+# The OOM shims (written after the wrapper) live in BIN_DIR and must win over
+# the real `claude` and `bash`, so their directory goes first.
+OOM_SHIMS=0
+SHIM_TARGET=''
+if [ "$OS" = 'linux' ] && command -v choom >/dev/null 2>&1; then
+	OOM_SHIMS=1
+	add_path_dir "$BIN_DIR"
+fi
+
 MISSING_CLIS=''
 for cli in $AGENT_CLIS; do
 	cli_path=$(command -v "$cli" 2>/dev/null || true)
@@ -929,6 +938,7 @@ install_template() {
 	content=${content//__LOG_DIR__/$LOG_DIR}
 	content=${content//__ENV_FILE__/$ENV_FILE}
 	content=${content//__CHECKOUT__/$REPO_ROOT}
+	content=${content//__TARGET__/$SHIM_TARGET}
 	if [ "$DRY_RUN" -eq 1 ]; then
 		printf '    [dry-run] write %s (mode %s) from %s\n' "$dest" "$mode" "$src"
 		return 0
@@ -940,6 +950,35 @@ install_template() {
 
 step "Wrapper ($WRAPPER)"
 install_template "$TEMPLATE_DIR/rfc-code-server.sh" "$WRAPPER" 755
+
+# --- OOM shims ---------------------------------------------------------------
+#
+# The unit sets OOMScoreAdjust=-900 and every child inherits it. These shims
+# put `claude` (sessions and, through them, MCP servers) and `bash` (terminals)
+# back at a killable score. Targets are resolved with BIN_DIR masked out so a
+# re-run never points a shim at itself.
+
+resolve_outside_bin_dir() {
+	local filtered
+	filtered=$(printf '%s' "$PATH" | tr ':' '\n' | grep -vxF -- "$BIN_DIR" | paste -sd: -)
+	PATH=$filtered command -v "$1" 2>/dev/null || true
+}
+
+if [ "$OOM_SHIMS" -eq 1 ]; then
+	step "OOM shims ($BIN_DIR)"
+	for shim in claude bash; do
+		SHIM_TARGET=$(resolve_outside_bin_dir "$shim")
+		if [ -z "$SHIM_TARGET" ]; then
+			warn "$shim not found outside $BIN_DIR — no shim written; its processes will inherit the server's OOM protection."
+			continue
+		fi
+		install_template "$TEMPLATE_DIR/oom-shim.sh" "$BIN_DIR/$shim" 755
+		info "$shim -> $SHIM_TARGET"
+	done
+	SHIM_TARGET=''
+elif [ "$OS" = 'linux' ]; then
+	warn "choom (util-linux) not found — no OOM shims written; sessions and terminals will inherit the server's OOM protection."
+fi
 
 # --- Service registration ----------------------------------------------------
 
