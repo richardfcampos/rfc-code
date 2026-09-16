@@ -240,7 +240,8 @@
     "startChatWithProvider": "Select a project to start chatting with {{provider}}"
   },
   "tasks": {
-    "nextTaskPrompt": "Start the next task"
+    "nextTaskPrompt": "Start the next task",
+    "createTaskPrompt": "Add a new TaskMaster task: "
   },
   "composer": {
     "reasoning": "Reasoning",

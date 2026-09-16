@@ -6,6 +6,7 @@ import {
   Flag,
   List,
   Play,
+  Plus,
   Settings,
   Target,
   Terminal,
@@ -19,6 +20,7 @@ import TaskMasterSetupModal from './modals/TaskMasterSetupModal';
 type NextTaskBannerProps = {
   onShowAllTasks?: (() => void) | null;
   onStartTask?: (() => void) | null;
+  onCreateTask?: (() => void) | null;
   className?: string;
 };
 
@@ -46,7 +48,12 @@ function PriorityIndicator({ priority }: { priority?: string }) {
   );
 }
 
-export default function NextTaskBanner({ onShowAllTasks = null, onStartTask = null, className = '' }: NextTaskBannerProps) {
+export default function NextTaskBanner({
+  onShowAllTasks = null,
+  onStartTask = null,
+  onCreateTask = null,
+  className = '',
+}: NextTaskBannerProps) {
   const {
     nextTask,
     tasks,
@@ -207,20 +214,24 @@ export default function NextTaskBanner({ onShowAllTasks = null, onStartTask = nu
     );
   }
 
+  // Nothing is pending or in progress: "Start Task" would only tell the agent
+  // to pick a next task that does not exist, so offer task creation instead.
   return (
     <div className={cn('bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700 rounded-lg p-3 mb-4', className)}>
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <List className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-          <span className="text-sm font-medium text-gray-900 dark:text-white">No tasks yet</span>
+          <span className="text-sm font-medium text-gray-900 dark:text-white">
+            {hasTasks ? 'No pending tasks' : 'No tasks yet'}
+          </span>
         </div>
         <div className="flex flex-shrink-0 items-center gap-1">
           <button
-            onClick={() => onStartTask?.()}
+            onClick={() => (onCreateTask ?? onStartTask)?.()}
             className="flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
           >
-            <Play className="h-3 w-3" />
-            Start Task
+            <Plus className="h-3 w-3" />
+            New Task
           </button>
 
           {onShowAllTasks && (
