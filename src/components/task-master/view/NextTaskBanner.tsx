@@ -214,14 +214,25 @@ export default function NextTaskBanner({ onShowAllTasks = null, onStartTask = nu
           <List className="h-4 w-4 text-slate-500 dark:text-slate-400" />
           <span className="text-sm font-medium text-gray-900 dark:text-white">No tasks yet</span>
         </div>
-        {onShowAllTasks && (
+        <div className="flex flex-shrink-0 items-center gap-1">
           <button
-            onClick={onShowAllTasks}
-            className="rounded bg-blue-600 px-2 py-1 text-xs text-white transition-colors hover:bg-blue-700"
+            onClick={() => onStartTask?.()}
+            className="flex items-center gap-1 rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
           >
-            Open Tasks
+            <Play className="h-3 w-3" />
+            Start Task
           </button>
-        )}
+
+          {onShowAllTasks && (
+            <button
+              onClick={onShowAllTasks}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+              title="View all tasks"
+            >
+              <List className="h-3 w-3" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
