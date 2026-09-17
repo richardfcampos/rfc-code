@@ -1,6 +1,6 @@
 import type { Project } from '../../../types/app';
 
-export type GitPanelView = 'changes' | 'history' | 'branches' | 'worktrees';
+export type GitPanelView = 'changes' | 'history' | 'branches' | 'worktrees' | 'compare';
 export type FileStatusCode = 'M' | 'A' | 'D' | 'U';
 export type GitStatusFileGroup = 'modified' | 'added' | 'deleted' | 'untracked';
 export type ConfirmActionType = 'discard' | 'delete' | 'commit' | 'pull' | 'push' | 'publish' | 'revertLocalCommit' | 'deleteBranch';
@@ -202,3 +202,36 @@ export type RemoveWorktreeOptions = {
   force: boolean;
   deleteBranch: boolean;
 };
+
+// ---------------------------------------------------------------------------
+// Compare — mirrors /api/git/compare (server/routes/git-compare.js)
+// ---------------------------------------------------------------------------
+
+/** What the current checkout is measured against: a branch or another worktree's HEAD. */
+export type CompareTarget = {
+  kind: 'branch' | 'worktree';
+  /** Git ref passed to the API (branch name, remote/branch or a commit sha). */
+  ref: string;
+  label: string;
+  /** Secondary text in the picker, e.g. the worktree folder. */
+  detail?: string;
+};
+
+export type GitCompareFile = {
+  path: string;
+  /** Set for renames and copies. */
+  previousPath: string | null;
+  status: FileStatusCode;
+  insertions: number;
+  deletions: number;
+};
+
+export type GitCompareResult = {
+  base: string;
+  mergeBase: string;
+  ahead: number;
+  behind: number;
+  files: GitCompareFile[];
+};
+
+export type GitCompareResponse = GitApiErrorResponse & Partial<GitCompareResult>;

@@ -10,7 +10,7 @@ import { spawnCursor } from '../cursor-cli.js';
 const router = express.Router();
 const COMMIT_DIFF_CHARACTER_LIMIT = 500_000;
 
-function spawnAsync(command, args, options = {}) {
+export function spawnAsync(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       ...options,
@@ -63,7 +63,7 @@ function validateBranchName(branch) {
   return branch;
 }
 
-function validateFilePath(file, projectPath) {
+export function validateFilePath(file, projectPath) {
   if (!file || file.includes('\0')) {
     throw new Error('Invalid file path');
   }
@@ -111,7 +111,7 @@ function validateProjectPath(projectPath) {
  * path comes straight from the `projects` table and is then sanity-checked
  * by `validateProjectPath` before any `git` command runs against it.
  */
-async function getActualProjectPath(projectId) {
+export async function getActualProjectPath(projectId) {
   const projectPath = await projectsDb.getProjectPathById(projectId);
   if (!projectPath) {
     throw new Error(`Unable to resolve project path for "${projectId}"`);
@@ -120,7 +120,7 @@ async function getActualProjectPath(projectId) {
 }
 
 // Helper function to strip git diff headers
-function stripDiffHeaders(diff) {
+export function stripDiffHeaders(diff) {
   if (!diff) return '';
 
   const lines = diff.split('\n');
@@ -149,7 +149,7 @@ function stripDiffHeaders(diff) {
 }
 
 // Helper function to validate git repository
-async function validateGitRepository(projectPath) {
+export async function validateGitRepository(projectPath) {
   try {
     // Check if directory exists
     await fs.access(projectPath);
@@ -212,7 +212,7 @@ async function repositoryHasCommits(projectPath) {
   }
 }
 
-async function getRepositoryRootPath(projectPath) {
+export async function getRepositoryRootPath(projectPath) {
   const { stdout } = await spawnAsync('git', ['rev-parse', '--show-toplevel'], { cwd: projectPath });
   return stdout.trim();
 }

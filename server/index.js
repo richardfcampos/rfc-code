@@ -47,6 +47,7 @@ import {
     shouldAutoOpenUrlFromOutput,
 } from './utils/url-detection.js';
 import gitRoutes from './routes/git.js';
+import gitCompareRoutes from './routes/git-compare.js';
 import authRoutes from './routes/auth.js';
 import cursorRoutes from './routes/cursor.js';
 import taskmasterRoutes from './routes/taskmaster.js';
@@ -213,6 +214,7 @@ app.use('/api/assets', authenticateToken, assetsRoutes);
 
 // Git API Routes (protected)
 app.use('/api/git', authenticateToken, gitRoutes);
+app.use('/api/git', authenticateToken, gitCompareRoutes);
 
 // Git worktree management (protected)
 app.use('/api/worktrees', authenticateToken, worktreesRoutes);

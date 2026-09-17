@@ -7,6 +7,7 @@ import ChangesView from '../view/changes/ChangesView';
 import HistoryView from '../view/history/HistoryView';
 import BranchesView from '../view/branches/BranchesView';
 import WorktreesView from '../view/worktrees/WorktreesView';
+import CompareView from '../view/compare/CompareView';
 import GitPanelHeader from '../view/GitPanelHeader';
 import GitRepositoryErrorState from '../view/GitRepositoryErrorState';
 import GitViewTabs from '../view/GitViewTabs';
@@ -191,6 +192,20 @@ export default function GitPanel({
               localBranches={localBranches}
               onProjectSelect={onProjectSelect}
               onProjectsRefresh={onProjectsRefresh}
+            />
+          )}
+
+          {activeView === 'compare' && (
+            <CompareView
+              key={selectedProject.fullPath}
+              isMobile={isMobile}
+              selectedProject={selectedProject}
+              currentBranch={currentBranch}
+              localBranches={localBranches}
+              remoteBranches={remoteBranches}
+              remoteName={remoteStatus?.remoteName ?? 'origin'}
+              wrapText={wrapText}
+              onOpenFile={(filePath) => onFileOpen?.(filePath)}
             />
           )}
         </>
