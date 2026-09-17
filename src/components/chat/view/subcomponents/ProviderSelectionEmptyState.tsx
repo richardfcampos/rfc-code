@@ -143,6 +143,9 @@ export default function ProviderSelectionEmptyState({
   const nextTaskPrompt = t("tasks.nextTaskPrompt", {
     defaultValue: "Start the next task",
   });
+  const createTaskPrompt = t("tasks.createTaskPrompt", {
+    defaultValue: "Add a new TaskMaster task: ",
+  });
 
   const currentModel = getCurrentModel(
     provider,
@@ -370,6 +373,7 @@ export default function ProviderSelectionEmptyState({
             <div className="mt-5">
               <NextTaskBanner
                 onStartTask={() => setInput(nextTaskPrompt)}
+                onCreateTask={() => setInput(createTaskPrompt)}
                 onShowAllTasks={onShowAllTasks}
               />
             </div>
@@ -394,6 +398,7 @@ export default function ProviderSelectionEmptyState({
             <div className="mt-5">
               <NextTaskBanner
                 onStartTask={() => setInput(nextTaskPrompt)}
+                onCreateTask={() => setInput(createTaskPrompt)}
                 onShowAllTasks={onShowAllTasks}
               />
             </div>
