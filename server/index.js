@@ -62,6 +62,7 @@ import { tasksRoutes } from './modules/tasks/index.js';
 import { orgsRoutes } from './modules/orgs/index.js';
 import { configureReviewsRuntime, reviewsRoutes } from './modules/reviews/index.js';
 import { agentBridgeRoutes, agentBridgeSessionTokenRoutes } from './modules/agent-bridge/index.js';
+import { configureGrokbotMcpRuntime, grokbotMcpErrorHandler, grokbotMcpRoutes } from './modules/grokbot-mcp/index.js';
 import { agentMessagesRoutes } from './modules/agent-messages/index.js';
 import { teamViewRoutes } from './modules/team-view/index.js';
 import {
@@ -98,7 +99,7 @@ import { browserUseService } from './modules/browser-use/browser-use.service.js'
 import { startEnabledPluginServers, stopAllPlugins, getPluginPort } from './utils/plugin-process-manager.js';
 import { initializeDatabase, projectsDb, sessionRunFailuresDb, sessionsDb } from './modules/database/index.js';
 import { configureWebPush } from './services/vapid-keys.js';
-import { validateApiKey, authenticateToken, authenticateWebSocket, assertTrustedModeBindIsSafe, seedTrustedModeUser } from './middleware/auth.js';
+import { validateApiKey, authenticateToken, authenticateWebSocket, assertTrustedModeBindIsSafe, seedTrustedModeUser, generateToken } from './middleware/auth.js';
 import { IS_PLATFORM } from './constants/config.js';
 import { c } from './utils/colors.js';
 
@@ -243,6 +244,15 @@ app.use('/api/reviews', authenticateToken, reviewsRoutes);
 // captured by the token-protected router below.
 app.use('/api/agent-bridge/session-token', authenticateToken, agentBridgeSessionTokenRoutes);
 app.use('/api/agent-bridge', agentBridgeRoutes);
+
+// Grokbot MCP: an external MCP client drives the whole app through this one
+// endpoint. It authenticates with an API key from Settings > API Tokens rather
+// than a user JWT, so it is mounted outside `authenticateToken`; each tool then
+// calls the REST surface above through a loopback request carrying a JWT for
+// the key's owner. The key is required in every auth mode; under
+// AUTH_MODE=trusted it is a deliberate opt-in step rather than an identity,
+// since that mode already maps every caller to the single user.
+app.use('/api/grokbot-mcp', grokbotMcpRoutes, grokbotMcpErrorHandler);
 
 // Agent handoff inbox, read-only (protected). Sending, acknowledging and
 // answering are agent actions and go through the bridge above, where the acting
@@ -1642,6 +1652,28 @@ async function startServer() {
    
         server.listen(SERVER_PORT, HOST, async () => {
             const appInstallPath = APP_ROOT;
+
+            // The MCP tools call this very server over loopback and start chat
+            // turns through the same runtimes the websocket uses, so both are
+            // handed over only now that the address is bound.
+            configureGrokbotMcpRuntime({
+                server,
+                mintToken: generateToken,
+                spawnFns: {
+                    claude: queryClaudeSDK,
+                    cursor: spawnCursor,
+                    codex: queryCodex,
+                    opencode: spawnOpenCode,
+                },
+                abortFns: {
+                    claude: abortClaudeSDKSession,
+                    cursor: abortCursorSession,
+                    codex: abortCodexSession,
+                    opencode: abortOpenCodeSession,
+                },
+                resolveToolApproval,
+                getPendingApprovalsForSession,
+            });
             await writeLocalServerMarker().catch((error) => {
                 console.warn('[WARN] Could not write local server marker:', error.message);
             });
