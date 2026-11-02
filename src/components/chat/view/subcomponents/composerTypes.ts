@@ -90,9 +90,9 @@ export interface ChatComposerProps {
   onClearInput: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement> | MouseEvent<HTMLButtonElement> | TouchEvent<HTMLButtonElement>) => void;
   isDragActive: boolean;
-  queuedDraft: QueuedDraft | null;
-  onEditQueuedDraft: () => void;
-  onDeleteQueuedDraft: () => void;
+  queuedDrafts: QueuedDraft[];
+  onEditQueuedDraft: (index: number) => void;
+  onDeleteQueuedDraft: (index: number) => void;
   attachedImages: File[];
   onRemoveImage: (index: number) => void;
   attachedFiles: File[];

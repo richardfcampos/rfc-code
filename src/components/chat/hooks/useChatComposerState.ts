@@ -17,9 +17,9 @@ import { grantClaudeToolPermission } from '../utils/chatPermissions';
 import { removePendingPermission } from '../utils/pending-permission-registry';
 import {
   clearQueuedMessage,
-  readQueuedMessage,
+  readQueuedMessages,
   safeLocalStorage,
-  writeQueuedMessage,
+  writeQueuedMessages,
   type QueuedSendOptions,
 } from '../utils/chatStorage';
 import type {
@@ -196,11 +196,14 @@ export type QueuedDraft = {
   options?: QueuedSendOptions;
 };
 
-const restoreQueuedDraft = (sessionKey: string): QueuedDraft | null => {
-  const saved = readQueuedMessage(sessionKey);
+const restoreQueuedDrafts = (sessionKey: string): QueuedDraft[] =>
   // Attachments can't survive a reload; only text and options persist.
-  return saved ? { content: saved.content, images: [], files: [], options: saved.options } : null;
-};
+  readQueuedMessages(sessionKey).map((saved) => ({
+    content: saved.content,
+    images: [],
+    files: [],
+    options: saved.options,
+  }));
 
 const getNotificationSessionSummary = (
   selectedSession: ProjectSession | null,
@@ -280,15 +283,17 @@ export function useChatComposerState({
   // handed back to the parent's `selectedSession` prop yet.
   const sessionKey = selectedSession?.id || currentSessionId || null;
 
-  const [queuedDraft, setQueuedDraft] = useState<QueuedDraft | null>(() => {
+  // Messages submitted while a turn is running, oldest first. Each completed
+  // turn sends the head; the rest wait for the following turns.
+  const [queuedDrafts, setQueuedDrafts] = useState<QueuedDraft[]>(() => {
     if (typeof window === 'undefined' || !sessionKey) {
-      return null;
+      return [];
     }
-    return restoreQueuedDraft(sessionKey);
+    return restoreQueuedDrafts(sessionKey);
   });
-  // Which session the in-memory `queuedDraft` belongs to. On a session switch
+  // Which session the in-memory `queuedDrafts` belong to. On a session switch
   // there is one commit where `sessionKey` already points at the new session
-  // while `queuedDraft` still holds the old session's draft; the persistence
+  // while `queuedDrafts` still holds the old session's queue; the persistence
   // effect must not write across that gap.
   const queuedDraftSessionRef = useRef<string | null>(sessionKey);
 
@@ -739,17 +744,19 @@ export function useChatComposerState({
         return;
       }
 
-      // A turn is already in flight: stash this message instead of sending it.
-      // It's auto-flushed (re-running this same function) once the turn ends,
-      // so it still goes through slash-command interception, image upload, etc.
+      // A turn is already in flight: append this message to the queue instead
+      // of sending it. Queued messages are auto-flushed one per completed turn
+      // (re-running this same function), so they still go through
+      // slash-command interception, image upload, etc.
       if (isLoading) {
         queuedDraftSessionRef.current = sessionKey;
-        setQueuedDraft({
+        const draft: QueuedDraft = {
           content: currentInput,
           images: attachedImages,
           files: attachedFiles,
           options: buildSendOptions(currentInput),
-        });
+        };
+        setQueuedDrafts((previous) => [...previous, draft]);
         setInput('');
         inputValueRef.current = '';
         setAttachedImages([]);
@@ -1062,66 +1069,94 @@ export function useChatComposerState({
     handleSubmitRef.current = handleSubmit;
   }, [handleSubmit]);
 
-  // Once the in-flight turn ends, replay the queued draft through the normal
-  // submit path (slash commands, image upload, etc. all still apply).
+  // Once the in-flight turn ends, replay the HEAD of the queue through the
+  // normal submit path (slash commands, image upload, etc. all still apply).
+  // The rest stay queued and go out one per completed turn.
   const wasLoadingRef = useRef(isLoading);
   const flushSessionKeyRef = useRef(sessionKey);
+  // True from taking the head off the queue until its submit settles. Uploads
+  // and session allocation are awaited before `isLoading` flips, so without
+  // this the next draft could be flushed on top of the one still being sent.
+  const [isFlushingQueue, setIsFlushingQueue] = useState(false);
+  // Set when a flushed draft failed to send (it's left in the input with an
+  // error). Holding the queue keeps the next draft from overwriting it and
+  // preserves order; the next turn that starts releases the hold.
+  const queueFlushPausedRef = useRef(false);
   useEffect(() => {
     const wasLoading = wasLoadingRef.current;
     wasLoadingRef.current = isLoading;
 
     // A session switch changes which session `isLoading` describes, so this
-    // transition says nothing about the queued draft's own session. Never
-    // flush across it — the swap effect below replaces `queuedDraft` with the
-    // new session's saved draft right after this.
+    // transition says nothing about the queue's own session. Never flush
+    // across it — the swap effect below replaces `queuedDrafts` with the new
+    // session's saved queue right after this.
     if (flushSessionKeyRef.current !== sessionKey) {
       flushSessionKeyRef.current = sessionKey;
+      queueFlushPausedRef.current = false;
       return;
     }
 
-    if (isLoading || !queuedDraft) {
+    if (isLoading) {
+      queueFlushPausedRef.current = false;
+      return;
+    }
+    if (isFlushingQueue || queueFlushPausedRef.current || queuedDrafts.length === 0) {
       return;
     }
 
     // Turn just ended in this session: flush immediately. Otherwise this is a
-    // saved draft restored into an apparently idle session — hold it briefly
+    // saved queue restored into an apparently idle session — hold it briefly
     // so the `chat_subscribed` ack can flip `isLoading` if a run is actually
     // still live (the cleanup below cancels the send in that case).
     const delay = wasLoading ? 0 : 750;
     const timer = setTimeout(() => {
-      // The saved key is the claim ticket shared with the app-level auto-send
-      // (which handles sessions that finish while not viewed). If it's gone,
-      // the message was already dispatched — don't send it twice.
-      if (sessionKey && !readQueuedMessage(sessionKey)) {
-        setQueuedDraft(null);
-        return;
+      // Storage is the claim ticket shared with the app-level auto-send (which
+      // handles sessions that finish while not viewed): it removes the head
+      // before sending. Fewer stored entries than in memory means the head
+      // was already dispatched — keep the remaining tail, don't send twice.
+      if (sessionKey) {
+        const storedCount = readQueuedMessages(sessionKey).length;
+        if (storedCount < queuedDrafts.length) {
+          setQueuedDrafts(queuedDrafts.slice(queuedDrafts.length - storedCount));
+          return;
+        }
       }
-      setQueuedDraft(null);
-      setInput(queuedDraft.content);
-      inputValueRef.current = queuedDraft.content;
-      setAttachedImages(queuedDraft.images);
-      setAttachedFiles(queuedDraft.files);
+      const [next, ...rest] = queuedDrafts;
+      setIsFlushingQueue(true);
+      setQueuedDrafts(rest);
+      setInput(next.content);
+      inputValueRef.current = next.content;
+      setAttachedImages(next.images);
+      setAttachedFiles(next.files);
       setTimeout(() => {
-        handleSubmitRef.current?.(createFakeSubmitEvent());
+        void Promise.resolve(handleSubmitRef.current?.(createFakeSubmitEvent())).finally(() => {
+          // A successful submit clears the input; text still there means the
+          // send failed and the draft now lives in the input.
+          if (inputValueRef.current.trim()) {
+            queueFlushPausedRef.current = true;
+          }
+          setIsFlushingQueue(false);
+        });
       }, 0);
     }, delay);
     return () => clearTimeout(timer);
-  }, [isLoading, queuedDraft, sessionKey, setInput]);
+  }, [isFlushingQueue, isLoading, queuedDrafts, sessionKey, setInput]);
 
-  const editQueuedDraft = useCallback(() => {
-    if (!queuedDraft) {
+  const editQueuedDraft = useCallback((index: number) => {
+    const draft = queuedDrafts[index];
+    if (!draft) {
       return;
     }
-    setQueuedDraft(null);
-    setInput(queuedDraft.content);
-    inputValueRef.current = queuedDraft.content;
-    setAttachedImages(queuedDraft.images);
-    setAttachedFiles(queuedDraft.files);
+    setQueuedDrafts(queuedDrafts.filter((_, i) => i !== index));
+    setInput(draft.content);
+    inputValueRef.current = draft.content;
+    setAttachedImages(draft.images);
+    setAttachedFiles(draft.files);
     textareaRef.current?.focus();
-  }, [queuedDraft]);
+  }, [queuedDrafts, setInput]);
 
-  const deleteQueuedDraft = useCallback(() => {
-    setQueuedDraft(null);
+  const deleteQueuedDraft = useCallback((index: number) => {
+    setQueuedDrafts((previous) => previous.filter((_, i) => i !== index));
   }, []);
 
   // A voice transcript either fills the input (to edit before sending) or, when the
@@ -1162,31 +1197,34 @@ export function useChatComposerState({
     }
   }, [input, selectedProjectId]);
 
-  // Persist the queued draft under its session's key. Must be defined BEFORE
-  // the swap effect below: on a session switch there is one commit where
-  // `sessionKey` already points at the new session while `queuedDraft` (and
+  // Persist the queue under its session's key. Must be defined BEFORE the
+  // swap effect below: on a session switch there is one commit where
+  // `sessionKey` already points at the new session while `queuedDrafts` (and
   // the owner ref) still describe the old one — the ref mismatch makes this
   // effect skip that commit instead of writing/clearing across sessions.
   useEffect(() => {
     if (!sessionKey || queuedDraftSessionRef.current !== sessionKey) {
       return;
     }
-    if (queuedDraft?.content) {
-      writeQueuedMessage(sessionKey, { content: queuedDraft.content, options: queuedDraft.options });
+    if (queuedDrafts.length > 0) {
+      writeQueuedMessages(
+        sessionKey,
+        queuedDrafts.map((draft) => ({ content: draft.content, options: draft.options })),
+      );
     } else {
       clearQueuedMessage(sessionKey);
     }
-  }, [queuedDraft, sessionKey]);
+  }, [queuedDrafts, sessionKey]);
 
-  // Switching sessions swaps in that session's queued draft (image
-  // attachments can't survive a reload, so only text and options restore).
+  // Switching sessions swaps in that session's queue (image attachments
+  // can't survive a reload, so only text and options restore).
   useEffect(() => {
     queuedDraftSessionRef.current = sessionKey;
     if (!sessionKey) {
-      setQueuedDraft(null);
+      setQueuedDrafts([]);
       return;
     }
-    setQueuedDraft(restoreQueuedDraft(sessionKey));
+    setQueuedDrafts(restoreQueuedDrafts(sessionKey));
   }, [sessionKey]);
 
   useEffect(() => {
@@ -1408,7 +1446,7 @@ export function useChatComposerState({
     isDragActive,
     openImagePicker: open,
     handleSubmit,
-    queuedDraft,
+    queuedDrafts,
     editQueuedDraft,
     deleteQueuedDraft,
     handleVoiceTranscript,

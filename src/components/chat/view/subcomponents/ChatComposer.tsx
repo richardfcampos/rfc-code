@@ -33,7 +33,7 @@ export default function ChatComposer(props: ChatComposerProps) {
     onAbortSession,
     tokenBudget,
     onSubmit,
-    queuedDraft,
+    queuedDrafts,
     onEditQueuedDraft,
     onDeleteQueuedDraft,
     filteredCommands,
@@ -119,7 +119,7 @@ export default function ChatComposer(props: ChatComposerProps) {
     return readNumber(tokenBudget?.used) || inputTokens + outputTokens;
   }, [tokenBudget]);
 
-  const hasQueuedDraft = Boolean(queuedDraft);
+  const hasQueuedDraft = queuedDrafts.length > 0;
   const canQueueDraft = isLoading && Boolean(input.trim());
   // A run in flight frees the textarea for the next message — the mock swaps the idle
   // placeholder for a queueing one for as long as `isLoading` holds.
@@ -128,14 +128,14 @@ export default function ChatComposer(props: ChatComposerProps) {
     : placeholder;
   const submitHint = canQueueDraft
     ? hasQueuedDraft
-      ? t('input.hintText.updateQueued', { defaultValue: 'Enter to update queued message' })
+      ? t('input.hintText.queueAnother', { defaultValue: 'Enter to queue another message' })
       : t('input.hintText.queue', { defaultValue: 'Enter to queue your next message' })
     : sendByCtrlEnter
       ? t('input.hintText.ctrlEnter')
       : t('input.hintText.enter');
   const submitAriaLabel = canQueueDraft
     ? hasQueuedDraft
-      ? t('input.queue.update', { defaultValue: 'Update queued message' })
+      ? t('input.queue.addAnother', { defaultValue: 'Queue another message' })
       : t('input.queue.sendNext', { defaultValue: 'Queue next message' })
     : isLoading
       ? t('input.stop')
@@ -161,14 +161,18 @@ export default function ChatComposer(props: ChatComposerProps) {
         </div>
       )}
 
-      {queuedDraft && (
+      {queuedDrafts.map((draft, index) => (
         <QueuedMessageCard
-          content={queuedDraft.content}
-          attachmentCount={queuedDraft.images.length + queuedDraft.files.length}
-          onEdit={onEditQueuedDraft}
-          onDelete={onDeleteQueuedDraft}
+          // Index keys are fine: cards are stateless and only ever removed or appended.
+          key={index}
+          content={draft.content}
+          attachmentCount={draft.images.length + draft.files.length}
+          position={index + 1}
+          total={queuedDrafts.length}
+          onEdit={() => onEditQueuedDraft(index)}
+          onDelete={() => onDeleteQueuedDraft(index)}
         />
-      )}
+      ))}
 
       {!hasQuestionPanel && <div className="relative mx-auto max-w-[54.25rem]">
         <ComposerFileMentions {...props} />

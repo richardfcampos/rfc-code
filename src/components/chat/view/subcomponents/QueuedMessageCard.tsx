@@ -4,11 +4,21 @@ import { PencilIcon, XIcon } from 'lucide-react';
 interface QueuedMessageCardProps {
   content: string;
   attachmentCount?: number;
+  /** 1-based place in the queue; shown only when more than one is queued. */
+  position?: number;
+  total?: number;
   onEdit: () => void;
   onDelete: () => void;
 }
 
-export default function QueuedMessageCard({ content, attachmentCount = 0, onEdit, onDelete }: QueuedMessageCardProps) {
+export default function QueuedMessageCard({
+  content,
+  attachmentCount = 0,
+  position,
+  total = 1,
+  onEdit,
+  onDelete,
+}: QueuedMessageCardProps) {
   const { t } = useTranslation('chat');
 
   return (
@@ -19,6 +29,11 @@ export default function QueuedMessageCard({ content, attachmentCount = 0, onEdit
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.08em] text-primary">
             <span>{t('input.queue.label', { defaultValue: 'Queued' })}</span>
+            {position !== undefined && total > 1 && (
+              <span>
+                · {position}/{total}
+              </span>
+            )}
             <span className="normal-case text-faint">
               · {t('input.queue.willSend', { defaultValue: 'Will send when this finishes' })}
             </span>

@@ -4,7 +4,7 @@ import path from 'node:path';
 import readline from 'node:readline';
 
 import type { IProviderSessions } from '@/shared/interfaces.js';
-import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, NormalizedMessage } from '@/shared/types.js';
+import type { AnyRecord, FetchHistoryOptions, FetchHistoryResult, LLMProvider, NormalizedMessage } from '@/shared/types.js';
 import { createNormalizedMessage, generateMessageId, readObjectRecord, sliceTailPage } from '@/shared/utils.js';
 import { sessionsDb } from '@/modules/database/index.js';
 
@@ -216,6 +216,10 @@ const INTERNAL_CONTENT_PREFIXES = [
   '<system-reminder>',
   'Caveat:',
   '[Request interrupted',
+  // A skill's instructions are injected as a user row. In the transcript the
+  // row is `isMeta` and skipped; the live SDK event carries no such flag, so
+  // the body itself has to identify it.
+  'Base directory for this skill:',
 ] as const;
 
 function isInternalContent(content: string): boolean {
@@ -289,6 +293,61 @@ function stripAnsiFormatting(text: string): string {
   return text.replace(/\u001B\[[0-9;?]*[ -/]*[@-~]/g, '');
 }
 
+type UserTextInput = {
+  id: string;
+  sessionId: string | null;
+  timestamp: string;
+  text: string;
+  images?: Array<{ data: string }>;
+};
+
+/**
+ * Turns one user-authored text payload into chat messages.
+ *
+ * Shared by the string row (transcript JSONL) and the content-block array
+ * (live SDK events and image turns): a slash command expansion or a local
+ * command's stdout arrives in either shape depending on the path, and the UI
+ * must see the same remapped message from both — otherwise the raw
+ * `<command-message>` wrapper shows up live and vanishes after a reload.
+ */
+function normalizeUserText(input: UserTextInput): NormalizedMessage[] {
+  const { id, sessionId, timestamp, text, images } = input;
+  const base = { id, sessionId, timestamp, provider: PROVIDER as LLMProvider, kind: 'text' as const };
+
+  const localCommandPayload = parseLocalCommandPayload(text);
+  if (localCommandPayload) {
+    const displayText = buildLocalCommandDisplayText(localCommandPayload);
+    if (!displayText) {
+      return [];
+    }
+    return [createNormalizedMessage({
+      ...base,
+      role: 'user',
+      content: displayText,
+      commandName: localCommandPayload.commandName,
+      commandMessage: localCommandPayload.commandMessage,
+      commandArgs: localCommandPayload.commandArgs,
+      isLocalCommand: true,
+      images,
+    })];
+  }
+
+  // Terminal output of a local command is written as a "user" row; it is a
+  // reply to the command, so it reads as assistant text in the chat.
+  const localCommandStdout = extractTaggedContent(text, 'local-command-stdout');
+  if (localCommandStdout !== null) {
+    const stdoutText = stripAnsiFormatting(localCommandStdout).trim();
+    return stdoutText
+      ? [createNormalizedMessage({ ...base, role: 'assistant', content: stdoutText, isLocalCommandStdout: true })]
+      : [];
+  }
+
+  if (!text || isInternalContent(text)) {
+    return [];
+  }
+  return [createNormalizedMessage({ ...base, role: 'user', content: text, images })];
+}
+
 export class ClaudeSessionsProvider implements IProviderSessions {
   /**
    * Normalizes one Claude JSONL entry or live SDK stream event into the shared
@@ -341,18 +400,15 @@ export class ClaudeSessionsProvider implements IProviderSessions {
               toolUseResult: raw.toolUseResult,
             }));
           } else if (part.type === 'text') {
-            const text = part.text || '';
-            if (text && !isInternalContent(text)) {
-              messages.push(createNormalizedMessage({
-                id: `${baseId}_text_${partIndex}`,
-                sessionId,
-                timestamp: ts,
-                provider: PROVIDER,
-                kind: 'text',
-                role: 'user',
-                content: text,
-                images: !imagesAttached && imageAttachments.length > 0 ? imageAttachments : undefined,
-              }));
+            const normalizedText = normalizeUserText({
+              id: `${baseId}_text_${partIndex}`,
+              sessionId,
+              timestamp: ts,
+              text: part.text || '',
+              images: !imagesAttached && imageAttachments.length > 0 ? imageAttachments : undefined,
+            });
+            if (normalizedText.length > 0) {
+              messages.push(...normalizedText);
               imagesAttached = true;
             }
           }
@@ -417,68 +473,7 @@ export class ClaudeSessionsProvider implements IProviderSessions {
           return messages;
         }
 
-        /**
-         * Local slash commands are serialized as tagged text even though they
-         * are semantically a user action. Expose the parsed fields to the
-         * frontend and emit a plain user-visible command string so the command
-         * no longer disappears from history.
-         */
-        const localCommandPayload = parseLocalCommandPayload(text);
-        if (localCommandPayload) {
-          const displayText = buildLocalCommandDisplayText(localCommandPayload);
-          if (displayText) {
-            messages.push(createNormalizedMessage({
-              id: baseId,
-              sessionId,
-              timestamp: ts,
-              provider: PROVIDER,
-              kind: 'text',
-              role: 'user',
-              content: displayText,
-              commandName: localCommandPayload.commandName,
-              commandMessage: localCommandPayload.commandMessage,
-              commandArgs: localCommandPayload.commandArgs,
-              isLocalCommand: true,
-            }));
-          }
-          return messages;
-        }
-
-        /**
-         * Local command stdout is also written as a "user" row in Claude's
-         * transcript, but it is terminal output produced in response to the
-         * command. Re-label it as assistant text so the chat transcript matches
-         * the actual conversational flow seen by the user.
-         */
-        const localCommandStdout = extractTaggedContent(text, 'local-command-stdout');
-        if (localCommandStdout !== null) {
-          const stdoutText = stripAnsiFormatting(localCommandStdout).trim();
-          if (stdoutText) {
-            messages.push(createNormalizedMessage({
-              id: baseId,
-              sessionId,
-              timestamp: ts,
-              provider: PROVIDER,
-              kind: 'text',
-              role: 'assistant',
-              content: stdoutText,
-              isLocalCommandStdout: true,
-            }));
-          }
-          return messages;
-        }
-
-        if (text && !isInternalContent(text)) {
-          messages.push(createNormalizedMessage({
-            id: baseId,
-            sessionId,
-            timestamp: ts,
-            provider: PROVIDER,
-            kind: 'text',
-            role: 'user',
-            content: text,
-          }));
-        }
+        messages.push(...normalizeUserText({ id: baseId, sessionId, timestamp: ts, text }));
       }
       return messages;
     }

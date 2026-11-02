@@ -58,31 +58,60 @@ export type StoredQueuedMessage = {
 
 export const queuedMessageKey = (sessionId: string) => `queued_message_${sessionId}`;
 
-/**
- * Reads a session's queued message. Understands both the JSON
- * `{ content, options }` format and the legacy raw-text format.
- */
-export function readQueuedMessage(sessionId: string): StoredQueuedMessage | null {
-  const raw = safeLocalStorage.getItem(queuedMessageKey(sessionId));
-  if (!raw) {
+const toStoredQueuedMessage = (value: unknown): StoredQueuedMessage | null => {
+  if (!value || typeof value !== 'object') {
     return null;
   }
+  const { content, options } = value as StoredQueuedMessage;
+  if (typeof content !== 'string' || !content.trim()) {
+    return null;
+  }
+  return options && typeof options === 'object' ? { content, options } : { content };
+};
 
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (parsed && typeof parsed === 'object' && typeof (parsed as StoredQueuedMessage).content === 'string') {
-      const { content, options } = parsed as StoredQueuedMessage;
-      return content.trim() ? { content, options } : null;
-    }
-  } catch {
-    // Legacy format: the raw draft text itself.
+/**
+ * Reads a session's queued messages, oldest first. Besides the current JSON
+ * array format it accepts the older single-message formats — a `{ content,
+ * options }` object or the raw draft text — so drafts queued before the
+ * upgrade still send.
+ */
+export function readQueuedMessages(sessionId: string): StoredQueuedMessage[] {
+  const raw = safeLocalStorage.getItem(queuedMessageKey(sessionId));
+  if (!raw) {
+    return [];
   }
 
-  return raw.trim() ? { content: raw } : null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    // Legacy format: the raw draft text itself.
+    return raw.trim() ? [{ content: raw }] : [];
+  }
+
+  if (Array.isArray(parsed)) {
+    return parsed.map(toStoredQueuedMessage).filter((m): m is StoredQueuedMessage => m !== null);
+  }
+  if (parsed && typeof parsed === 'object') {
+    const single = toStoredQueuedMessage(parsed);
+    return single ? [single] : [];
+  }
+  // Valid JSON that isn't a message (e.g. raw text that happens to be a
+  // number) is still legacy raw text.
+  return raw.trim() ? [{ content: raw }] : [];
 }
 
-export function writeQueuedMessage(sessionId: string, message: StoredQueuedMessage): void {
-  safeLocalStorage.setItem(queuedMessageKey(sessionId), JSON.stringify(message));
+/** First queued message — the one that will be sent next — or null. */
+export function readQueuedMessage(sessionId: string): StoredQueuedMessage | null {
+  return readQueuedMessages(sessionId)[0] ?? null;
+}
+
+export function writeQueuedMessages(sessionId: string, messages: StoredQueuedMessage[]): void {
+  if (messages.length === 0) {
+    clearQueuedMessage(sessionId);
+    return;
+  }
+  safeLocalStorage.setItem(queuedMessageKey(sessionId), JSON.stringify(messages));
 }
 
 export function clearQueuedMessage(sessionId: string): void {

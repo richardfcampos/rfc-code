@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-import { clearQueuedMessage, readQueuedMessage } from '../components/chat/utils/chatStorage';
+import { readQueuedMessages, writeQueuedMessages } from '../components/chat/utils/chatStorage';
 
 import type { MarkSessionProcessing, SessionActivityMap } from './useSessionProtection';
 
@@ -20,12 +20,15 @@ interface UseQueuedMessageAutoSendArgs {
 /**
  * Dispatches queued messages for sessions the user is NOT currently viewing.
  *
- * The composer persists each queued draft (text + send options snapshotted at
- * queue time) under `queued_message_<sessionId>`. When a session's run leaves
- * the processing map — its previous response completed — this hook sends that
- * session's queued message immediately instead of waiting for the user to
- * open the session again. Removing the storage key before sending is the
- * claim that keeps the composer's own flush from double-sending.
+ * The composer persists each session's queue (text + send options snapshotted
+ * at queue time, oldest first) under `queued_message_<sessionId>`. When a
+ * session's run leaves the processing map — its previous response completed —
+ * this hook sends the HEAD of that queue immediately instead of waiting for
+ * the user to open the session again. Only one message goes out per
+ * completion so the queue keeps its turn-by-turn order: the rest stay stored
+ * and the next completion sends the next one. Writing the shortened queue
+ * back before sending is the claim that keeps the composer's own flush from
+ * double-sending.
  */
 export function useQueuedMessageAutoSend({
   processingSessions,
@@ -46,7 +49,7 @@ export function useQueuedMessageAutoSend({
         continue;
       }
 
-      const queued = readQueuedMessage(sessionId);
+      const [queued, ...rest] = readQueuedMessages(sessionId);
       if (!queued) {
         continue;
       }
@@ -57,7 +60,7 @@ export function useQueuedMessageAutoSend({
         continue;
       }
 
-      clearQueuedMessage(sessionId);
+      writeQueuedMessages(sessionId, rest);
       sendMessage({
         type: 'chat.send',
         sessionId,
