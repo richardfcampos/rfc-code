@@ -23,6 +23,8 @@ import { profileTools } from './profiles.tools.js';
 import { projectTools } from './projects.tools.js';
 import { providerTools } from './providers.tools.js';
 import { reviewTools } from './reviews.tools.js';
+import { sessionSummaryTools } from './session-summary.tools.js';
+import { sessionWebhookTools } from './session-webhooks.tools.js';
 import { sessionTools } from './sessions.tools.js';
 import { settingsTools } from './settings.tools.js';
 import { systemTools } from './system.tools.js';
@@ -40,6 +42,8 @@ export function collectToolDefinitions(): ToolDefinition[] {
     ...fileTools,
     ...sessionTools,
     ...chatTools,
+    ...sessionSummaryTools,
+    ...sessionWebhookTools,
     ...worktreeTools,
     ...gitTools,
     ...taskTools,

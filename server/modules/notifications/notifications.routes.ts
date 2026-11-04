@@ -1,6 +1,6 @@
 import express from 'express';
 
-import { notificationChannelEndpointsDb, notificationPreferencesDb } from '@/modules/database/index.js';
+import { notificationChannelEndpointsDb, notificationPreferencesDb, sessionWebhookDeliveriesDb } from '@/modules/database/index.js';
 import {
   getNotifyHubConfig,
   isNotifyHubConfigured,
@@ -8,6 +8,13 @@ import {
   sendNotifyHubTest,
   toNotifyHubPublicView,
 } from '@/modules/notifications/services/notify-hub-config.service.js';
+import {
+  SESSION_WEBHOOK_CHANNEL,
+  SessionWebhookConfigError,
+  maskSessionWebhookMetadata,
+  normalizeSessionWebhookUpsert,
+} from '@/modules/notifications/services/session-webhook-endpoints.service.js';
+import { sendSessionWebhookTest } from '@/modules/notifications/services/session-webhook-dispatcher.service.js';
 import { AppError } from '@/shared/utils.js';
 
 const router = express.Router();
@@ -17,12 +24,15 @@ function readText(value: unknown): string {
 }
 
 function sanitizeEndpoint(endpoint: any) {
+  const metadata = notificationChannelEndpointsDb.parseMetadata(endpoint.metadata_json);
   return {
     id: endpoint.id,
     channel: endpoint.channel,
     endpointId: endpoint.endpoint_id,
     label: endpoint.label,
-    metadata: notificationChannelEndpointsDb.parseMetadata(endpoint.metadata_json),
+    // A session webhook endpoint carries its shared secret in metadata; it is
+    // write-only and masked on every read.
+    metadata: endpoint.channel === SESSION_WEBHOOK_CHANNEL ? maskSessionWebhookMetadata(metadata) : metadata,
     enabled: Boolean(endpoint.enabled),
     lastSeenAt: endpoint.last_seen_at,
     createdAt: endpoint.created_at,
@@ -75,12 +85,27 @@ router.post('/endpoints/current', (req, res) => {
     }
 
     const userId = readUserId(req);
+    let storedMetadata: Record<string, unknown> = metadata && typeof metadata === 'object' ? metadata : {};
+    if (normalizedChannel === SESSION_WEBHOOK_CHANNEL) {
+      const existing = notificationChannelEndpointsDb.getEndpoint(userId, normalizedChannel, normalizedEndpointId);
+      try {
+        storedMetadata = normalizeSessionWebhookUpsert(
+          storedMetadata,
+          existing ? notificationChannelEndpointsDb.parseMetadata(existing.metadata_json) : null,
+        );
+      } catch (error) {
+        if (error instanceof SessionWebhookConfigError) {
+          return res.status(400).json({ error: error.message });
+        }
+        throw error;
+      }
+    }
     const endpoint = notificationChannelEndpointsDb.upsertEndpoint({
       userId,
       channel: normalizedChannel,
       endpointId: normalizedEndpointId,
       label,
-      metadata: metadata && typeof metadata === 'object' ? metadata : {},
+      metadata: storedMetadata,
       enabled: enabled !== false,
     });
 
@@ -122,6 +147,9 @@ router.delete('/endpoints/:channel/:endpointId', (req, res) => {
     const removed = notificationChannelEndpointsDb.removeEndpoint(userId, channel, endpointId);
     if (!removed) {
       return res.status(404).json({ error: 'Notification endpoint not found' });
+    }
+    if (channel === SESSION_WEBHOOK_CHANNEL) {
+      sessionWebhookDeliveriesDb.deleteByEndpoint(endpointId, userId);
     }
 
     const preferences = updateChannelPreference(userId, channel);
@@ -186,6 +214,51 @@ router.post('/notify-hub/test', async (req, res) => {
   } catch (error) {
     console.error('Error sending notify-hub test:', error);
     return res.status(500).json({ ok: false, error: 'Failed to send notify-hub test' });
+  }
+});
+
+router.post('/session-webhooks/:endpointId/test', async (req, res) => {
+  try {
+    const userId = readUserId(req);
+    const result = await sendSessionWebhookTest(userId, req.params.endpointId);
+    if (!result.ok && 'error' in result && result.error === 'ENDPOINT_NOT_FOUND') {
+      return res.status(404).json({ ok: false, error: 'Session webhook endpoint not found' });
+    }
+    return res.json({ success: result.ok, ...result });
+  } catch (error) {
+    console.error('Error sending session webhook test:', error);
+    return res.status(500).json({ ok: false, error: 'Failed to send session webhook test' });
+  }
+});
+
+router.get('/session-webhooks/deliveries', (req, res) => {
+  try {
+    const userId = readUserId(req);
+    const limitText = readText(req.query.limit);
+    const limit = limitText ? Number.parseInt(limitText, 10) : undefined;
+    const deliveries = sessionWebhookDeliveriesDb
+      .list({
+        userId,
+        endpointId: readText(req.query.endpointId) || undefined,
+        sessionId: readText(req.query.sessionId) || undefined,
+        limit: Number.isFinite(limit) ? limit : undefined,
+      })
+      .map((row) => ({
+        id: row.id,
+        deliveryId: row.delivery_id,
+        endpointId: row.endpoint_id,
+        event: row.event,
+        sessionId: row.session_id,
+        attempt: row.attempt,
+        ok: Boolean(row.ok),
+        httpStatus: row.http_status,
+        error: row.error,
+        createdAt: row.created_at,
+      }));
+    return res.json({ success: true, deliveries });
+  } catch (error) {
+    console.error('Error listing session webhook deliveries:', error);
+    return res.status(500).json({ error: 'Failed to list session webhook deliveries' });
   }
 });
 

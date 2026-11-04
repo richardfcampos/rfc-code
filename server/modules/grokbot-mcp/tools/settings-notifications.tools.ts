@@ -2,7 +2,7 @@
 
 import type { JsonObject, ToolDefinition } from '../grokbot-mcp.types.js';
 
-import { S, ToolInputError, optBool, optObject, pick, schema, seg, str, tool } from './tool-helpers.js';
+import { S, ToolInputError, optBool, optObject, optStr, pick, schema, seg, str, tool } from './tool-helpers.js';
 
 /** Booleans that flip state must be explicit: a missing flag is a mistake, not "false". */
 export function requiredBool(args: JsonObject, name: string): boolean {
@@ -21,8 +21,44 @@ function requiredObject(args: JsonObject, name: string): JsonObject {
   return value;
 }
 
-const CHANNEL = S.string('Notification channel name, e.g. "push" or "telegram".');
-const ENDPOINT_ID = S.string('Endpoint id within the channel (device or chat identifier).');
+const CHANNEL = S.string('Notification channel name, e.g. "push", "telegram" or "session_webhook".');
+const ENDPOINT_ID = S.string('Endpoint id within the channel (device, chat identifier, or a name you choose for a session webhook).');
+
+const SESSION_WEBHOOK_CHANNEL = 'session_webhook';
+const SESSION_WEBHOOK_KEYS = ['url', 'secret', 'events', 'projects', 'sessions'] as const;
+
+function optStringList(args: JsonObject, name: string): string[] | undefined {
+  const value = args[name];
+  if (value === undefined || value === null) return undefined;
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string')) {
+    throw new ToolInputError(`${name} must be an array of strings.`);
+  }
+  return value as string[];
+}
+
+/**
+ * The session webhook fields ride inside `metadata` for the route; they are
+ * only meaningful on that channel, so naming them on another one is refused
+ * instead of being stored as inert junk.
+ */
+function sessionWebhookMetadata(args: JsonObject, channel: string): JsonObject | undefined {
+  const fields: JsonObject = {};
+  const url = optStr(args, 'url');
+  const secret = optStr(args, 'secret');
+  const events = optStringList(args, 'events');
+  const projects = optStringList(args, 'projects');
+  const sessions = optStringList(args, 'sessions');
+  if (url !== undefined) fields.url = url;
+  if (secret !== undefined) fields.secret = secret;
+  if (events !== undefined) fields.events = events;
+  if (projects !== undefined) fields.projects = projects;
+  if (sessions !== undefined) fields.sessions = sessions;
+  if (Object.keys(fields).length === 0) return undefined;
+  if (channel !== SESSION_WEBHOOK_CHANNEL) {
+    throw new ToolInputError(`${SESSION_WEBHOOK_KEYS.join(', ')} are only valid with channel "${SESSION_WEBHOOK_CHANNEL}".`);
+  }
+  return fields;
+}
 
 export const settingsNotificationTools: ToolDefinition[] = [
   tool({
@@ -52,7 +88,10 @@ export const settingsNotificationTools: ToolDefinition[] = [
   tool({
     name: 'notification_endpoint_upsert',
     description:
-      'Register or update a delivery endpoint on a channel and refresh the channel preference. Use endpointId to address an existing endpoint.',
+      'Register or update a delivery endpoint on a channel and refresh the channel preference. Use endpointId to address an existing endpoint. ' +
+      'With channel "session_webhook" pass url (http/https), secret (HMAC-SHA256 key; omit on update to keep it), and optional filters ' +
+      'events (subset of session.idle, session.error, session.waiting_approval; default all), projects (ids or paths) and sessions (ids); ' +
+      'the server then POSTs a signed payload (header X-RFC-Signature) whenever a matching session stops, fails or waits on an approval.',
     inputSchema: schema(
       {
         channel: CHANNEL,
@@ -60,16 +99,24 @@ export const settingsNotificationTools: ToolDefinition[] = [
         label: S.string('Human-readable label.'),
         metadata: S.object('Channel-specific metadata (e.g. chat id).'),
         enabled: S.boolean('Whether the endpoint receives notifications (default true).'),
+        url: S.string('session_webhook only: URL that receives the POST.'),
+        secret: S.string('session_webhook only: shared secret used to sign the body; never returned.'),
+        events: S.stringArray('session_webhook only: events to deliver; default all three.'),
+        projects: S.stringArray('session_webhook only: project ids or absolute paths to deliver for; empty = all.'),
+        sessions: S.stringArray('session_webhook only: session ids to deliver for; empty = all.'),
       },
       ['channel', 'endpointId'],
     ),
     covers: ['POST /api/notifications/endpoints/current'],
-    run: (args, ctx) =>
-      ctx.api.dispatch({
-        method: 'POST',
-        path: '/api/notifications/endpoints/current',
-        body: { channel: str(args, 'channel'), endpointId: str(args, 'endpointId'), ...pick(args, ['label', 'metadata', 'enabled']) },
-      }),
+    run: (args, ctx) => {
+      const channel = str(args, 'channel');
+      const webhook = sessionWebhookMetadata(args, channel);
+      const body: JsonObject = { channel, endpointId: str(args, 'endpointId'), ...pick(args, ['label', 'metadata', 'enabled']) };
+      if (webhook) {
+        body.metadata = { ...(optObject(args, 'metadata') ?? {}), ...webhook };
+      }
+      return ctx.api.dispatch({ method: 'POST', path: '/api/notifications/endpoints/current', body });
+    },
   }),
   tool({
     name: 'notification_endpoint_toggle',

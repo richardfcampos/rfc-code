@@ -23,3 +23,18 @@ export type {
   NotifyHubPublicView,
   NotifyHubTestResult,
 } from '@/modules/notifications/services/notify-hub-config.service.js';
+export {
+  configureSessionWebhookDispatcher,
+  dispatchSessionWebhookTransition,
+  sendSessionWebhookTest,
+} from '@/modules/notifications/services/session-webhook-dispatcher.service.js';
+export type {
+  SessionWebhookDispatcherDeps,
+  SessionWebhookTransitionInput,
+} from '@/modules/notifications/services/session-webhook-dispatcher.service.js';
+export {
+  SESSION_WEBHOOK_CHANNEL,
+  SESSION_WEBHOOK_EVENTS,
+  maskSessionWebhookMetadata,
+} from '@/modules/notifications/services/session-webhook-endpoints.service.js';
+export { signSessionWebhookBody, verifySessionWebhookSignature } from '@/modules/notifications/services/session-webhook-signature.js';

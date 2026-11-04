@@ -289,6 +289,26 @@ CREATE TABLE IF NOT EXISTS session_run_failures (
 );
 `;
 
+export const SESSION_WEBHOOK_DELIVERIES_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS session_webhook_deliveries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    -- One delivery (one event to one endpoint) spans several attempts; they
+    -- share this id so the retries of a single event read as one story.
+    delivery_id TEXT NOT NULL,
+    endpoint_id TEXT NOT NULL,
+    user_id INTEGER,
+    event TEXT NOT NULL,
+    session_id TEXT,
+    attempt INTEGER NOT NULL,
+    ok INTEGER NOT NULL,
+    http_status INTEGER,
+    -- Transport or HTTP failure text only; the payload and the endpoint secret
+    -- are never written here.
+    error TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+`;
+
 export const ACTIVE_SESSION_RUNS_TABLE_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS active_session_runs (
     -- One row per session: a session can only have one run in flight at a time.
@@ -641,6 +661,9 @@ CREATE INDEX IF NOT EXISTS idx_session_run_failures_session
   ON session_run_failures(session_id, failed_at);
 
 ${ACTIVE_SESSION_RUNS_TABLE_SCHEMA_SQL}
+${SESSION_WEBHOOK_DELIVERIES_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_session_webhook_deliveries_endpoint
+  ON session_webhook_deliveries(endpoint_id, id);
 ${LAST_SCANNED_AT_SQL}
 
 ${APP_CONFIG_TABLE_SCHEMA_SQL}

@@ -121,6 +121,17 @@ export const notificationChannelEndpointsDb = {
     ).all(userId, normalizeRequiredText(channel)) as NotificationChannelEndpointRow[];
   },
 
+  /** Enabled endpoints of one channel across every user — for server-side fan-out that is not scoped to a caller. */
+  getEnabledEndpointsForChannel(channel: string): NotificationChannelEndpointRow[] {
+    const db = getConnection();
+    return db.prepare(
+      `SELECT id, user_id, channel, endpoint_id, label, metadata_json, enabled, last_seen_at, created_at, updated_at
+       FROM notification_channel_endpoints
+       WHERE channel = ? AND enabled = 1
+       ORDER BY id ASC`
+    ).all(normalizeRequiredText(channel)) as NotificationChannelEndpointRow[];
+  },
+
   setEndpointEnabled(userId: number, channel: string, endpointId: string, enabled: boolean): boolean {
     const db = getConnection();
     const result = db.prepare(

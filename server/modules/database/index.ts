@@ -74,6 +74,12 @@ export type {
 export { sessionLegsDb } from '@/modules/database/repositories/session-legs.db.js';
 export type { LegRow } from '@/modules/database/repositories/session-legs.db.js';
 export { sessionRunFailuresDb } from '@/modules/database/repositories/session-run-failures.db.js';
+export { sessionWebhookDeliveriesDb } from '@/modules/database/repositories/session-webhook-deliveries.db.js';
+export type {
+  ListSessionWebhookDeliveriesOptions,
+  RecordSessionWebhookDeliveryInput,
+  SessionWebhookDeliveryRow,
+} from '@/modules/database/repositories/session-webhook-deliveries.db.js';
 export type { SessionRunFailureRow } from '@/modules/database/repositories/session-run-failures.db.js';
 export { sessionsDb } from '@/modules/database/repositories/sessions.db.js';
 export type { SessionRow } from '@/modules/database/repositories/sessions.db.js';

@@ -5,6 +5,7 @@ import { generateDisplayName } from '@/modules/projects/index.js';
 import { ChatSessionWriter } from '@/modules/websocket/services/chat-session-writer.service.js';
 import { connectedClients, WS_OPEN_STATE } from '@/modules/websocket/services/websocket-state.service.js';
 import type { ActiveSessionRunRow } from '@/modules/database/index.js';
+import { sessionLifecycleEvents } from '@/modules/websocket/services/session-lifecycle.events.js';
 import type {
   LLMProvider,
   NormalizedMessage,
@@ -41,6 +42,8 @@ type ChatRun = {
   startedAt: number;
   completedAt: number | null;
   lastErrorText: string | null;
+  /** Approval request ids already announced as `waiting_approval`, so a re-sent request does not page twice. */
+  approvalRequestsSeen: Set<string>;
 };
 
 /**
@@ -265,7 +268,63 @@ function decorateAndRecordEvent(run: ChatRun, message: NormalizedMessage): Norma
     run.events.splice(0, run.events.length - MAX_BUFFERED_EVENTS_PER_RUN);
   }
 
+  announceTransition(run, message);
+
   return outbound;
+}
+
+/**
+ * Raises the session's state change on the lifecycle feed once the event is
+ * recorded, so a subscriber reading `lastSeq` sees the terminal event counted.
+ * A terminal `complete` is `idle` (clean exit or user abort) or `error`; a
+ * `permission_request` on a live run is `waiting_approval`, once per request.
+ * Bookkeeping only: a failure here must never reach the event path.
+ */
+function announceTransition(run: ChatRun, message: NormalizedMessage): void {
+  try {
+    if (message.kind === 'complete') {
+      const aborted = Boolean(message.aborted);
+      const exitCode = typeof message.exitCode === 'number' ? message.exitCode : null;
+      const failed = !aborted && exitCode !== 0;
+      sessionLifecycleEvents.emitTransition({
+        sessionId: run.appSessionId,
+        provider: run.provider,
+        status: failed ? 'error' : 'idle',
+        startedAt: new Date(run.startedAt).toISOString(),
+        finishedAt: run.completedAt ? new Date(run.completedAt).toISOString() : null,
+        lastSeq: run.lastSeq,
+        exitCode,
+        aborted,
+        requestId: null,
+        error: failed ? run.lastErrorText : null,
+      });
+      return;
+    }
+
+    if (message.kind === 'permission_request' && run.status === 'running') {
+      const requestId = typeof message.requestId === 'string' && message.requestId ? message.requestId : null;
+      if (requestId && run.approvalRequestsSeen.has(requestId)) {
+        return;
+      }
+      if (requestId) {
+        run.approvalRequestsSeen.add(requestId);
+      }
+      sessionLifecycleEvents.emitTransition({
+        sessionId: run.appSessionId,
+        provider: run.provider,
+        status: 'waiting_approval',
+        startedAt: new Date(run.startedAt).toISOString(),
+        finishedAt: null,
+        lastSeq: run.lastSeq,
+        exitCode: null,
+        aborted: false,
+        requestId,
+        error: null,
+      });
+    }
+  } catch (error) {
+    console.error('[ChatRunRegistry] Failed to announce a session transition:', error);
+  }
 }
 
 /**
@@ -340,6 +399,7 @@ export const chatRunRegistry = {
       startedAt: Date.now(),
       completedAt: null,
       lastErrorText: null,
+      approvalRequestsSeen: new Set(),
     };
 
     run.writer = new ChatSessionWriter({

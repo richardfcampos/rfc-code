@@ -17,7 +17,7 @@ import Database from 'better-sqlite3';
 import { AppError, WORKSPACES_ROOT, getOpenCodeDatabasePath, validateWorkspacePath } from '@/shared/utils.js';
 import { getFileTree } from '@/shared/file-tree.js';
 import { closeSessionsWatcher, configureRunningSessionsAttention, configureSessionTitleRuntime, initializeSessionsWatcher } from '@/modules/providers/index.js';
-import { chatRunRegistry, createWebSocketServer } from '@/modules/websocket/index.js';
+import { chatRunRegistry, createWebSocketServer, sessionLifecycleEvents } from '@/modules/websocket/index.js';
 
 import { getConnectableHost } from '../shared/networkHosts.js';
 
@@ -63,6 +63,7 @@ import { orgsRoutes } from './modules/orgs/index.js';
 import { configureReviewsRuntime, reviewsRoutes } from './modules/reviews/index.js';
 import { agentBridgeRoutes, agentBridgeSessionTokenRoutes } from './modules/agent-bridge/index.js';
 import { configureGrokbotMcpRuntime, grokbotMcpErrorHandler, grokbotMcpRoutes } from './modules/grokbot-mcp/index.js';
+import { buildSessionSummary, configureSessionSummaryRuntime } from './modules/session-summary/index.js';
 import { agentMessagesRoutes } from './modules/agent-messages/index.js';
 import { teamViewRoutes } from './modules/team-view/index.js';
 import {
@@ -81,6 +82,7 @@ import { configureBtwRuntime } from './modules/commands/index.js';
 import { configureHandoffSummaryRuntime } from './modules/profiles/index.js';
 import { runWorktreeSessionBackfill } from './modules/repo-context/index.js';
 import notificationRoutes from './modules/notifications/notifications.routes.js';
+import { configureSessionWebhookDispatcher, dispatchSessionWebhookTransition } from './modules/notifications/index.js';
 import userRoutes from './routes/user.js';
 import pluginsRoutes from './routes/plugins.js';
 import previewRoutes from './routes/preview.js';
@@ -1468,7 +1470,13 @@ app.use((err, req, res, next) => {
     });
   }
 
-  console.error(err);
+  // body-parser attaches the raw body to a parse error; a body can carry a
+  // secret (webhook upsert, token save), so only the kind of failure is logged.
+  if (err && err.type === 'entity.parse.failed') {
+    console.error(`[request] ${err.type}: ${err.message}`);
+  } else {
+    console.error(err);
+  }
 
   return res.status(500).json({
     success: false,
@@ -1673,6 +1681,15 @@ async function startServer() {
                 },
                 resolveToolApproval,
                 getPendingApprovalsForSession,
+            });
+            // Session summaries (MCP `session_summary`, `rfc` CLI) read pending
+            // approvals through the same lookup the chat gateway uses, and the
+            // session webhooks are wired here rather than inside a module so
+            // notifications -> session-summary -> websocket never forms a cycle.
+            configureSessionSummaryRuntime({ getPendingApprovalsForSession });
+            configureSessionWebhookDispatcher({ buildSummary: (sessionId) => buildSessionSummary({ sessionId }) });
+            sessionLifecycleEvents.onTransition((transition) => {
+                void dispatchSessionWebhookTransition(transition);
             });
             await writeLocalServerMarker().catch((error) => {
                 console.warn('[WARN] Could not write local server marker:', error.message);

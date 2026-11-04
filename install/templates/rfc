@@ -1,0 +1,29 @@
+#!/bin/sh
+# `rfc` wrapper for the RFC Code CLI.
+#
+# Service managers and cron start with a minimal PATH, so this loads the same
+# env file the server uses (for RFC_CODE_NODE) before executing the compiled
+# CLI. Install: replace __RFC_CODE_APP_ROOT__ below with the absolute path of
+# the checkout that holds dist-server/ (the one rfc-code.service runs from),
+# then copy to /usr/local/bin/rfc and chmod +x. For example:
+#
+#   sed "s#__RFC_CODE_APP_ROOT__#/srv/code/personal/rfc-code-worktrees/prod-main#" \
+#     install/templates/rfc | sudo tee /usr/local/bin/rfc >/dev/null && sudo chmod +x /usr/local/bin/rfc
+#
+# The API key is read from RFC_API_KEY or ~/.rfc-code/rfc-cli.json, never from here.
+set -eu
+
+RFC_CODE_APP_ROOT="__RFC_CODE_APP_ROOT__"
+
+if [ -f "${HOME}/.rfc-code/env" ]; then
+	set -a
+	. "${HOME}/.rfc-code/env"
+	set +a
+fi
+
+if [ -n "${RFC_CODE_PATH_PREPEND:-}" ]; then
+	PATH="${RFC_CODE_PATH_PREPEND}:${PATH}"
+	export PATH
+fi
+
+exec "${RFC_CODE_NODE:-node}" "${RFC_CODE_APP_ROOT}/dist-server/server/rfc-cli/rfc-cli.js" "$@"

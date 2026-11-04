@@ -6,6 +6,7 @@ import { getProjectTaskMaster } from '@/modules/projects/services/projects-has-t
 import { getProjectCodegraph, startProjectCodegraphIndexing } from '@/modules/projects/services/project-codegraph.service.js';
 import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
 import { getArchivedProjectsWithSessions, getProjectSessionsPage, getProjectsWithSessions } from '@/modules/projects/services/projects-with-sessions-fetch.service.js';
+import { getProjectsCompact } from '@/modules/projects/services/projects-compact-list.service.js';
 import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
 import { applyLegacyStarredProjectIds, toggleProjectStar } from '@/modules/projects/services/project-star.service.js';
 import { toggleProjectNotify } from '@/modules/projects/services/project-notify.service.js';
@@ -73,6 +74,11 @@ router.get(
     const skipSynchronization =
       readQueryStringValue(req.query.skipSynchronization).trim() === '1' ||
       readQueryStringValue(req.query.skipSync).trim() === '1';
+    // Opt-in short form for external agents; the default payload is unchanged.
+    if (readQueryStringValue(req.query.compact).trim() === '1') {
+      res.json(await getProjectsCompact({ skipSynchronization }));
+      return;
+    }
     const sessionsLimit = readOptionalNumericQueryValue(req.query.sessionsLimit) ?? undefined;
     const sessionsOffset = readOptionalNumericQueryValue(req.query.sessionsOffset) ?? undefined;
     const projects = await getProjectsWithSessions({

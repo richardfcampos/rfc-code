@@ -10,8 +10,9 @@ const projectOnly = schema({ projectId: PROJECT_ID }, ['projectId']);
 export const projectTools: ToolDefinition[] = [
   tool({
     name: 'project_list',
-    description: 'List active projects with their recent sessions. Use first to discover projectId values; pass skipSync to avoid re-scanning provider session folders.',
+    description: 'List active projects with their recent sessions. Use first to discover projectId values; pass skipSync to avoid re-scanning provider session folders. With compact=true returns one short row per project (projectId, name, path, activeSessions, sessionsTotal, lastActivity) and omits empty worktree registrations.',
     inputSchema: schema({
+      compact: S.boolean('Return the short per-project rows instead of the full list with sessions.'),
       skipSync: S.boolean('Skip the session re-synchronisation for a faster response.'),
       sessionsLimit: S.integer('Max sessions returned per project.'),
       sessionsOffset: S.integer('Sessions to skip per project.'),
@@ -24,6 +25,7 @@ export const projectTools: ToolDefinition[] = [
         method: 'GET',
         path: '/api/projects',
         query: {
+          ...(optBool(args, 'compact') && { compact: '1' }),
           ...(optBool(args, 'skipSync') && { skipSynchronization: '1' }),
           ...(sessionsLimit !== undefined && { sessionsLimit }),
           ...(sessionsOffset !== undefined && { sessionsOffset }),

@@ -6,7 +6,8 @@
   "type": "module",
   "main": "dist-server/server/index.js",
   "bin": {
-    "cloudcli": "dist-server/server/cli.js"
+    "cloudcli": "dist-server/server/cli.js",
+    "rfc": "dist-server/server/rfc-cli/rfc-cli.js"
   },
   "files": [
     "electron/",
