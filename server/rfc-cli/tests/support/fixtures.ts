@@ -76,4 +76,4 @@ export const runningSessions = {
   ],
 };
 
-export const notifyTestResult = { ok: true, deliveryId: 'dlv_01', attempts: 1, httpStatus: 200, endpointId: 'james' };
+export const notifyTestResult = { success: true, ok: true, deliveryId: 'dlv_01', attempts: 1, lastStatus: 200, error: null };

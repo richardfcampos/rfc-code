@@ -154,7 +154,7 @@ export async function runNotifyTest(callTool: CallTool, endpointId: string): Pro
   const ok = result.ok === true;
   const deliveryId = orDash(asString(result.deliveryId));
   const attempts = orDash(asNumber(result.attempts));
-  const status = orDash(asNumber(result.httpStatus) ?? asNumber(result.status));
+  const status = orDash(asNumber(result.lastStatus) ?? asNumber(result.httpStatus) ?? asNumber(result.status));
   const error = asString(result.error);
   return {
     json: result,

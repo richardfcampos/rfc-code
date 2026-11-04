@@ -133,7 +133,7 @@ test('notify-test: one line with ok, delivery id, attempts and http status', asy
   assert.deepEqual(client.calls, [{ name: 'notification_endpoint_test', args: { endpointId: 'james' } }]);
   assert.equal(output.text, 'ok=true deliveryId=dlv_01 attempts=1 status=200');
   assert.deepEqual(output.json, notifyTestResult);
-  const failed = await runNotifyTest(scriptedClient({ notification_endpoint_test: { ok: false, deliveryId: 'dlv_02', attempts: 3, httpStatus: null, error: 'connect ECONNREFUSED' } }).callTool, 'james');
+  const failed = await runNotifyTest(scriptedClient({ notification_endpoint_test: { ok: false, deliveryId: 'dlv_02', attempts: 3, lastStatus: null, error: 'connect ECONNREFUSED' } }).callTool, 'james');
   assert.equal(failed.text, 'ok=false deliveryId=dlv_02 attempts=3 status=- error=connect ECONNREFUSED');
 });
 

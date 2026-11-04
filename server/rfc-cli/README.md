@@ -102,7 +102,7 @@ real delivery path (signature, retries, delivery log).
 $ rfc notify-test james
 ok=true deliveryId=dlv_01 attempts=1 status=200
 $ rfc notify-test james --json
-{"ok":true,"deliveryId":"dlv_01","attempts":1,"httpStatus":200,"endpointId":"james"}
+{"success":true,"ok":true,"deliveryId":"dlv_01","attempts":1,"lastStatus":200,"error":null}
 ```
 
 ## Exit codes
